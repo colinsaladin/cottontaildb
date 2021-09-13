@@ -3,13 +3,16 @@ package org.vitrivr.cottontail.database.index.gg
 import org.mapdb.HTreeMap
 import org.mapdb.Serializer
 import org.slf4j.LoggerFactory
+import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.index.AbstractIndex
+import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
-import org.vitrivr.cottontail.database.index.IndexType
+import org.vitrivr.cottontail.database.index.basics.AbstractHDIndex
+import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.index.pq.PQIndex
+import org.vitrivr.cottontail.database.index.va.VAFIndexConfig
 import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
@@ -42,9 +45,9 @@ import kotlin.collections.ArrayDeque
  * [1] Cauley, Stephen F., et al. "Fast group matching for MR fingerprinting reconstruction." Magnetic resonance in medicine 74.2 (2015): 523-528.
  *
  * @author Gabriel Zihlmann & Ralph Gasser
- * @version 2.1.0
+ * @version 3.0.0
  */
-class GGIndex(path: Path, parent: DefaultEntity, config: GGIndexConfig? = null) : AbstractIndex(path, parent) {
+class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(name, parent) {
     companion object {
         const val GG_INDEX_NAME = "cdb_gg_means"
         val LOGGER = LoggerFactory.getLogger(GGIndex::class.java)!!
@@ -57,7 +60,10 @@ class GGIndex(path: Path, parent: DefaultEntity, config: GGIndexConfig? = null) 
     override val type = IndexType.GG
 
     /** The [GGIndexConfig] used by this [GGIndex] instance. */
-    override val config: GGIndexConfig
+    override val config: GGIndexConfig = this.catalogue.environment.computeInTransaction { tx ->
+        val entry = DefaultCatalogue.readEntryForIndex(this.name, this.parent.parent.parent, tx)
+        GGIndexConfig.fromParamsMap(entry.config)
+    }
 
     /** Store of the groups mean vector and the associated [TupleId]s. */
     private val groupsStore: HTreeMap<VectorValue<*>, LongArray> = this.store.hashMap(
@@ -74,21 +80,7 @@ class GGIndex(path: Path, parent: DefaultEntity, config: GGIndexConfig? = null) 
 
     init {
         require(this.columns.size == 1) { "GGIndex only supports indexing a single column." }
-
-        /* Load or create config. */
-        val configOnDisk =
-            this.store.atomicVar(GG_INDEX_NAME, GGIndexConfig.Serializer).createOrOpen()
-        if (configOnDisk.get() == null) {
-            if (config != null) {
-                this.config = config
-            } else {
-                this.config = GGIndexConfig(50, System.currentTimeMillis(), Distances.L2)
-            }
-            configOnDisk.set(this.config)
-        } else {
-            this.config = configOnDisk.get()
-        }
-        this.store.commit()
+        require(this.columns[0].type.vector) { "GGIndex only supports indexing of vector columns." }
     }
 
     /**

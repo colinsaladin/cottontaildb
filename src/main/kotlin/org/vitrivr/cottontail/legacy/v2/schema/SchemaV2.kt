@@ -4,8 +4,8 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap
 import org.mapdb.DB
 import org.mapdb.DBException
 import org.mapdb.Store
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.ColumnDef
-import org.vitrivr.cottontail.database.column.ColumnEngine
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.*
 import org.vitrivr.cottontail.database.schema.Schema
@@ -57,6 +57,10 @@ class SchemaV2(val path: Path, override val parent: CatalogueV2) : Schema, AutoC
 
     /** The [Name.SchemaName] of this [SchemaV2]. */
     override val name: Name.SchemaName = Name.SchemaName(this.headerField.get().name)
+
+    /** The [Catalogue] this [SchemaV2] belongs to. */
+    override val catalogue: Catalogue
+        get() = this.parent.catalogue
 
     /** The [DBOVersion] of this [SchemaV2]. */
     override val version: DBOVersion
@@ -153,7 +157,7 @@ class SchemaV2(val path: Path, override val parent: CatalogueV2) : Schema, AutoC
         /**
          * Releases the [closeLock] on the [SchemaV2].
          */
-        override fun cleanup() {
+        fun cleanup() {
             this@SchemaV2.closeLock.unlockRead(this.closeStamp)
         }
     }

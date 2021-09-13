@@ -5,8 +5,8 @@ import org.mapdb.CottontailStoreWAL
 import org.mapdb.DBException
 import org.mapdb.Serializer
 import org.mapdb.Store
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.ColumnDef
-import org.vitrivr.cottontail.database.column.ColumnEngine
 import org.vitrivr.cottontail.legacy.v2.column.ColumnV2
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.general.*
@@ -61,6 +61,10 @@ class SchemaV1(override val name: Name.SchemaName, override val parent: Catalogu
     /** A map of loaded [EntityV1] references. */
     private val registry: MutableMap<Name.EntityName, EntityV1> =
         Collections.synchronizedMap(Object2ObjectOpenHashMap())
+
+    /** The [Catalogue] this [SchemaV1] belongs to. */
+    override val catalogue: Catalogue
+        get() = this.parent.catalogue
 
     /** The [DBOVersion] of this [SchemaV1]. */
     override val version: DBOVersion
@@ -155,7 +159,7 @@ class SchemaV1(override val name: Name.SchemaName, override val parent: Catalogu
         /**
          * Releases the [closeLock] on the [Schema].
          */
-        override fun cleanup() {
+        fun cleanup() {
             this@SchemaV1.closeLock.unlockRead(this.closeStamp)
         }
     }

@@ -2,13 +2,12 @@ package org.vitrivr.cottontail.database.index.va
 
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.vitrivr.cottontail.database.index.va.signature.Marks
-import org.vitrivr.cottontail.database.index.va.signature.MarksGenerator
+import org.vitrivr.cottontail.database.index.va.signature.VAFMarks
 import org.vitrivr.cottontail.model.values.DoubleVectorValue
 import java.util.*
 
 /**
- * Unit Test that can be used to test the [Marks] implementation.
+ * Unit Test that can be used to test the [VAFMarks] implementation.
  *
  * @author Gabriel Zihlmann
  * @version 1.0.0
@@ -25,10 +24,10 @@ internal class MarksTest {
 
     @Test
     fun getCells() {
-        val marks: Marks =
+        val marks: VAFMarks =
             MarksGenerator.getEquidistantMarks(arrays, IntArray(numDim) { marksPerDim })
         this.realdata.forEach {
-            marks.getCells(it).forEachIndexed { i, m ->
+            marks.getSignature(it).forEachIndexed { i, m ->
                 assertTrue(it.data[i] >= marks.marks[i][m])
                 assertTrue(it.data[i] <= marks.marks[i][m + 1])
             }

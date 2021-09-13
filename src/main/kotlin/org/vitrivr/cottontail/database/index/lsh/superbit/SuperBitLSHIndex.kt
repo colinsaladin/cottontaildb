@@ -1,14 +1,20 @@
 package org.vitrivr.cottontail.database.index.lsh.superbit
 
-import org.mapdb.HTreeMap
-import org.mapdb.Serializer
+import jetbrains.exodus.bindings.ComparableSet
+import jetbrains.exodus.bindings.ComparableSetBinding
+import jetbrains.exodus.bindings.IntegerBinding
+import jetbrains.exodus.bindings.LongBinding
+import jetbrains.exodus.env.Store
+import jetbrains.exodus.env.StoreConfig
 import org.slf4j.LoggerFactory
+import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
+import org.vitrivr.cottontail.database.catalogue.storeName
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.index.AbstractIndex
+import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
-import org.vitrivr.cottontail.database.index.IndexType
+import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.index.lsh.LSHIndex
 import org.vitrivr.cottontail.database.index.va.signature.VAFSignature
 import org.vitrivr.cottontail.database.logging.operations.Operation
@@ -23,8 +29,8 @@ import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.recordset.Recordset
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.types.ComplexVectorValue
+import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.model.values.types.VectorValue
-import java.nio.file.Path
 import java.util.*
 
 /**
@@ -34,13 +40,9 @@ import java.util.*
  * [Recordset]s.
  *
  * @author Manuel Huerbin, Gabriel Zihlmann & Ralph Gasser
- * @version 2.1.0
+ * @version 3.0.0
  */
-class SuperBitLSHIndex<T : VectorValue<*>>(
-    path: Path,
-    parent: DefaultEntity,
-    config: SuperBitLSHIndexConfig? = null
-) : LSHIndex<T>(path, parent) {
+class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: DefaultEntity) : LSHIndex<T>(name, parent) {
 
     companion object {
         private val LOGGER = LoggerFactory.getLogger(SuperBitLSHIndex::class.java)
@@ -57,43 +59,14 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
     override val type = IndexType.LSH_SB
 
     /** The [SuperBitLSHIndexConfig] used by this [SuperBitLSHIndex] instance. */
-    override val config: SuperBitLSHIndexConfig
-
-    /** The [SuperBitLSHIndexConfig] used by this [SuperBitLSHIndex] instance. */
-    private val maps: List<HTreeMap<Int, LongArray>>
+    override val config: SuperBitLSHIndexConfig = this.catalogue.environment.computeInTransaction { tx ->
+        val entry = DefaultCatalogue.readEntryForIndex(this.name, this.parent.parent.parent, tx)
+        SuperBitLSHIndexConfig.fromParamMap(entry.config)
+    }
 
     init {
-        if (!columns.all { it.type.vector }) {
-            throw DatabaseException.IndexNotSupportedException(
-                name,
-                "Because only vector columns are supported for SuperBitLSHIndex."
-            )
-        }
-        val configOnDisk =
-            this.store.atomicVar(INDEX_CONFIG_FIELD, SuperBitLSHIndexConfig.Serializer)
-                .createOrOpen()
-        if (configOnDisk.get() == null) {
-            if (config != null) {
-                this.config = config
-                configOnDisk.set(config)
-            } else {
-                LOGGER.warn("No config supplied and the config from disk was also empty. Resorting to dummy config. Delete this index ASAP!")
-                this.config = SuperBitLSHIndexConfig(1, 1, 123L, true, SamplingMethod.GAUSSIAN)
-            }
-        } else {
-            this.config = configOnDisk.get()
-        }
-        this.maps = List(this.config.stages) {
-            this.store.hashMap(
-                LSH_MAP_FIELD + "_stage$it",
-                Serializer.INTEGER,
-                Serializer.LONG_ARRAY
-            )
-                .counterEnable().createOrOpen()
-        }
-
-        /* Initial commit to underlying DB. */
-        this.store.commit()
+        require(this.columns.size == 1) { "SuperBitLSHIndex only supports indexing a single column." }
+        require(this.columns[0].type.vector) { "SuperBitLSHIndex only support indexing of vector columns." }
     }
 
     /**
@@ -132,14 +105,56 @@ class SuperBitLSHIndex<T : VectorValue<*>>(
      * A [IndexTx] that affects this [AbstractIndex].
      */
     private inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context) {
+
+        /** Internal data [Store] reference. */
+        private var dataStore: Store = this@SuperBitLSHIndex.catalogue.environment.openStore(this@SuperBitLSHIndex.name.storeName(), this@SuperBitLSHIndex.type.storeConfig(), this.context.xodusTx, false)
+            ?: throw DatabaseException.DataCorruptionException("Data store for column ${this@SuperBitLSHIndex.name} is missing.")
+
+
+        /**
+         * Adds a mapping from the given [Value] to the given [TupleId].
+         *
+         * @param bucket The bucket index.
+         * @param tupleId The [TupleId] for the mapping.
+         *
+         * This is an internal function and can be used safely with values o
+         */
+        private fun addMapping(buckets: IntArray, tupleId: TupleId): Boolean {
+            val keyRaw = ComparableSet
+
+                IntegerBinding.intToCompressedEntry(bucket)
+            val tupleIdRaw = LongBinding.longToCompressedEntry(tupleId)
+            return if (this.dataStore.exists(this.context.xodusTx, keyRaw, tupleIdRaw)) {
+                this.dataStore.put(this.context.xodusTx, keyRaw, tupleIdRaw)
+            } else {
+                false
+            }
+        }
+
+        /**
+         * Removes a mapping from the given [Value] to the given [TupleId].
+         *
+         * @param key The [Value] key to remove a mapping for.
+         *
+         * This is an internal function and can be used safely with values o
+         */
+        private fun removeMapping(buckets: IntArray, tupleId: TupleId): Boolean {
+            val keyRaw = IntegerBinding.intToCompressedEntry(bucket)
+            val valueRaw = LongBinding.longToCompressedEntry(tupleId)
+            val cursor = this.dataStore.openCursor(this.context.xodusTx)
+            if (cursor.getSearchBoth(keyRaw, valueRaw)) {
+                return cursor.deleteCurrent()
+            } else {
+                return false
+            }
+        }
+
         /**
          * Returns the number of [VAFSignature]s in this [SuperBitLSHIndex]
          *
          * @return The number of [VAFSignature] stored in this [SuperBitLSHIndex]
          */
-        override fun count(): Long = this.withReadLock {
-            this@SuperBitLSHIndex.maps.map { it.count().toLong() }.sum()
-        }
+        override fun count(): Long = this.dataStore.count(this.context.xodusTx)
 
         /**
          * (Re-)builds the [SuperBitLSHIndex].

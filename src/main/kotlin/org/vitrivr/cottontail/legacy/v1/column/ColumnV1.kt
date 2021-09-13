@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.legacy.v1.column
 
 import org.mapdb.CottontailStoreWAL
 import org.mapdb.DBException
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnEngine
@@ -9,8 +10,6 @@ import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.general.DBOVersion
-import org.vitrivr.cottontail.database.general.TxAction
-import org.vitrivr.cottontail.database.general.TxSnapshot
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.legacy.v1.entity.EntityV1
@@ -70,6 +69,10 @@ class ColumnV1<T : Value>(override val name: Name.ColumnName, override val paren
     override val columnDef: ColumnDef<T> =
         this.header.let { ColumnDef(this.name, it.type as Type<T>, it.nullable) }
 
+    /** The [Catalogue] this [ColumnV1] belongs to. */
+    override val catalogue: Catalogue
+        get() = this.parent.catalogue
+
     /** The [DBOVersion] of this [ColumnV1]. */
     override val version: DBOVersion
         get() = DBOVersion.V1_0
@@ -116,7 +119,7 @@ class ColumnV1<T : Value>(override val name: Name.ColumnName, override val paren
     /**
      * A [Transaction] that affects this [ColumnV1].
      */
-    inner class Tx constructor(override val context: TransactionContext) : AbstractTx(context), ColumnTx<T> {
+    inner class Tx constructor(context: TransactionContext) : AbstractTx(context), ColumnTx<T> {
         /**
          * The [ColumnDef] of the [Column] underlying this [ColumnTransaction].
          *
@@ -216,7 +219,7 @@ class ColumnV1<T : Value>(override val name: Name.ColumnName, override val paren
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
-        override fun cleanup() {
+        fun cleanup() {
             this@ColumnV1.closeLock.unlockRead(this.closeStamp)
         }
     }

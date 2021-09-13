@@ -39,7 +39,7 @@ data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>
         else -> ValueStatistics(def.type)
     })
 
-    object Binding: ComparableBinding() {
+    companion object: ComparableBinding() {
         override fun readObject(stream: ByteArrayInputStream):StatisticsCatalogueEntry {
             val name = Name.ColumnName.readObject(stream)
             val type = Type.forOrdinal(IntegerBinding.readCompressed(stream), IntegerBinding.readCompressed(stream))

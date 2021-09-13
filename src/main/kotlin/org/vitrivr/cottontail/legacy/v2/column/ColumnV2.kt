@@ -2,12 +2,14 @@ package org.vitrivr.cottontail.legacy.v2.column
 
 import org.mapdb.*
 import org.vitrivr.cottontail.config.MapDBConfig
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.*
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.*
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import org.vitrivr.cottontail.execution.TransactionContext
+import org.vitrivr.cottontail.legacy.v2.catalogue.CatalogueV2
 
 import org.vitrivr.cottontail.model.basics.*
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
@@ -80,6 +82,10 @@ class ColumnV2<T : Value>(val path: Path, override val parent: Entity) : Column<
     /** The [Name.ColumnName] of this [ColumnV2]. Can be stored since [ColumnV2]s [ColumnDef] is immutable. */
     override val name: Name.ColumnName
         get() = this.columnDef.name
+
+    /** The [Catalogue] this [ColumnV2] belongs to. */
+    override val catalogue: Catalogue
+        get() = this.parent.catalogue
 
     /** The [DBOVersion] of this [ColumnV2]. */
     override val version: DBOVersion
@@ -207,7 +213,7 @@ class ColumnV2<T : Value>(val path: Path, override val parent: Entity) : Column<
         /**
          * Releases the [closeLock] on the [ColumnV2].
          */
-        override fun cleanup() {
+        fun cleanup() {
             this@ColumnV2.closeLock.unlockRead(this.closeStamp)
         }
     }

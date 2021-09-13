@@ -4,6 +4,7 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap
 import org.mapdb.DB
 import org.mapdb.DBException
 import org.mapdb.StoreWAL
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
@@ -12,7 +13,7 @@ import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.general.*
 import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx
-import org.vitrivr.cottontail.database.index.IndexType
+import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.schema.DefaultSchema
 import org.vitrivr.cottontail.database.statistics.entity.EntityStatistics
 import org.vitrivr.cottontail.execution.TransactionContext
@@ -80,6 +81,10 @@ class EntityV2(val path: Path, override val parent: SchemaV2) : Entity, AutoClos
 
     /** List of all the [Column]s associated with this [EntityV2]; Iteration order of entries as defined in schema! */
     private val columns: MutableMap<Name.ColumnName, ColumnV2<*>> = Object2ObjectLinkedOpenHashMap()
+
+    /** The [Catalogue] this [EntityV2] belongs to. */
+    override val catalogue: Catalogue
+        get() = this.parent.catalogue
 
     /** The [DBOVersion] of this [EntityV2]. */
     override val version: DBOVersion
@@ -232,7 +237,7 @@ class EntityV2(val path: Path, override val parent: SchemaV2) : Entity, AutoClos
             throw DatabaseException.IndexDoesNotExistException(name)
         }
 
-        override fun createIndex(name: Name.IndexName, type: IndexType, columns: Array<ColumnDef<*>>, params: Map<String, String>): Index {
+        override fun createIndex(name: Name.IndexName, type: IndexType, columns: Array<Name.ColumnName>, params: Map<String, String>): Index {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
@@ -325,7 +330,7 @@ class EntityV2(val path: Path, override val parent: SchemaV2) : Entity, AutoClos
         /**
          * Releases the [closeLock] on the [EntityV2].
          */
-        override fun cleanup() {
+        fun cleanup() {
             this@EntityV2.closeLock.unlockRead(this.closeStamp)
         }
     }

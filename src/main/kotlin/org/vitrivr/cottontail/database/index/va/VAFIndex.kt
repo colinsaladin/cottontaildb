@@ -1,17 +1,25 @@
 package org.vitrivr.cottontail.database.index.va
 
-import org.mapdb.Atomic
+import jetbrains.exodus.ArrayByteIterable
+import jetbrains.exodus.bindings.LongBinding
+import jetbrains.exodus.env.Cursor
+import jetbrains.exodus.env.Store
+import jetbrains.exodus.env.StoreConfig
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
+import org.vitrivr.cottontail.database.catalogue.storeName
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.index.AbstractIndex
+import org.vitrivr.cottontail.database.index.basics.AbstractIndex
+import org.vitrivr.cottontail.database.index.basics.IndexState
 import org.vitrivr.cottontail.database.index.IndexTx
-import org.vitrivr.cottontail.database.index.IndexType
+import org.vitrivr.cottontail.database.index.basics.AbstractHDIndex
+import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.index.va.bounds.*
-import org.vitrivr.cottontail.database.index.va.signature.Marks
-import org.vitrivr.cottontail.database.index.va.signature.MarksGenerator
+import org.vitrivr.cottontail.database.index.va.signature.VAFMarks
 import org.vitrivr.cottontail.database.index.va.signature.VAFSignature
 import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
@@ -23,10 +31,14 @@ import org.vitrivr.cottontail.functions.math.distance.basics.MinkowskiDistance
 import org.vitrivr.cottontail.functions.math.distance.binary.EuclideanDistance
 import org.vitrivr.cottontail.functions.math.distance.binary.ManhattanDistance
 import org.vitrivr.cottontail.functions.math.distance.binary.SquaredEuclideanDistance
+import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.utilities.selection.ComparablePair
 import org.vitrivr.cottontail.utilities.selection.MinHeapSelection
 import org.vitrivr.cottontail.utilities.selection.MinSingleSelection
 import org.vitrivr.cottontail.model.basics.Record
+import org.vitrivr.cottontail.model.basics.TupleId
+import org.vitrivr.cottontail.model.basics.toKey
+import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.DoubleValue
@@ -34,27 +46,27 @@ import org.vitrivr.cottontail.model.values.types.RealVectorValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
 import org.vitrivr.cottontail.utilities.math.KnnUtilities
 import java.lang.Math.floorDiv
-import java.nio.file.Path
 import kotlin.collections.ArrayDeque
 import kotlin.math.max
 import kotlin.math.min
 
 /**
  * An [AbstractIndex] structure for nearest neighbor search (NNS) that uses a vector approximation (VA) file ([1]).
- * Can be used for all types of [RealVectorValue]s and all Minkowski metrics (L1, L2 etc).
+ * Can be used for all types of [RealVectorValue]s and all Minkowski metrics (L1, L2 etc.).
  *
  * References:
  * [1] Weber, R. and Blott, S., 1997. An approximation based data structure for similarity search (No. 9141, p. 416). Technical Report 24, ESPRIT Project HERMES.
  *
  * @author Gabriel Zihlmann & Ralph Gasser
- * @version 2.1.1
+ * @version 3.0.0
  */
-class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null) : AbstractIndex(path, parent) {
+class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(name, parent) {
 
     companion object {
-        private const val VAF_INDEX_SIGNATURES_FIELD = "vaf_signatures"
-        private const val VAF_INDEX_MARKS_FIELD = "vaf_marks"
         val LOGGER: Logger = LoggerFactory.getLogger(VAFIndex::class.java)
+
+        /** Key to read/write the Marks entry. */
+        val MARKS_ENTRY_KEY = LongBinding.longToCompressedEntry(-1L)
     }
 
     /** The [VAFIndex] implementation returns exactly the columns that is indexed. */
@@ -64,30 +76,9 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
     override val type = IndexType.VAF
 
     /** The [VAFIndexConfig] used by this [VAFIndex] instance. */
-    override val config: VAFIndexConfig
-
-    /** Store for the [Marks]. */
-    private val marksStore: Atomic.Var<Marks> = this.store.atomicVar(VAF_INDEX_MARKS_FIELD, Marks.Serializer).createOrOpen()
-
-    /** Store for the signatures. */
-    private val signatures = this.store.indexTreeList(VAF_INDEX_SIGNATURES_FIELD, VAFSignature.Serializer).createOrOpen()
-
-    init {
-        require(this.columns.size == 1) { "$VAFIndex only supports indexing a single column." }
-
-        /* Load or create config. */
-        val configOnDisk = this.store.atomicVar(INDEX_CONFIG_FIELD, VAFIndexConfig.Serializer).createOrOpen()
-        if (configOnDisk.get() == null) {
-            if (config != null) {
-                this.config = config
-            } else {
-                this.config = VAFIndexConfig(50)
-            }
-            configOnDisk.set(this.config)
-        } else {
-            this.config = configOnDisk.get()
-        }
-        this.store.commit()
+    override val config: VAFIndexConfig = this.catalogue.environment.computeInTransaction { tx ->
+        val entry = DefaultCatalogue.readEntryForIndex(this.name, this.parent.parent.parent, tx)
+        VAFIndexConfig.fromParamMap(entry.config)
     }
 
     /** False since [VAFIndex] currently doesn't support incremental updates. */
@@ -95,6 +86,10 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
 
     /** True since [VAFIndex] supports partitioning. */
     override val supportsPartitioning: Boolean = true
+
+    init {
+        require(this.columns.size == 1) { "$VAFIndex only supports indexing a single column." }
+    }
 
     /**
      * Calculates the cost estimate if this [VAFIndex] processing the provided [Predicate].
@@ -106,9 +101,11 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
         if (predicate !is KnnPredicate) return Cost.INVALID
         if (predicate.column != this.columns[0]) return Cost.INVALID
         if (predicate.distance !is MinkowskiDistance<*>) return Cost.INVALID
+        val count = this.count
+        val column = this.columns[0]
         return Cost(
-            this.signatures.size * this.marksStore.get().d * Cost.COST_DISK_ACCESS_READ + 0.1f * (this.signatures.size * this.columns[0].type.physicalSize * Cost.COST_DISK_ACCESS_READ),
-            this.signatures.size * this.marksStore.get().d * (2 * Cost.COST_MEMORY_ACCESS + Cost.COST_FLOP) + 0.1f * this.signatures.size * predicate.atomicCpuCost,
+            count * column.type.logicalSize * Cost.COST_DISK_ACCESS_READ + 0.1f * (count * column.type.physicalSize * Cost.COST_DISK_ACCESS_READ),
+            count * column.type.logicalSize * (2 * Cost.COST_MEMORY_ACCESS + Cost.COST_FLOP) + 0.1f * count * predicate.atomicCpuCost,
             predicate.k * this.produces.sumOf { it.type.physicalSize }.toFloat()
         )
     }
@@ -131,15 +128,27 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
     /**
      * A [IndexTx] that affects this [AbstractIndex].
      */
-    private inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context) {
+    private inner class Tx(context: TransactionContext) : AbstractHDIndex.Tx(context) {
+
+        /** Internal [VAFMarks] reference. */
+        private var marks: VAFMarks
+
+        init {
+            val rawMarksEntry = this.dataStore.get(this.context.xodusTx, MARKS_ENTRY_KEY)
+            if (rawMarksEntry == null) {
+                this.marks = VAFMarks.getEquidistantMarks(DoubleArray(this@VAFIndex.dimension), DoubleArray(this@VAFIndex.dimension), IntArray(this@VAFIndex.dimension) { this@VAFIndex.config.marksPerDimension })
+                this.rebuild()
+            } else {
+                this.marks = VAFMarks.entryToObject(rawMarksEntry) as VAFMarks
+            }
+        }
+
         /**
          * Returns the number of [VAFSignature]s in this [VAFIndex]
          *
          * @return The number of [VAFSignature] stored in this [VAFIndex]
          */
-        override fun count(): Long = this.withReadLock {
-            this@VAFIndex.signatures.size.toLong()
-        }
+        override fun count(): Long = this.dataStore.count(this.context.xodusTx)
 
         /**
          * (Re-)builds the [VAFIndex] from scratch.
@@ -148,10 +157,11 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
             LOGGER.debug("Rebuilding VAF index {}", this@VAFIndex.name)
 
             /* Prepare transaction for entity. */
-            val txn = this.context.getTx(this@VAFIndex.parent) as EntityTx
+            val entityTx = this.context.getTx(this@VAFIndex.parent) as EntityTx
+            val columnTx = this.context.getTx(entityTx.columnForName(this@VAFIndex.columns[0].name)) as ColumnTx<*>
 
             /* Obtain minimum and maximum per dimension. */
-            val stat = this.dbo.parent.statistics[this@VAFIndex.columns[0]]
+            val stat = columnTx.statistics()
             val min = DoubleArray(this@VAFIndex.columns[0].type.logicalSize)
             val max = DoubleArray(this@VAFIndex.columns[0].type.logicalSize)
             when (stat) {
@@ -173,7 +183,7 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
                 }
                 else -> {
                     /* Brute force :-( This may take a while. */
-                    txn.scan(this@VAFIndex.columns).forEach { r ->
+                    entityTx.scan(this@VAFIndex.columns).forEach { r ->
                         val value = r[this@VAFIndex.columns[0]] as VectorValue<*>
                         for (i in 0 until value.logicalSize) {
                             min[i] = min(min[i], value[i].asDouble().value)
@@ -184,39 +194,22 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
             }
 
             /* Calculate and update marks. */
-            val marks = MarksGenerator.getEquidistantMarks(min, max, IntArray(this@VAFIndex.columns[0].type.logicalSize) { this@VAFIndex.config.marksPerDimension })
-            this@VAFIndex.marksStore.set(marks)
+            this.marks = VAFMarks.getEquidistantMarks(min, max, IntArray(this@VAFIndex.columns[0].type.logicalSize) { this@VAFIndex.config.marksPerDimension })
+            this.dataStore.put(this.context.xodusTx, MARKS_ENTRY_KEY, VAFMarks.objectToEntry(this.marks))
 
             /* Calculate and update signatures. */
-            this@VAFIndex.signatures.clear()
-            txn.scan(this@VAFIndex.columns).forEach { r ->
+            this.clear()
+            entityTx.scan(this@VAFIndex.columns).forEach { r ->
                 val value = r[this@VAFIndex.columns[0]]
                 if (value is RealVectorValue<*>) {
-                    this@VAFIndex.signatures.add(VAFSignature(r.tupleId, marks.getCells(value)))
+                    this.dataStore.put(this.context.xodusTx, r.tupleId.toKey(), VAFSignature.objectToEntry(this.marks.getSignature(value)))
                 }
             }
 
-            this@VAFIndex.dirtyField.compareAndSet(true, false)
+            /* Update catalogue entry for index. */
+            val entry = DefaultCatalogue.readEntryForIndex(this@VAFIndex.name, this@VAFIndex.catalogue, this.context.xodusTx)
+            DefaultCatalogue.writeEntryForIndex(entry.copy(state = IndexState.CLEAN), this@VAFIndex.catalogue, this.context.xodusTx)
             LOGGER.debug("Done rebuilding VAF index {}", this@VAFIndex.name)
-        }
-
-        /**
-         * Updates the [VAFIndex] with the provided [Operation.DataManagementOperation]s. Since the [VAFIndex] does
-         * not support incremental updates, calling this method will simply set the [VAFIndex] [dirty] flag to true.
-         *
-         * @param event [Operation.DataManagementOperation]s to process.
-         */
-        override fun update(event: Operation.DataManagementOperation) = this.withWriteLock {
-            this@VAFIndex.dirtyField.compareAndSet(false, true)
-            Unit
-        }
-
-        /**
-         * Clears the [VAFIndex] underlying this [Tx] and removes all entries it contains.
-         */
-        override fun clear() = this.withWriteLock {
-            this@VAFIndex.dirtyField.compareAndSet(false, true)
-            this@VAFIndex.signatures.clear()
         }
 
         /**
@@ -254,8 +247,8 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
             /** [VectorValue] used for query. Must be prepared before using the [Iterator]. */
             private val query: RealVectorValue<*>
 
-            /** The [Marks] used by this [Iterator]. */
-            private val marks = this@VAFIndex.marksStore.get()
+            /** The [VAFMarks] used by this [Iterator]. */
+            private val marks: VAFMarks = this@Tx.marks
 
             /** The [Bounds] objects used for filtering. */
             private val bounds: Bounds
@@ -263,8 +256,11 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
             /** The [ArrayDeque] of [StandaloneRecord] produced by this [VAFIndex]. Evaluated lazily! */
             private val resultsQueue: ArrayDeque<StandaloneRecord> by lazy { prepareResults() }
 
-            /** The [IntRange] that should be scanned by this [VAFIndex]. */
-            private val range: IntRange
+            /** The [Cursor] used to read [VAFSignature]s. */
+            private val cursor: Cursor = this@Tx.dataStore.openCursor(this@Tx.context.xodusTx)
+
+            /** The maximum [TupleId] to iterate to (as ArrayByteIterable). */
+            private val endKey: ArrayByteIterable
 
             init {
                 this@Tx.withReadLock { }
@@ -279,8 +275,9 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
                 }
 
                 /* Calculate partition size. */
-                val pSize = floorDiv(this@VAFIndex.signatures.size, partitions) + 1
-                this.range = pSize * partitionIndex until min(pSize * (partitionIndex + 1), this@VAFIndex.signatures.size)
+                val pSize = floorDiv(this@Tx.count(), partitions) + 1
+                this.cursor.getSearchKey((pSize * partitionIndex).toKey())
+                this.endKey = min(pSize * (partitionIndex + 1), this@Tx.count()).toKey()
             }
 
             override fun hasNext(): Boolean = this.resultsQueue.isNotEmpty()
@@ -303,20 +300,20 @@ class VAFIndex(path: Path, parent: DefaultEntity, config: VAFIndexConfig? = null
                 /* Iterate over all signatures. */
                 val query = this.predicate.query.value as VectorValue<*>
                 var read = 0L
-                for (sigIndex in this.range) {
-                    val signature = this@VAFIndex.signatures[sigIndex]
-                    if (signature != null) {
-                        if (knn.size < this.predicate.k || this.bounds.isVASSACandidate(signature, knn.peek()!!.second.value)) {
-                            val value = txn.read(signature.tupleId, this@VAFIndex.columns)[this@VAFIndex.columns[0]]
-                            if (value is VectorValue<*>) {
-                                knn.offer(ComparablePair(signature.tupleId, this.predicate.distance(query, value)))
-                            }
-                            read += 1
+
+                while (this.cursor.next && this.cursor.key < this.endKey) {
+                    val signature = VAFSignature.entryToObject(this.cursor.value) as VAFSignature
+                    if (knn.size < this.predicate.k || this.bounds.isVASSACandidate(signature, knn.peek()!!.second.value)) {
+                        val tupleId = LongBinding.compressedEntryToLong(this.cursor.key)
+                        val value = txn.read(tupleId, this@VAFIndex.columns)[this@VAFIndex.columns[0]]
+                        if (value is VectorValue<*>) {
+                            knn.offer(ComparablePair(tupleId, this.predicate.distance(query, value)))
                         }
+                        read += 1
                     }
                 }
 
-                val skipped = ((1.0 - (read.toDouble() / (this@VAFIndex.signatures.size))) * 100)
+                val skipped = ((1.0 - (read.toDouble() / (this@Tx.count()))) * 100)
                 LOGGER.debug("VA-file scan: Skipped over $skipped% of entries.")
 
                 /* Prepare and return list of results. */

@@ -2,7 +2,7 @@ package org.vitrivr.cottontail.database.index.va
 
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
-import org.vitrivr.cottontail.database.index.IndexConfig
+import org.vitrivr.cottontail.database.index.basics.IndexConfig
 
 /**
  * A configuration class for the [VAFIndex].

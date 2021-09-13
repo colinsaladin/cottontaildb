@@ -7,7 +7,7 @@ import org.apache.lucene.analysis.en.EnglishAnalyzer
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
-import org.vitrivr.cottontail.database.index.IndexConfig
+import org.vitrivr.cottontail.database.index.basics.IndexConfig
 
 /**
  * A configuration class used with [LuceneIndex] instances.

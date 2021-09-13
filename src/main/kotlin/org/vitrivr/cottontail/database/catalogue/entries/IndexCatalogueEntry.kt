@@ -5,9 +5,9 @@ import jetbrains.exodus.bindings.IntegerBinding
 import jetbrains.exodus.bindings.ShortBinding
 import jetbrains.exodus.bindings.StringBinding
 import jetbrains.exodus.util.LightOutputStream
-import org.vitrivr.cottontail.database.index.IndexState
+import org.vitrivr.cottontail.database.index.basics.IndexState
 
-import org.vitrivr.cottontail.database.index.IndexType
+import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.model.basics.Name
 import java.io.ByteArrayInputStream
 
@@ -18,7 +18,7 @@ import java.io.ByteArrayInputStream
  * @version 1.0.0
  */
 data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, val state: IndexState, val columns: Array<Name.ColumnName>, val config: Map<String,String>): Comparable<IndexCatalogueEntry> {
-    object Binding: ComparableBinding() {
+    companion object: ComparableBinding() {
         override fun readObject(stream: ByteArrayInputStream): IndexCatalogueEntry {
             val entityName = Name.IndexName.Binding.readObject(stream)
             val type = IndexType.values()[IntegerBinding.readCompressed(stream)]
@@ -53,4 +53,28 @@ data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, va
     }
 
     override fun compareTo(other: IndexCatalogueEntry): Int = this.name.toString().compareTo(other.name.toString())
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as IndexCatalogueEntry
+
+        if (name != other.name) return false
+        if (type != other.type) return false
+        if (state != other.state) return false
+        if (!columns.contentEquals(other.columns)) return false
+        if (config != other.config) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = name.hashCode()
+        result = 31 * result + type.hashCode()
+        result = 31 * result + state.hashCode()
+        result = 31 * result + columns.contentHashCode()
+        result = 31 * result + config.hashCode()
+        return result
+    }
 }

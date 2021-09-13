@@ -1,15 +1,19 @@
 package org.vitrivr.cottontail.database.index.hash
 
-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap
-import org.mapdb.Serializer
-import org.mapdb.serializer.GroupSerializer
+import jetbrains.exodus.bindings.LongBinding
+import jetbrains.exodus.bindings.StringBinding
+import jetbrains.exodus.env.Cursor
+import jetbrains.exodus.env.StoreConfig
+import org.vitrivr.cottontail.database.catalogue.storeName
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.general.TxAction
-import org.vitrivr.cottontail.database.general.TxSnapshot
 import org.vitrivr.cottontail.database.index.*
+import org.vitrivr.cottontail.database.index.basics.AbstractIndex
+import org.vitrivr.cottontail.database.index.basics.IndexConfig
+import org.vitrivr.cottontail.database.index.basics.IndexType
+import org.vitrivr.cottontail.database.index.basics.NoIndexConfig
 import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
@@ -17,12 +21,12 @@ import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.ComparisonOperator
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.*
+import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.TxException
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
-import org.vitrivr.cottontail.model.values.StringValue
 import org.vitrivr.cottontail.model.values.pattern.LikePatternValue
 import org.vitrivr.cottontail.model.values.types.Value
-import java.nio.file.Path
+import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
 import java.util.*
 
 /**
@@ -30,13 +34,9 @@ import java.util.*
  * to map a [Value] to a [TupleId]. Well suited for equality based lookups of [Value]s.
  *
  * @author Luca Rossetto & Ralph Gasser
- * @version 2.0.2
+ * @version 3.0.0
  */
-class NonUniqueHashIndex(path: Path, parent: DefaultEntity) : AbstractIndex(path, parent) {
-    /** Index-wide constants. */
-    companion object {
-        const val NUQ_INDEX_MAP = "cdb_nuq_tree_map"
-    }
+class NonUniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(name, parent) {
 
     /** The type of [AbstractIndex] */
     override val type: IndexType = IndexType.BTREE
@@ -50,18 +50,8 @@ class NonUniqueHashIndex(path: Path, parent: DefaultEntity) : AbstractIndex(path
     /** The [NonUniqueHashIndex] implementation returns exactly the columns that is indexed. */
     override val produces: Array<ColumnDef<*>> = this.columns
 
-    /** Check if [Serializer] is compatible with this [NonUniqueHashIndex]. */
-    private val serializer: GroupSerializer<Value> = this.columns[0].type.serializerFactory().mapdb(this.columns[0].type.logicalSize).let {
-        require(it is GroupSerializer<*>) { "NonUniqueHashIndex only supports value types with group serializers." }
-        it as GroupSerializer<Value>
-    }
-
-    /** Map structure used for [NonUniqueHashIndex]. */
-    private val map = this.store.treeMap(NUQ_INDEX_MAP, this.serializer, Serializer.LONG_ARRAY).createOrOpen()
-
-    init {
-        this.store.commit() /* Initial commit. */
-    }
+    /** [UniqueHashIndex] does not have an [IndexConfig]*/
+    override val config: IndexConfig = NoIndexConfig
 
     /**
      * Checks if the provided [Predicate] can be processed by this instance of [NonUniqueHashIndex].
@@ -100,7 +90,7 @@ class NonUniqueHashIndex(path: Path, parent: DefaultEntity) : AbstractIndex(path
     /**
      * Opens and returns a new [IndexTx] object that can be used to interact with this [AbstractIndex].
      *
-     * @param context If the [TransactionContext] to create the [IndexTx] for..
+     * @param context If the [TransactionContext] to create the [IndexTx] for.
      */
     override fun newTx(context: TransactionContext): IndexTx = Tx(context)
 
@@ -109,45 +99,24 @@ class NonUniqueHashIndex(path: Path, parent: DefaultEntity) : AbstractIndex(path
      */
     private inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context) {
 
-        /** The default [TxSnapshot] of this [IndexTx]. Can be overriden! */
-        override val snapshot = object : TxSnapshot {
-            override val actions: List<TxAction> = emptyList()
-
-            override fun commit() {
-                for (c in this@Tx.mappingsCache) {
-                    this@NonUniqueHashIndex.map.compute(c.key) { _, v ->
-                        if (v == null) {
-                            c.value.toLongArray()
-                        } else {
-                            v + c.value.toLongArray()
-                        }
-                    }
-                }
-                this@NonUniqueHashIndex.store.commit()
-            }
-
-            override fun rollback() {
-                mappingsCache.clear()
-                this@NonUniqueHashIndex.store.rollback()
-            }
-
-            override fun record(action: TxAction): Boolean = false
-        }
-
-        /** Internal cache that keeps Value to TupleId mappings in memory until commit. */
-        private val mappingsCache = Object2ObjectOpenHashMap<Value, LinkedList<Long>>()
+        /** The internal [XodusBinding] reference used for de-/serialization. */
+        private val binding: XodusBinding<*> = this@NonUniqueHashIndex.columns[0].type.serializerFactory().xodus(this@NonUniqueHashIndex.columns[0].type.logicalSize)
 
         /**
          * Adds a mapping from the given [Value] to the given [TupleId].
          *
          * @param key The [Value] key to add a mapping for.
          * @param tupleId The [TupleId] for the mapping.
+         *
+         * This is an internal function and can be used safely with values o
          */
-        private fun addMapping(key: Value, tupleId: TupleId) {
-            this.mappingsCache.compute(key) { _, v ->
-                val l = v ?: LinkedList<TupleId>()
-                l.add(tupleId)
-                l
+        private fun addMapping(key: Value, tupleId: TupleId): Boolean {
+            val keyRaw = this.binding.objectToEntry(key)
+            val tupleIdRaw = LongBinding.longToCompressedEntry(tupleId)
+            return if (this.dataStore.exists(this.context.xodusTx, keyRaw, tupleIdRaw)) {
+                this.dataStore.put(this.context.xodusTx, keyRaw, tupleIdRaw)
+            } else {
+                false
             }
         }
 
@@ -155,35 +124,36 @@ class NonUniqueHashIndex(path: Path, parent: DefaultEntity) : AbstractIndex(path
          * Removes a mapping from the given [Value] to the given [TupleId].
          *
          * @param key The [Value] key to remove a mapping for.
-         * @param tupleId The [TupleId] to remove.
          *
          * This is an internal function and can be used safely with values o
          */
-        private fun removeMapping(key: Value, tupleId: TupleId) {
-            this@NonUniqueHashIndex.map.compute(key) { _, v ->
-                v?.filter { it != tupleId }?.toLongArray() ?: v
+        private fun removeMapping(key: Value, tupleId: TupleId): Boolean {
+            val keyRaw = this.binding.objectToEntry(key)
+            val valueRaw = LongBinding.longToCompressedEntry(tupleId)
+            val cursor = this.dataStore.openCursor(this.context.xodusTx)
+            if (cursor.getSearchBoth(keyRaw, valueRaw)) {
+                return cursor.deleteCurrent()
+            } else {
+                return false
             }
         }
 
         /**
-         * Returns the number of entries in this [NonUniqueHashIndex.map] which DOES NOT directly
-         * correspond to the number of [TupleId]s it encodes.
+         * Returns the number of entries in this [NonUniqueHashIndex].
          *
          * @return Number of [TupleId]s in this [NonUniqueHashIndex]
          */
-        override fun count(): Long = this.withReadLock {
-            this@NonUniqueHashIndex.map.size.toLong()
-        }
+        override fun count(): Long = this.dataStore.count(this.context.xodusTx)
 
         /**
          * (Re-)builds the [NonUniqueHashIndex].
          */
-        override fun rebuild() = this.withWriteLock {
+        override fun rebuild() {
             /* Obtain Tx for parent [Entity. */
             val entityTx = this.context.getTx(this.dbo.parent) as EntityTx
 
-            /* Recreate entries. */
-            this@NonUniqueHashIndex.map.clear()
+            /* Truncate and reopen old store. */
+            this.clear()
             entityTx.scan(this.dbo.columns).forEach { record ->
                 val value = record[this.dbo.columns[0]] ?: throw TxException.TxValidationException(
                     this.context.txId,
@@ -191,6 +161,19 @@ class NonUniqueHashIndex(path: Path, parent: DefaultEntity) : AbstractIndex(path
                 )
                 this.addMapping(value, record.tupleId)
             }
+        }
+
+        /**
+         * Clears the [NonUniqueHashIndex] underlying this [Tx] and removes all entries it contains.
+         */
+        override fun clear() = this.withWriteLock {
+            this@NonUniqueHashIndex.parent.parent.parent.environment.truncateStore(this@NonUniqueHashIndex.name.storeName(), this.context.xodusTx)
+            this.dataStore = this@NonUniqueHashIndex.parent.parent.parent.environment.openStore(
+                this@NonUniqueHashIndex.name.storeName(),
+                StoreConfig.WITH_DUPLICATES_WITH_PREFIXING,
+                this.context.xodusTx,
+                false
+            ) ?: throw DatabaseException.DataCorruptionException("Data store for column ${this@NonUniqueHashIndex.name} is missing.")
         }
 
         /**
@@ -227,14 +210,6 @@ class NonUniqueHashIndex(path: Path, parent: DefaultEntity) : AbstractIndex(path
         }
 
         /**
-         * Clears the [NonUniqueHashIndex] underlying this [Tx] and removes all entries it contains.
-         */
-        override fun clear() = this.withWriteLock {
-            this@NonUniqueHashIndex.dirtyField.compareAndSet(false, true)
-            this@NonUniqueHashIndex.map.clear()
-        }
-
-        /**
          * Performs a lookup through this [NonUniqueHashIndex.Tx] and returns a [Iterator] of
          * all [Record]s that match the [Predicate]. Only supports [ BooleanPredicate.AtomicBooleanPredicate]s.
          *
@@ -244,66 +219,51 @@ class NonUniqueHashIndex(path: Path, parent: DefaultEntity) : AbstractIndex(path
          * @return The resulting [Iterator]
          */
         override fun filter(predicate: Predicate) = object : Iterator<Record> {
+            /** A [Queue] with values that should be queried. */
+            private val queryValueQueue: Queue<Value> = LinkedList()
 
-            /** Local [ BooleanPredicate.AtomicBooleanPredicate] instance. */
-            private val predicate: BooleanPredicate.Atomic
+            /** The current query [Value]. */
+            private var queryValue: Value
 
-            /** Pre-fetched entries that match the [Predicate]. */
-            private val elements = LinkedList<Pair<TupleId, Value>>()
+            /** Internal cursor used for navigation. */
+            private var cursor: Cursor
 
+            /* Perform initial sanity checks. */
             init {
                 require(predicate is BooleanPredicate.Atomic) { "NonUniqueHashIndex.filter() does only support Atomic.Literal boolean predicates." }
                 require(!predicate.not) { "NonUniqueHashIndex.filter() does not support negated statements (i.e. NOT EQUALS or NOT IN)." }
-                this.predicate = predicate
-                this@Tx.withReadLock {
-                    when (this.predicate.operator) {
-                        is ComparisonOperator.In -> {
-                            this.predicate.operator.right.forEach { v ->
-                                val value = v.value
-                                if (value != null) {
-                                    val subset = this@NonUniqueHashIndex.map[value]
-                                    subset?.forEach { this.elements.add(Pair(it, value)) }
-                                }
-                            }
-                        }
-                        is ComparisonOperator.Binary.Equal -> {
-                            val value = this.predicate.operator.right.value
-                            if (value != null) {
-                                val subset = this@NonUniqueHashIndex.map[value]
-                                subset?.forEach { this.elements.add(Pair(it, value)) }
-                            }
-                        }
-                        is ComparisonOperator.Binary.Like -> {
-                            val operand = this.predicate.operator.right.value
-                            if (operand is LikePatternValue.StartsWith) {
-                                val prefix = this@NonUniqueHashIndex.map.prefixSubMap(StringValue(operand.startsWith.toString()))
-                                for ((k, v) in prefix) {
-                                    for (l in v) {
-                                        this.elements.add(Pair(l, k))
-                                    }
-                                }
-                            } else {
-                                throw IllegalArgumentException("NonUniqueHashIndex.filter() does only support LIKE operators with prefix matching (i.e. LIKE XYZ%).")
-                            }
-                        }
-                        else -> throw IllegalArgumentException("NonUniqueHashIndex.filter() does only support EQUAL, IN and LIKE operators.")
-                    }
+                when (predicate.operator) {
+                    is ComparisonOperator.In -> this.queryValueQueue.addAll(predicate.operator.right.mapNotNull { it.value })
+                    is ComparisonOperator.Binary.Equal -> this.queryValueQueue.add(predicate.operator.right.value ?: throw IllegalArgumentException("UniqueHashIndex.filter() does not support NULL operands."))
+                    else -> throw IllegalArgumentException("UniqueHashIndex.filter() does only support EQUAL and IN operators.")
                 }
+
+                /** Initialize cursor. */
+                this.cursor = this@Tx.dataStore.openCursor(this@Tx.context.xodusTx)
+                this.queryValue = this.queryValueQueue.poll() ?: throw IllegalArgumentException("UniqueHashIndex.filter() does not support NULL operands.")
+                this.cursor.getSearchKey(StringBinding.BINDING.objectToEntry(this.queryValue))
             }
 
             /**
              * Returns `true` if the iteration has more elements.
              */
-            override fun hasNext(): Boolean {
-                return this.elements.isNotEmpty()
-            }
+            override fun hasNext(): Boolean = this.cursor.nextDup || this.nextQueryValue()
 
             /**
              * Returns the next element in the iteration.
              */
             override fun next(): Record {
-                val next = this.elements.poll()
-                return StandaloneRecord(next.first, this@Tx.dbo.columns, arrayOf(next.second))
+                val value = this@Tx.binding.entryToValue(this.cursor.value)
+                val tid = LongBinding.compressedEntryToLong(this.cursor.key)
+                return StandaloneRecord(tid, this@NonUniqueHashIndex.produces, arrayOf(value))
+            }
+
+            /**
+             * Moves to next query value
+             */
+            private fun nextQueryValue(): Boolean {
+                this.queryValue = this.queryValueQueue.poll() ?: return false
+                return this.cursor.getSearchKey(StringBinding.BINDING.objectToEntry(this.queryValue)) != null
             }
         }
 

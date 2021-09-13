@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.database.index.va.bounds
 
-import org.vitrivr.cottontail.database.index.va.signature.Marks
+import org.vitrivr.cottontail.database.index.va.signature.VAFMarks
 import org.vitrivr.cottontail.database.index.va.signature.VAFSignature
 import org.vitrivr.cottontail.model.values.types.RealVectorValue
 import kotlin.math.abs
@@ -16,7 +16,7 @@ import kotlin.math.max
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class L1Bounds(query: RealVectorValue<*>, marks: Marks) : Bounds {
+class L1Bounds(query: RealVectorValue<*>, marks: VAFMarks) : Bounds {
 
     /** Lower bound of this [L1Bounds]. */
     override var lb = 0.0
@@ -27,7 +27,7 @@ class L1Bounds(query: RealVectorValue<*>, marks: Marks) : Bounds {
         private set
 
     /** Cells for the query [RealVectorValue]. */
-    private val rq = marks.getCells(query)
+    private val rq = marks.getSignature(query)
 
     /**
      * Internal lookup table for pre-calculated values used in bounds calculation.
@@ -38,9 +38,6 @@ class L1Bounds(query: RealVectorValue<*>, marks: Marks) : Bounds {
      */
     private val lat = Array(marks.marks.size) { j ->
         val qj = query[j].value.toDouble()
-        /*
-
-         */
         Array(marks.marks[j].size) { m -> abs(qj - marks.marks[j][m]) }
     }
 

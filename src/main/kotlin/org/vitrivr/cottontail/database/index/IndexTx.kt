@@ -2,6 +2,8 @@ package org.vitrivr.cottontail.database.index
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.general.Tx
+import org.vitrivr.cottontail.database.index.basics.IndexState
+import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.sort.SortOrder

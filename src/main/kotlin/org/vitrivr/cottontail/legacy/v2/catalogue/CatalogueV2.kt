@@ -12,6 +12,7 @@ import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.functions.FunctionRegistry
 import org.vitrivr.cottontail.functions.initialize
+import org.vitrivr.cottontail.legacy.v1.schema.SchemaV1
 import org.vitrivr.cottontail.legacy.v2.schema.SchemaV2
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
@@ -47,6 +48,10 @@ class CatalogueV2(override val config: Config) : Catalogue {
     /** Constant name of the [CatalogueV2] object. */
     override val name: Name.RootName
         get() = Name.RootName
+
+    /** The [Catalogue] this [CatalogueV2] belongs to. */
+    override val catalogue: Catalogue
+        get() = this
 
     /** The [DBOVersion] of this [CatalogueV2]. */
     override val version: DBOVersion
@@ -170,7 +175,7 @@ class CatalogueV2(override val config: Config) : Catalogue {
         /**
          * Releases the [closeLock] on the [CatalogueV2].
          */
-        override fun cleanup() {
+        fun cleanup() {
             this@CatalogueV2.closeLock.unlockRead(this.closeStamp)
         }
     }

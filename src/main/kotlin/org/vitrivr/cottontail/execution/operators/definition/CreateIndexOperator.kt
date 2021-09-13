@@ -6,7 +6,7 @@ import org.vitrivr.cottontail.database.catalogue.CatalogueTx
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.IndexTx
-import org.vitrivr.cottontail.database.index.IndexType
+import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.schema.SchemaTx
 import org.vitrivr.cottontail.execution.operators.basics.Operator
@@ -19,7 +19,7 @@ import kotlin.time.measureTimedValue
  * An [Operator.SourceOperator] used during query execution. Creates an [Index]
  *
  * @author Ralph Gasser
- * @version 1.0.2
+ * @version 1.1.0
  */
 @ExperimentalTime
 class CreateIndexOperator(
@@ -35,7 +35,7 @@ class CreateIndexOperator(
         val catTxn = context.txn.getTx(this.catalogue) as CatalogueTx
         val schemaTxn = context.txn.getTx(catTxn.schemaForName(this.name.schema())) as SchemaTx
         val entityTxn = context.txn.getTx(schemaTxn.entityForName(this.name.entity())) as EntityTx
-        val columns = this.indexColumns.map { entityTxn.columnForName(it).columnDef }.toTypedArray()
+        val columns = this.indexColumns.toTypedArray()
         return flow {
             val timedTupleId = measureTimedValue {
                 val index = entityTxn.createIndex(

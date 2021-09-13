@@ -4,7 +4,6 @@ import jetbrains.exodus.bindings.LongBinding
 import jetbrains.exodus.env.Store
 import jetbrains.exodus.env.StoreConfig
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
-import org.vitrivr.cottontail.database.catalogue.entries.StatisticsCatalogueEntry
 import org.vitrivr.cottontail.database.catalogue.storeName
 import org.vitrivr.cottontail.legacy.v2.column.ColumnV2
 import org.vitrivr.cottontail.database.entity.DefaultEntity
@@ -29,12 +28,13 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
     override val name: Name.ColumnName
         get() = this.columnDef.name
 
-    /** Internal representation of the [Name.ColumnName] key. */
-    private val nameKey = Name.ColumnName.Binding.objectToEntry(this.name)
-
     /** Status indicating whether this [DefaultColumn] has been closed. */
     override val closed: Boolean
         get() = this.parent.closed
+
+    /** A [DefaultColumn] belongs to the same [DefaultCatalogue] as the [DefaultEntity] it belongs to. */
+    override val catalogue: DefaultCatalogue
+        get() = this.parent.catalogue
 
     /** The [DBOVersion] of this [DefaultColumn]. */
     override val version: DBOVersion
@@ -54,7 +54,7 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
     inner class Tx constructor(context: TransactionContext) : AbstractTx(context), ColumnTx<T> {
 
         /** Internal data [Store] reference. */
-        private val dataStore: Store = this@DefaultColumn.parent.parent.parent.environment.openStore(
+        private var dataStore: Store = this@DefaultColumn.parent.parent.parent.environment.openStore(
             this@DefaultColumn.name.storeName(),
             StoreConfig.WITHOUT_DUPLICATES,
             this.context.xodusTx,
@@ -81,9 +81,7 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          * @return [ValueStatistics].
          */
         override fun statistics(): ValueStatistics<T> {
-            val entry = StatisticsCatalogueEntry.Binding.entryToObject(this.statisticsStore.get(this.context.xodusTx, this@DefaultColumn.nameKey)
-                ?: throw DatabaseException.DataCorruptionException("No statistics entry for column ${this@DefaultColumn.name} is missing.")) as StatisticsCatalogueEntry
-            return entry.statistics as ValueStatistics<T>
+            return DefaultCatalogue.readEntryForStatistics(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx). statistics as ValueStatistics<T>
         }
 
         /**
@@ -110,17 +108,19 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
             val existing = this.dataStore.get(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))?.let { this.binding.entryToValue(it) }
 
             /* Read and update statistics. */
-            val entry = StatisticsCatalogueEntry.Binding.entryToObject(
-                this.statisticsStore.get(this.context.xodusTx, this@DefaultColumn.nameKey) ?: throw DatabaseException.DataCorruptionException("Statistics entry for column ${this@DefaultColumn.name} is missing.")) as StatisticsCatalogueEntry
+            val entry = DefaultCatalogue.readEntryForStatistics(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)
             if (existing == null) {
                 (entry.statistics as ValueStatistics<T>).insert(value)
             } else {
                 (entry.statistics as ValueStatistics<T>).update(existing, value)
             }
-            this.statisticsStore.put(this.context.xodusTx, this@DefaultColumn.nameKey, StatisticsCatalogueEntry.Binding.objectToEntry(entry))
+            if (DefaultCatalogue.writeEntryForStatistics(entry, this@DefaultColumn.catalogue, this.context.xodusTx)) {
+                this.dataStore.put(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId), this.binding.objectToEntry(value))
+            } else {
+                throw DatabaseException.DataCorruptionException("Failed to PUT value from ${this@DefaultColumn.name}: Update of column statistics failed.")
+            }
 
             /* Update value. */
-            this.dataStore.put(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId), this.binding.objectToEntry(value))
             return existing
         }
 
@@ -152,22 +152,18 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
             val existing = this.dataStore.get(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))?.let { this.binding.entryToValue(it) }
 
             /* Read and update statistics. */
-            val statisticsEntry = StatisticsCatalogueEntry.Binding.entryToObject(this.statisticsStore.get(this.context.xodusTx, this@DefaultColumn.nameKey)
-                ?: throw DatabaseException.DataCorruptionException("Statistics entry for column ${this@DefaultColumn.name} is missing.")) as StatisticsCatalogueEntry
+            val statisticsEntry = DefaultCatalogue.readEntryForStatistics(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)
             if (existing != null) {
                 (statisticsEntry.statistics as ValueStatistics<T>).delete(existing)
-                this.statisticsStore.put(this.context.xodusTx, this@DefaultColumn.nameKey, StatisticsCatalogueEntry.Binding.objectToEntry(statisticsEntry))
-                this.dataStore.delete(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))
+                if (DefaultCatalogue.writeEntryForStatistics(statisticsEntry, this@DefaultColumn.catalogue, this.context.xodusTx)) {
+                    this.dataStore.delete(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))
+                } else {
+                    throw DatabaseException.DataCorruptionException("Failed to DELETE value from ${this@DefaultColumn.name}: Update of column statistics failed.")
+                }
             }
 
             /* Return existing value. */
             return existing
         }
-
-        override fun cleanup() {
-            TODO("Not yet implemented")
-        }
-
-
     }
 }

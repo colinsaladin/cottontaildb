@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.database.entity
 
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.general.DBO
 import org.vitrivr.cottontail.database.schema.DefaultSchema

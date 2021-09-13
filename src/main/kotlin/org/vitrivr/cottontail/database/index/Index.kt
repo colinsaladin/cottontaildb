@@ -5,13 +5,15 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.DBO
+import org.vitrivr.cottontail.database.index.basics.IndexConfig
+import org.vitrivr.cottontail.database.index.basics.IndexState
+import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
 import org.vitrivr.cottontail.database.schema.DefaultSchema
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.Name
-import java.nio.file.Path
 
 /**
  * Represents a (secondary) [Index] structure in the Cottontail DB data model. An [Index] belongs
@@ -56,6 +58,9 @@ interface Index : DBO {
 
     /** The configuration map used for the [Index]. */
     val config: IndexConfig
+
+    /** Number of entries in this [Index]. */
+    val count: Long
 
     /**
      * Checks if this [AbstractIndex] can process the provided [Predicate] and returns true if so and false otherwise.

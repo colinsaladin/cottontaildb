@@ -75,7 +75,7 @@ class VersionProber(private val config: Config) {
 
         /* The [StoreWAL] that contains the Cottontail DB catalogue. */
         val store: DB? = try {
-            this.config.mapdb.db(path.resolve(DefaultCatalogue.FILE_CATALOGUE))
+            this.config.mapdb.db(path.resolve("catalogue.db"))
         } catch (e: Throwable) {
             return false
         }

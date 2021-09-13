@@ -12,7 +12,7 @@ import java.io.ByteArrayInputStream
  * @version 1.0.0
  */
 data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, val columns: List<Name.ColumnName>, val indexes: List<Name.IndexName>): Comparable<EntityCatalogueEntry> {
-    object Binding: ComparableBinding() {
+    companion object: ComparableBinding() {
         override fun readObject(stream: ByteArrayInputStream): Comparable<Nothing> {
             val entityName = Name.EntityName.Binding.readObject(stream)
             val created = LongBinding.BINDING.readObject(stream)

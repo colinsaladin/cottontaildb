@@ -1,14 +1,18 @@
 package org.vitrivr.cottontail.database.index.pq
 
-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap
+import jetbrains.exodus.bindings.LongBinding
 import org.slf4j.LoggerFactory
+import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.column.*
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.index.AbstractIndex
+import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
-import org.vitrivr.cottontail.database.index.IndexType
+import org.vitrivr.cottontail.database.index.basics.AbstractHDIndex
+import org.vitrivr.cottontail.database.index.basics.IndexState
+import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.index.va.VAFIndex
+import org.vitrivr.cottontail.database.index.va.signature.VAFMarks
 import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
@@ -23,7 +27,6 @@ import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
 import org.vitrivr.cottontail.utilities.math.KnnUtilities
-import java.nio.file.Path
 import java.util.*
 import kotlin.collections.ArrayDeque
 import kotlin.math.min
@@ -38,15 +41,15 @@ import kotlin.math.min
  * [1] Guo, Ruiqi, et al. "Quantization based fast inner product search." Artificial Intelligence and Statistics. 2016.
  *
  * @author Gabriel Zihlmann & Ralph Gasser
- * @version 2.1.1
+ * @version 3.0.0
  */
-class PQIndex(path: Path, parent: DefaultEntity, config: PQIndexConfig? = null) : AbstractIndex(path, parent) {
+class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(name, parent) {
 
     companion object {
-        private const val PQ_INDEX_FIELD = "cdb_pq_real"
-        private const val PQ_INDEX_SIGNATURES_FIELD = "cdb_pq_signatures"
         val LOGGER = LoggerFactory.getLogger(PQIndex::class.java)!!
 
+        /** Key to read/write the Marks entry. */
+        val PQ_ENTRY_KEY = LongBinding.longToCompressedEntry(-1L)
 
         /**
          * Dynamically determines the number of subspaces for the given dimension.
@@ -83,37 +86,14 @@ class PQIndex(path: Path, parent: DefaultEntity, config: PQIndexConfig? = null) 
     override val type = IndexType.PQ
 
     /** The [PQIndexConfig] used by this [PQIndex] instance. */
-    override val config: PQIndexConfig
-
-    /** The [PQ] instance used for real vector components. */
-    private val pqStore = this.store.atomicVar(PQ_INDEX_FIELD, PQ.Serializer).createOrOpen()
-
-    /** The store of [PQIndexEntry]. */
-    private val signaturesStore =
-        this.store.indexTreeList(PQ_INDEX_SIGNATURES_FIELD, PQIndexEntry.Serializer).createOrOpen()
+    override val config: PQIndexConfig = this.catalogue.environment.computeInTransaction { tx ->
+        val entry = DefaultCatalogue.readEntryForIndex(this.name, this.parent.parent.parent, tx)
+        PQIndexConfig.fromParamMap(entry.config)
+    }
 
     init {
-        /* Load or create config. */
-        require(this.columns.size == 1) { "PQIndex only supports indexing a single column." }
-        val configOnDisk = this.store.atomicVar(INDEX_CONFIG_FIELD, PQIndexConfig.Serializer).createOrOpen()
-        if (configOnDisk.get() == null) {
-            if (config != null) {
-                if (config.numSubspaces == PQIndexConfig.AUTO_VALUE || (config.numSubspaces % this.columns[0].type.logicalSize) != 0) {
-                    this.config =
-                        config.copy(numSubspaces = defaultNumberOfSubspaces(this.columns[0].type.logicalSize))
-                } else {
-                    this.config = config
-                }
-            } else {
-                this.config = PQIndexConfig(10, 500, 5000, System.currentTimeMillis())
-            }
-            configOnDisk.set(this.config)
-        } else {
-            this.config = configOnDisk.get()
-        }
-        this.store.commit()
-
         /** Some assumptions and sanity checks. Some are for documentation, some are cheap enough to actually keep and check. */
+        require(this.columns.size == 1) { "PQIndex only supports indexing a single column." }
         require(this.config.numCentroids > 0) { "PQIndex supports a maximum number of ${this.config.numCentroids} centroids." }
         require(this.config.numCentroids <= Short.MAX_VALUE)
         require(this.config.numSubspaces > 0) { "PQIndex requires at least one centroid." }
@@ -145,8 +125,8 @@ class PQIndex(path: Path, parent: DefaultEntity, config: PQIndexConfig? = null) 
         if (predicate !is KnnPredicate) return Cost.INVALID
         if (predicate.column != this.columns[0]) return Cost.INVALID
         return Cost(
-            this.signaturesStore.size * this.config.numSubspaces * Cost.COST_DISK_ACCESS_READ + predicate.k * predicate.column.type.logicalSize * Cost.COST_DISK_ACCESS_READ,
-            this.signaturesStore.size * (4 * Cost.COST_MEMORY_ACCESS + Cost.COST_FLOP) + predicate.k * predicate.atomicCpuCost,
+            this.count * this.config.numSubspaces * Cost.COST_DISK_ACCESS_READ + predicate.k * predicate.column.type.logicalSize * Cost.COST_DISK_ACCESS_READ,
+            this.count * (4 * Cost.COST_MEMORY_ACCESS + Cost.COST_FLOP) + predicate.k * predicate.atomicCpuCost,
             (predicate.k * this.produces.map { it.type.physicalSize }.sum()).toFloat()
         )
     }
@@ -161,16 +141,22 @@ class PQIndex(path: Path, parent: DefaultEntity, config: PQIndexConfig? = null) 
     /**
      * A [IndexTx] that affects this [AbstractIndex].
      */
-    private inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context) {
+    private inner class Tx(context: TransactionContext) : AbstractHDIndex.Tx(context) {
+
+        /** Internal [VAFMarks] reference. */
+        private var pq: PQ
+
+        init {
+
+        }
+
 
         /**
          * Returns the number of [PQIndexEntry]s in this [PQIndex]
          *
          * @return The number of [PQIndexEntry] stored in this [PQIndex]
          */
-        override fun count(): Long = this.withReadLock {
-            this@PQIndex.signaturesStore.size.toLong()
-        }
+        override fun count(): Long = this.dataStore.count(this.context.xodusTx)
 
         /**
          * Rebuilds the surrounding [PQIndex] from scratch, thus re-creating the the [PQ] codebook
@@ -183,51 +169,23 @@ class PQIndex(path: Path, parent: DefaultEntity, config: PQIndexConfig? = null) 
             val txn = this.context.getTx(this.dbo.parent) as EntityTx
             val data = this.acquireLearningData(txn)
 
-            /* Obtain PQ data structure... */
-            val pq = PQ.fromData(this@PQIndex.config, this@PQIndex.columns[0], data)
+            /* Obtain PQ data structure. */
+            this.pq = PQ.fromData(this@PQIndex.config, this@PQIndex.columns[0], data)
 
-            /* ... and generate signatures. */
-            val signatureMap = Object2ObjectOpenHashMap<PQSignature, LinkedList<TupleId>>(txn.count().toInt())
+            /* Clear and re-generate signatures. */
+            this.clear()
             txn.scan(this.dbo.columns).forEach { rec ->
                 val value = rec[this@PQIndex.columns[0]]
                 if (value is VectorValue<*>) {
                     val sig = pq.getSignature(value)
-                    signatureMap.compute(sig) { _, v ->
-                        val ret = v ?: LinkedList<TupleId>()
-                        ret.add(rec.tupleId)
-                        ret
-                    }
+                    this.dataStore.put(this.context.xodusTx, sig, rec.tupleId.toKey())
                 }
             }
 
-            /* Now persist everything. */
-            this@PQIndex.pqStore.set(pq)
-            this@PQIndex.signaturesStore.clear()
-            for (entry in signatureMap.entries) {
-                this@PQIndex.signaturesStore.add(PQIndexEntry(entry.key, entry.value.toLongArray()))
-            }
-            this@PQIndex.dirtyField.compareAndSet(true, false)
-            LOGGER.debug("Rebuilding PQIndex {} complete.", this@PQIndex.name)
-        }
-
-        /**
-         * Updates the [PQIndex] with the provided [Operation.DataManagementOperation]s. Since the [PQIndex] does
-         * not support incremental updates, calling this method will simply set the [PQIndex] [dirty]
-         * flag to true.
-         *
-         * @param event Collection of [Operation.DataManagementOperation]s to process.
-         */
-        override fun update(event: Operation.DataManagementOperation) = this.withWriteLock {
-            this@PQIndex.dirtyField.compareAndSet(false, true)
-            Unit
-        }
-
-        /**
-         * Clears the [PQIndex] underlying this [Tx] and removes all entries it contains.
-         */
-        override fun clear() = this.withWriteLock {
-            this@PQIndex.dirtyField.compareAndSet(false, true)
-            this@PQIndex.signaturesStore.clear()
+            /* Update catalogue entry for index. */
+            val entry = DefaultCatalogue.readEntryForIndex(this@PQIndex.name, this@PQIndex.catalogue, this.context.xodusTx)
+            DefaultCatalogue.writeEntryForIndex(entry.copy(state = IndexState.CLEAN), this@PQIndex.catalogue, this.context.xodusTx)
+            VAFIndex.LOGGER.debug("Rebuilding PQIndex {} completed!", this@PQIndex.name)
         }
 
         /**

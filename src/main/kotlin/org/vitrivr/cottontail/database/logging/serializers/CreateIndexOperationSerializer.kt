@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.database.logging.serializers
 
-import org.vitrivr.cottontail.database.index.IndexType
+import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.logging.operations.OperationType
 import org.vitrivr.cottontail.model.basics.Name

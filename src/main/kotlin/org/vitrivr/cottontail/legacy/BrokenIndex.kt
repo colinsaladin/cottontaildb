@@ -1,9 +1,14 @@
 package org.vitrivr.cottontail.legacy
 
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.DBOVersion
 import org.vitrivr.cottontail.database.index.*
+import org.vitrivr.cottontail.database.index.basics.IndexConfig
+import org.vitrivr.cottontail.database.index.basics.IndexState
+import org.vitrivr.cottontail.database.index.basics.IndexType
+import org.vitrivr.cottontail.database.index.basics.NoIndexConfig
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
@@ -26,13 +31,15 @@ class BrokenIndex(
     override val columns: Array<ColumnDef<*>>,
 ) : Index {
     override val closed: Boolean = true
+    override val catalogue: Catalogue = this.parent.catalogue
     override val version: DBOVersion = DBOVersion.UNDEFINED
     override val produces: Array<ColumnDef<*>> = emptyArray()
     override val order: Array<Pair<ColumnDef<*>, SortOrder>> = emptyArray()
     override val supportsIncrementalUpdate: Boolean = false
     override val supportsPartitioning: Boolean = false
-    override val dirty: Boolean = false
+    override val state: IndexState = IndexState.CLEAN
     override val config: IndexConfig = NoIndexConfig
+    override val count: Long = 0L
     override fun canProcess(predicate: Predicate): Boolean = false
     override fun cost(predicate: Predicate): Cost = Cost.INVALID
     override fun newTx(context: TransactionContext): IndexTx {

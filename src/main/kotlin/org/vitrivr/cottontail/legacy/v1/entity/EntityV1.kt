@@ -6,6 +6,7 @@ import org.mapdb.CottontailStoreWAL
 import org.mapdb.DBException
 import org.mapdb.Serializer
 import org.mapdb.StoreWAL
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
@@ -15,8 +16,7 @@ import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.general.DBOVersion
 import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx
-import org.vitrivr.cottontail.database.index.IndexType
-import org.vitrivr.cottontail.database.statistics.entity.EntityStatistics
+import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.legacy.BrokenIndex
 import org.vitrivr.cottontail.legacy.v1.column.ColumnV1
@@ -109,6 +109,10 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
             )
         }
     }
+
+    /** The [Catalogue] this [EntityV1] belongs to. */
+    override val catalogue: Catalogue
+        get() = this.parent.catalogue
 
     /** The [DBOVersion] of this [EntityV1]. */
     override val version: DBOVersion
@@ -223,7 +227,7 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
             return this@EntityV1.columns.values.first().maxTupleId
         }
 
-        override fun createIndex(name: Name.IndexName, type: IndexType, columns: Array<ColumnDef<*>>, params: Map<String, String>): Index {
+        override fun createIndex(name: Name.IndexName, type: IndexType, columns: Array<Name.ColumnName>, params: Map<String, String>): Index {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
@@ -302,7 +306,7 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
         /**
          * Closes all the [ColumnTx] and [IndexTx] and releases the [closeLock] on the [Entity].
          */
-        override fun cleanup() {
+        fun cleanup() {
             this@EntityV1.closeLock.unlockRead(this.closeStamp)
         }
     }

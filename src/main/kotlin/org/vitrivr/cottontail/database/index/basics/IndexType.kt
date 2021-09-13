@@ -1,4 +1,4 @@
-package org.vitrivr.cottontail.database.index
+package org.vitrivr.cottontail.database.index.basics
 
 import jetbrains.exodus.env.StoreConfig
 import org.vitrivr.cottontail.database.entity.DefaultEntity

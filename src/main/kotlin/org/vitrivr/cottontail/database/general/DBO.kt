@@ -1,5 +1,8 @@
 package org.vitrivr.cottontail.database.general
 
+import org.vitrivr.cottontail.database.catalogue.Catalogue
+import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.schema.DefaultSchema
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.Name
 import java.nio.file.Path
@@ -18,6 +21,9 @@ interface DBO {
 
     /** The parent DBO (if such exists). */
     val parent: DBO?
+
+    /** The [Catalogue] this [DBO] belongs to. */
+    val catalogue: Catalogue
 
     /** True if this [DBO] was closed, false otherwise. */
     val closed: Boolean

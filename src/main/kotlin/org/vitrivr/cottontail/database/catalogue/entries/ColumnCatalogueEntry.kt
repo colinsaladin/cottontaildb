@@ -22,20 +22,14 @@ data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, va
      */
     constructor(def: ColumnDef<*>) : this(def.name, def.type, def.primary, def.nullable)
 
-    /**
-     * Converts this [ColumnCatalogueEntry] to a [ColumnDef].
-     *
-     * @return [ColumnDef] for this [ColumnCatalogueEntry]
-     */
-    fun toColumnDef(): ColumnDef<*> = ColumnDef(this.name, this.type, this.nullable, this.primary)
-
-    object Binding: ComparableBinding() {
+    companion object: ComparableBinding() {
         override fun readObject(stream: ByteArrayInputStream): ColumnCatalogueEntry = ColumnCatalogueEntry(
             Name.ColumnName.readObject(stream),
             Type.forOrdinal(IntegerBinding.readCompressed(stream), IntegerBinding.readCompressed(stream)),
             BooleanBinding.BINDING.readObject(stream),
             BooleanBinding.BINDING.readObject(stream),
         )
+
         override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
             require(`object` is ColumnCatalogueEntry) { "$`object` cannot be written as column entry." }
             Name.ColumnName.Binding.writeObject(output, `object`.name)
@@ -46,5 +40,11 @@ data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, va
         }
     }
 
+    /**
+     * Converts this [ColumnCatalogueEntry] to a [ColumnDef].
+     *
+     * @return [ColumnDef] for this [ColumnCatalogueEntry]
+     */
+    fun toColumnDef(): ColumnDef<*> = ColumnDef(this.name, this.type, this.nullable, this.primary)
     override fun compareTo(other: ColumnCatalogueEntry): Int = this.name.compareTo(other.name)
 }

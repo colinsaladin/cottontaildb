@@ -9,16 +9,18 @@ import org.apache.lucene.search.similarities.SimilarityBase.log2
 import org.apache.lucene.store.Directory
 import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.store.NativeFSLockFactory
+import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.general.TxAction
 import org.vitrivr.cottontail.database.general.TxSnapshot
-import org.vitrivr.cottontail.database.index.AbstractIndex
+import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
-import org.vitrivr.cottontail.database.index.IndexType
+import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.index.hash.UniqueHashIndex
 import org.vitrivr.cottontail.database.index.lsh.superbit.SuperBitLSHIndex
+import org.vitrivr.cottontail.database.index.pq.PQIndexConfig
 import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.queries.binding.Binding
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
@@ -42,10 +44,9 @@ import java.nio.file.Path
  * or LIKE operator.
  *
  * @author Luca Rossetto & Ralph Gasser
- * @version 2.0.1
+ * @version 3.0.0
  */
-class LuceneIndex(path: Path, parent: DefaultEntity, config: LuceneIndexConfig? = null) :
-    AbstractIndex(path, parent) {
+class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(name, parent) {
 
     companion object {
         /** [ColumnDef] of the _tid column. */
@@ -65,7 +66,10 @@ class LuceneIndex(path: Path, parent: DefaultEntity, config: LuceneIndexConfig? 
     override val type: IndexType = IndexType.LUCENE
 
     /** The [LuceneIndexConfig] used by this [LuceneIndex] instance. */
-    override val config: LuceneIndexConfig
+    override val config: LuceneIndexConfig = this.catalogue.environment.computeInTransaction { tx ->
+        val entry = DefaultCatalogue.readEntryForIndex(this.name, this.parent.parent.parent, tx)
+        LuceneIndexConfig.fromParamMap(entry.config)
+    }
 
     /** The [Directory] containing the data for this [LuceneIndex]. */
     private val directory: Directory = FSDirectory.open(

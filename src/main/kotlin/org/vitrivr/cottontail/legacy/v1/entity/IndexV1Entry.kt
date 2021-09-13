@@ -2,7 +2,7 @@ package org.vitrivr.cottontail.legacy.v1.entity
 
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
-import org.vitrivr.cottontail.database.index.IndexType
+import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 
 /**

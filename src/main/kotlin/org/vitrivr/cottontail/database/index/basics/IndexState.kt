@@ -1,4 +1,4 @@
-package org.vitrivr.cottontail.database.index
+package org.vitrivr.cottontail.database.index.basics
 
 /**
  *

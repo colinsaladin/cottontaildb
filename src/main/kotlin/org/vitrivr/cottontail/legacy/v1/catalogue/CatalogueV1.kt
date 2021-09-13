@@ -76,6 +76,10 @@ class CatalogueV1(override val config: Config) : Catalogue {
     val size: Int
         get() = this.closeLock.read { this.header.schemas.size }
 
+    /** The [Catalogue] this [CatalogueV1] belongs to. */
+    override val catalogue: Catalogue
+        get() = this
+
     /** The [DBOVersion] of this [CatalogueV1]. */
     override val version: DBOVersion
         get() = DBOVersion.V1_0
@@ -163,7 +167,7 @@ class CatalogueV1(override val config: Config) : Catalogue {
         /**
          * Releases the [closeLock] on the [CatalogueV1].
          */
-        override fun cleanup() {
+        fun cleanup() {
             this@CatalogueV1.closeLock.unlockRead(this.closeStamp)
         }
     }

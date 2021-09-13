@@ -1,4 +1,6 @@
-package org.vitrivr.cottontail.database.index
+package org.vitrivr.cottontail.database.index.basics
+
+import org.vitrivr.cottontail.database.index.basics.IndexConfig
 
 /**
  * A [IndexConfig] that is empty.

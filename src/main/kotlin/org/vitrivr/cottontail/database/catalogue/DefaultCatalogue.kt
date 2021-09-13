@@ -1,19 +1,19 @@
 package org.vitrivr.cottontail.database.catalogue
 
+import jetbrains.exodus.ArrayByteIterable
+import jetbrains.exodus.bindings.LongBinding
 import jetbrains.exodus.bindings.StringBinding
 import jetbrains.exodus.entitystore.PersistentEntityStore
 import jetbrains.exodus.entitystore.PersistentEntityStores
 import jetbrains.exodus.env.Environment
 import jetbrains.exodus.env.StoreConfig
+import jetbrains.exodus.env.Transaction
 import jetbrains.exodus.env.forEach
 import org.vitrivr.cottontail.config.Config
-import org.vitrivr.cottontail.database.catalogue.entries.ColumnCatalogueEntry
-import org.vitrivr.cottontail.database.entity.DefaultEntity
-import org.vitrivr.cottontail.database.catalogue.entries.EntityCatalogueEntry
+import org.vitrivr.cottontail.database.catalogue.entries.*
 import org.vitrivr.cottontail.database.general.*
 import org.vitrivr.cottontail.database.schema.DefaultSchema
 import org.vitrivr.cottontail.database.schema.Schema
-import org.vitrivr.cottontail.database.catalogue.entries.SchemaCatalogueEntry
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.functions.FunctionRegistry
 import org.vitrivr.cottontail.functions.initialize
@@ -50,10 +50,10 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
         /** Name of the [ColumnCatalogueEntry] store in the Cottontail DB catalogue. */
         internal const val CATALOGUE_COLUMN_STORE_NAME: String = "ctt_cat_columns"
 
-        /** Name of the [IndexEntry] store in the Cottontail DB catalogue. */
+        /** Name of the [IndexCatalogueEntry] store in the Cottontail DB catalogue. */
         internal const val CATALOGUE_INDEX_STORE_NAME: String = "ctt_cat_indexes"
 
-        /** Name of the [StatisticsEntry] store in this [DefaultCatalogue]. */
+        /** Name of the [StatisticsCatalogueEntry] store in this [DefaultCatalogue]. */
         internal const val CATALOGUE_STATISTICS_STORE_NAME: String = "ctt_cat_statistics"
 
         /** Prefix used for actual column stores. */
@@ -65,8 +65,197 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
         /** Prefix used for actual index stores. */
         internal const val INDEX_STORE_PREFIX: String = "ctt_idx_"
 
-        /** Filename for the [DefaultEntity] catalogue.  */
-        internal const val FILE_CATALOGUE = "catalogue.db"
+        /**
+         * Reads and returns an [EntityCatalogueEntry] for the given [Name.ColumnName].
+         *
+         * @param name [Name.EntityName] to retrieve the [EntityCatalogueEntry] for.
+         * @param catalogue [DefaultCatalogue] to retrieve [EntityCatalogueEntry] from.
+         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @return [EntityCatalogueEntry]
+         */
+        internal fun readEntryForEntity(name: Name.EntityName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): EntityCatalogueEntry {
+            val rawName = Name.EntityName.objectToEntry(name)
+            val store = catalogue.environment.openStore(CATALOGUE_ENTITY_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
+                ?: throw DatabaseException.DataCorruptionException("Failed to open entity catalogue.")
+            val rawEntry = store.get(transaction, rawName)
+            if (rawEntry != null) {
+                return EntityCatalogueEntry.entryToObject(rawEntry) as EntityCatalogueEntry
+            } else {
+                throw DatabaseException.EntityDoesNotExistException(name)
+            }
+        }
+
+        /**
+         * Reads and returns an [EntityCatalogueEntry] for the given [Name.EntityName].
+         *
+         * @param entry [EntityCatalogueEntry] to write
+         * @param catalogue [DefaultCatalogue] to write [EntityCatalogueEntry] to.
+         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @return True on success, false otherwise.
+         */
+        internal fun writeEntryForEntity(entry: EntityCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean {
+            val rawName = Name.EntityName.objectToEntry(entry.name)
+            val store = catalogue.environment.openStore(CATALOGUE_ENTITY_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
+                ?: throw DatabaseException.DataCorruptionException("Failed to open entity catalogue.")
+            return store.put(transaction, rawName, EntityCatalogueEntry.objectToEntry(entry))
+        }
+
+        /**
+         * Reads and returns the entry for the given name without changing it.
+         *
+         * @param nameKey [ArrayByteIterable] that identifies the sequence entry.
+         * @param catalogue [DefaultCatalogue] to retrieve the sequence entry from.
+         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @return [EntityCatalogueEntry]
+         */
+        internal fun readSequence(nameKey: ArrayByteIterable, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Long? {
+            val store = catalogue.environment.openStore(CATALOGUE_SEQUENCE_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
+                ?: throw DatabaseException.DataCorruptionException("Failed to open sequence catalogue.")
+            val rawEntry = store.get(transaction, nameKey)
+            return if (rawEntry != null) {
+                LongBinding.entryToLong(rawEntry)
+            } else {
+                null
+            }
+        }
+
+        /** Reads, increments and returns the entry for the given name without changing it.
+         *
+         * @param nameKey [ArrayByteIterable] that identifies the sequence entry.
+         * @param catalogue [DefaultCatalogue] to retrieve the sequence entry from.
+         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @return [EntityCatalogueEntry]
+         */
+        internal fun nextSequence(nameKey: ArrayByteIterable, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Long? {
+            val store = catalogue.environment.openStore(CATALOGUE_SEQUENCE_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
+                ?: throw DatabaseException.DataCorruptionException("Failed to open sequence catalogue.")
+            val rawEntry = store.get(transaction, nameKey)
+            return if (rawEntry != null) {
+                val next = LongBinding.entryToLong(rawEntry) + 1
+                store.put(transaction, nameKey, LongBinding.longToCompressedEntry(next))
+                return next
+            } else {
+                null
+            }
+        }
+
+        /**
+         * Resets the sequence with the given name.
+         *
+         * @param nameKey [ArrayByteIterable] identifying the sequence to reset.
+         * @param catalogue [DefaultCatalogue] to reset the sequence.
+         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @return True on success.
+         */
+        internal fun resetSequence(nameKey: ArrayByteIterable, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean {
+            val store = catalogue.environment.openStore(CATALOGUE_SEQUENCE_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
+                ?: throw DatabaseException.DataCorruptionException("Failed to open sequence catalogue.")
+            return store.put(transaction, nameKey, LongBinding.longToCompressedEntry(0L))
+        }
+
+        /**
+         * Reads and returns an [ColumnCatalogueEntry] for the given [Name.ColumnName].
+         *
+         * @param name [Name.ColumnName] to retrieve the [ColumnCatalogueEntry] for.
+         * @param catalogue [DefaultCatalogue] to retrieve [ColumnCatalogueEntry] from.
+         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @return [ColumnCatalogueEntry]
+         */
+        internal fun readEntryForColumn(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): ColumnCatalogueEntry {
+            val rawName = Name.ColumnName.objectToEntry(name)
+            val store = catalogue.environment.openStore(CATALOGUE_COLUMN_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
+                ?: throw DatabaseException.DataCorruptionException("Failed to open column catalogue.")
+            val rawEntry = store.get(transaction, rawName)
+            if (rawEntry != null) {
+                return ColumnCatalogueEntry.entryToObject(rawEntry) as ColumnCatalogueEntry
+            } else {
+                throw DatabaseException.ColumnDoesNotExistException(name)
+            }
+        }
+
+        /**
+         * Reads and returns an [ColumnCatalogueEntry] for the given [Name.IndexName].
+         *
+         * @param entry [ColumnCatalogueEntry] to write
+         * @param catalogue [DefaultCatalogue] to write [ColumnCatalogueEntry] to.
+         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @return True on success, false otherwise.
+         */
+        internal fun writeEntryForColumn(entry: ColumnCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean {
+            val rawName = Name.ColumnName.objectToEntry(entry.name)
+            val store = catalogue.environment.openStore(CATALOGUE_INDEX_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
+                ?: throw DatabaseException.DataCorruptionException("Failed to open column catalogue.")
+            return store.put(transaction, rawName, ColumnCatalogueEntry.objectToEntry(entry))
+        }
+
+        /**
+         * Reads and returns an [StatisticsCatalogueEntry] for the given [Name.ColumnName].
+         *
+         * @param name [Name.ColumnName] to retrieve the [StatisticsCatalogueEntry] for.
+         * @param catalogue [DefaultCatalogue] to retrieve [StatisticsCatalogueEntry] from.
+         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @return [StatisticsCatalogueEntry]
+         */
+        internal fun readEntryForStatistics(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): StatisticsCatalogueEntry {
+            val rawName = Name.ColumnName.objectToEntry(name)
+            val store = catalogue.environment.openStore(CATALOGUE_STATISTICS_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
+                ?: throw DatabaseException.DataCorruptionException("Failed to open statistics catalogue.")
+            val rawEntry = store.get(transaction, rawName)
+            if (rawEntry != null) {
+                return StatisticsCatalogueEntry.entryToObject(rawEntry) as StatisticsCatalogueEntry
+            } else {
+                throw DatabaseException.IndexDoesNotExistException(name)
+            }
+        }
+
+        /**
+         * Reads and returns an [StatisticsCatalogueEntry] for the given [Name.IndexName].
+         *
+         * @param entry [StatisticsCatalogueEntry] to write
+         * @param catalogue [DefaultCatalogue] to write [StatisticsCatalogueEntry] to.
+         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @return True on success, false otherwise.
+         */
+        internal fun writeEntryForStatistics(entry: StatisticsCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean {
+            val rawName = Name.ColumnName.objectToEntry(entry.name)
+            val store = catalogue.environment.openStore(CATALOGUE_STATISTICS_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
+                ?: throw DatabaseException.DataCorruptionException("Failed to open statistics catalogue.")
+            return store.put(transaction, rawName, StatisticsCatalogueEntry.objectToEntry(entry))
+        }
+
+        /**
+         * Reads and returns an [IndexCatalogueEntry] for the given [Name.IndexName].
+         *
+         * @param name [Name.IndexName] to retrieve the [IndexCatalogueEntry] for.
+         * @param catalogue [DefaultCatalogue] to retrieve [IndexCatalogueEntry] from.
+         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         */
+        internal fun readEntryForIndex(name: Name.IndexName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): IndexCatalogueEntry {
+            val rawName = Name.IndexName.objectToEntry(name)
+            val store = catalogue.environment.openStore(CATALOGUE_INDEX_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
+                ?: throw DatabaseException.DataCorruptionException("Failed to open index catalogue.")
+            val rawEntry = store.get(transaction, rawName)
+            if (rawEntry != null) {
+                return IndexCatalogueEntry.entryToObject(rawEntry) as IndexCatalogueEntry
+            } else {
+                throw DatabaseException.IndexDoesNotExistException(name)
+            }
+        }
+
+        /**
+         * Reads and returns an [IndexCatalogueEntry] for the given [Name.IndexName].
+         *
+         * @param entry [IndexCatalogueEntry] to write
+         * @param catalogue [DefaultCatalogue] to write [IndexCatalogueEntry] to.
+         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @return True on success, false otherwise.
+         */
+        internal fun writeEntryForIndex(entry: IndexCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean {
+            val rawName = Name.IndexName.objectToEntry(entry.name)
+            val store = catalogue.environment.openStore(CATALOGUE_INDEX_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
+                ?: throw DatabaseException.DataCorruptionException("Failed to open index catalogue.")
+            return store.put(transaction, rawName, IndexCatalogueEntry.objectToEntry(entry))
+        }
     }
 
     /** Root to Cottontail DB root folder. */
@@ -82,6 +271,9 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
 
     /** Constant parent [DBO], which is null in case of the [DefaultCatalogue]. */
     override val parent: DBO? = null
+
+    /** Any [DefaultCatalogue] belongs to itself. */
+    override val catalogue: DefaultCatalogue = this
 
     /** A lock used to mediate access to this [DefaultCatalogue]. */
     private val closeLock = StampedLock()
@@ -204,13 +396,6 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
 
             /* Remove entity from list. */
             store.delete(this.context.xodusTx, key)
-        }
-
-        /**
-         * Releases the [closeLock] on the [DefaultCatalogue].
-         */
-        override fun cleanup() {
-            this@DefaultCatalogue.closeLock.unlockRead(this.closeStamp)
         }
     }
 }
