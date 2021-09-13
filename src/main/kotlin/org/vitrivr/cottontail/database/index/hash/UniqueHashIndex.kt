@@ -1,7 +1,5 @@
 package org.vitrivr.cottontail.database.index.hash
 
-import org.mapdb.HTreeMap
-import org.mapdb.Serializer
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
@@ -16,7 +14,7 @@ import org.vitrivr.cottontail.model.basics.*
 import org.vitrivr.cottontail.model.exceptions.TxException
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.types.Value
-import java.nio.file.Path
+
 import java.util.*
 
 /**
@@ -24,33 +22,21 @@ import java.util.*
  * unique [Value] to a [TupleId]. Well suited for equality based lookups of [Value]s.
  *
  * @author Ralph Gasser
- * @version 2.0.2
+ * @version 3.0.0
  */
-class UniqueHashIndex(path: Path, parent: DefaultEntity) : AbstractIndex(path, parent) {
-
-    /** Index-wide constants. */
-    companion object {
-        const val UQ_INDEX_MAP = "cdb_uq_map"
-    }
+class UniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(name, parent) {
 
     /** The type of [AbstractIndex] */
-    override val type: IndexType = IndexType.HASH_UQ
+    override val type: IndexType = IndexType.BTREE_UQ
 
     /** The [UniqueHashIndex] implementation returns exactly the columns that is indexed. */
     override val produces: Array<ColumnDef<*>> = this.columns
-
-    /** Map structure used for [UniqueHashIndex]. */
-    private val map: HTreeMap<Value, TupleId> = this.store.hashMap(UQ_INDEX_MAP, this.columns[0].type.serializerFactory().mapdb(this.columns[0].type.logicalSize), Serializer.LONG_DELTA).createOrOpen() as HTreeMap<Value, TupleId>
 
     /** True since [UniqueHashIndex] supports incremental updates. */
     override val supportsIncrementalUpdate: Boolean = true
 
     /** False, since [UniqueHashIndex] does not support partitioning. */
     override val supportsPartitioning: Boolean = false
-
-    init {
-        this.store.commit() /* Initial commit. */
-    }
 
     /**
      * Checks if the provided [Predicate] can be processed by this instance of [UniqueHashIndex]. [UniqueHashIndex] can be used to process IN and EQUALS

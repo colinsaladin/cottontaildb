@@ -1,10 +1,11 @@
 package org.vitrivr.cottontail.database.statistics.columns
 
-import org.mapdb.DataInput2
-import org.mapdb.DataOutput2
+import jetbrains.exodus.bindings.IntegerBinding
+import jetbrains.exodus.util.LightOutputStream
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.StringValue
 import org.vitrivr.cottontail.model.values.types.Value
+import java.io.ByteArrayInputStream
 import java.lang.Integer.max
 import java.lang.Integer.min
 
@@ -17,19 +18,19 @@ import java.lang.Integer.min
 class StringValueStatistics : ValueStatistics<StringValue>(Type.String) {
 
     /**
-     * Serializer for [StringValueStatistics].
+     * Xodus serializer for [ShortValueStatistics]
      */
-    companion object Serializer : org.mapdb.Serializer<StringValueStatistics> {
-        override fun serialize(out: DataOutput2, value: StringValueStatistics) {
-            out.packInt(value.minWidth)
-            out.packInt(value.maxWidth)
+    object Binding {
+        fun read(stream: ByteArrayInputStream): StringValueStatistics {
+            val stat = StringValueStatistics()
+            stat.minWidth = IntegerBinding.readCompressed(stream)
+            stat.minWidth = IntegerBinding.readCompressed(stream)
+            return stat
         }
 
-        override fun deserialize(input: DataInput2, available: Int): StringValueStatistics {
-            val stat = StringValueStatistics()
-            stat.minWidth = input.unpackInt()
-            stat.maxWidth = input.unpackInt()
-            return stat
+        fun write(output: LightOutputStream, statistics: StringValueStatistics) {
+            IntegerBinding.writeCompressed(output, statistics.minWidth)
+            IntegerBinding.writeCompressed(output, statistics.maxWidth)
         }
     }
 

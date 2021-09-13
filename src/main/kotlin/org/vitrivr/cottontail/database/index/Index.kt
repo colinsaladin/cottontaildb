@@ -23,12 +23,9 @@ import java.nio.file.Path
  * @see IndexTx
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 3.0.0
  */
 interface Index : DBO {
-
-    /** Path to this [Index] file. */
-    override val path: Path
 
     /** [Entity] this [AbstractIndex] belongs to. */
     override val parent: Entity
@@ -54,8 +51,8 @@ interface Index : DBO {
     /** True, if the [AbstractIndex] supports querying filtering an indexable range of the data. */
     val supportsPartitioning: Boolean
 
-    /** Flag indicating, if this [AbstractIndex] reflects all changes done to the [DefaultEntity]it belongs to. */
-    val dirty: Boolean
+    /** Flag indicating, if this [AbstractIndex] reflects all changes done to the [DefaultEntity] it belongs to. */
+    val state: IndexState
 
     /** The configuration map used for the [Index]. */
     val config: IndexConfig

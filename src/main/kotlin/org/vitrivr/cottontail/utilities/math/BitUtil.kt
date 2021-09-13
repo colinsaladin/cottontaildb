@@ -1,8 +1,6 @@
 package org.vitrivr.cottontail.utilities.math
 
 object BitUtil {
-
-
     /**
      *
      */
@@ -13,5 +11,4 @@ object BitUtil {
             it shl 1
         }
     }
-
 }

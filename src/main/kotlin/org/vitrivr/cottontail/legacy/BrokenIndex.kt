@@ -16,20 +16,17 @@ import java.nio.file.Path
  * or no longer supported. Still exposes basic properties of the underlying [Index].
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
 class BrokenIndex(
     override val name: Name.IndexName,
     override val parent: Entity,
-    override val path: Path,
+    val path: Path,
     override val type: IndexType,
     override val columns: Array<ColumnDef<*>>,
 ) : Index {
     override val closed: Boolean = true
     override val version: DBOVersion = DBOVersion.UNDEFINED
-    override fun close() { /* No Op. */
-    }
-
     override val produces: Array<ColumnDef<*>> = emptyArray()
     override val order: Array<Pair<ColumnDef<*>, SortOrder>> = emptyArray()
     override val supportsIncrementalUpdate: Boolean = false

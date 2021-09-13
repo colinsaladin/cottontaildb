@@ -1,12 +1,17 @@
 package org.vitrivr.cottontail.model.basics
 
+import jetbrains.exodus.bindings.ComparableBinding
+import jetbrains.exodus.bindings.StringBinding
+import jetbrains.exodus.util.LightOutputStream
+import java.io.ByteArrayInputStream
+
 /**
  * A [Name] that identifies a DBO used within Cottontail DB.
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 2.0.0
  */
-sealed class Name {
+sealed class Name : Comparable<Name> {
 
     companion object {
         /* Delimiter between name components. */
@@ -67,6 +72,14 @@ sealed class Name {
      */
     class SchemaName(vararg components: String) : Name() {
 
+        companion object Binding: ComparableBinding() {
+            override fun readObject(stream: ByteArrayInputStream) = SchemaName(StringBinding.BINDING.readObject(stream))
+            override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
+                check(`object` is SchemaName) { "Cannot serialize $`object` as schema name." }
+                StringBinding.BINDING.writeObject(output, `object`.components[1])
+            }
+        }
+
         /** Normalized [Name] components of this [SchemaName]. */
         override val components = when {
             components.size == 1 -> arrayOf(
@@ -101,6 +114,15 @@ sealed class Name {
      * A [Name] object used to identify a [Entity][org.vitrivr.cottontail.database.entity.DefaultEntity].
      */
     class EntityName(vararg components: String) : Name() {
+
+        companion object Binding: ComparableBinding() {
+            override fun readObject(stream: ByteArrayInputStream) = EntityName(StringBinding.BINDING.readObject(stream), StringBinding.BINDING.readObject(stream))
+            override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
+                check(`object` is EntityName) { "Cannot serialize $`object` as schema name." }
+                StringBinding.BINDING.writeObject(output, `object`.components[1])
+                StringBinding.BINDING.writeObject(output, `object`.components[2])
+            }
+        }
 
         /** Normalized [Name] components of this [EntityName]. */
         override val components = when {
@@ -154,6 +176,16 @@ sealed class Name {
      */
     class IndexName(vararg components: String) : Name() {
 
+        companion object Binding: ComparableBinding() {
+            override fun readObject(stream: ByteArrayInputStream) = IndexName(StringBinding.BINDING.readObject(stream), StringBinding.BINDING.readObject(stream), StringBinding.BINDING.readObject(stream))
+            override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
+                check(`object` is IndexName) { "Cannot serialize $`object` as schema name." }
+                StringBinding.BINDING.writeObject(output, `object`.components[1])
+                StringBinding.BINDING.writeObject(output, `object`.components[2])
+                StringBinding.BINDING.writeObject(output, `object`.components[3])
+            }
+        }
+
         /** Normalized [Name] components of this [IndexName]. */
         override val components = when {
             components.size == 3 -> arrayOf(NAME_COMPONENT_ROOT,
@@ -197,6 +229,16 @@ sealed class Name {
      * A [Name] object used to identify a [Index][org.vitrivr.cottontail.database.column.Column].
      */
     class ColumnName(vararg components: String) : Name() {
+
+        companion object Binding: ComparableBinding() {
+            override fun readObject(stream: ByteArrayInputStream) = ColumnName(StringBinding.BINDING.readObject(stream), StringBinding.BINDING.readObject(stream), StringBinding.BINDING.readObject(stream))
+            override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
+                check(`object` is ColumnName) { "Cannot serialize $`object` as schema name." }
+                StringBinding.BINDING.writeObject(output, `object`.components[1])
+                StringBinding.BINDING.writeObject(output, `object`.components[2])
+                StringBinding.BINDING.writeObject(output, `object`.components[3])
+            }
+        }
 
         /** Normalized [Name] components of this [IndexName]. */
         override val components: Array<String> = when {
@@ -302,6 +344,25 @@ sealed class Name {
      */
     override fun hashCode(): Int {
         return 42 + this.components.contentHashCode()
+    }
+
+    /**
+     * Compares this [Name] to the other [Name]. Returns zero if this object is equal to
+     * the specified other object, a negative number if it's less than other, or a positive
+     * number if it's greater than other.
+     *
+     * @return Hash code for this [Name] object
+     */
+    override fun compareTo(other: Name): Int {
+        for ((i, c) in this.components.withIndex()) {
+            if (other.components.size > i) {
+                val comp = c.compareTo(other.components[i])
+                if (comp != 0) return comp
+            } else {
+                return 1
+            }
+        }
+        return 0
     }
 
     /**

@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.logical.managemen
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.queries.GroupId
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.NullaryLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.management.InsertPhysicalOperatorNode
@@ -12,9 +13,9 @@ import org.vitrivr.cottontail.model.basics.Record
  * A [InsertLogicalOperatorNode] that formalizes a INSERT operation on an [Entity].
  *
  * @author Ralph Gasser
- * @version 2.2.0
+ * @version 2.3.0
  */
-class InsertLogicalOperatorNode(override val groupId: GroupId, val entity: Entity, val records: MutableList<Record>) : NullaryLogicalOperatorNode() {
+class InsertLogicalOperatorNode(override val groupId: GroupId, val entity: EntityTx, val records: MutableList<Record>) : NullaryLogicalOperatorNode() {
 
     companion object {
         private const val NODE_NAME = "Insert"

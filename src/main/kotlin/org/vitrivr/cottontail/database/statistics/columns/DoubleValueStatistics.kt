@@ -1,10 +1,11 @@
 package org.vitrivr.cottontail.database.statistics.columns
 
-import org.mapdb.DataInput2
-import org.mapdb.DataOutput2
+import jetbrains.exodus.bindings.DoubleBinding
+import jetbrains.exodus.util.LightOutputStream
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.types.Value
+import java.io.ByteArrayInputStream
 import java.lang.Double.max
 import java.lang.Double.min
 
@@ -12,26 +13,26 @@ import java.lang.Double.min
  * A [ValueStatistics] implementation for [DoubleValue]s.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
 class DoubleValueStatistics : ValueStatistics<DoubleValue>(Type.Double) {
 
     /**
-     * Serializer for [FloatValueStatistics].
+     * Xodus serializer for [DoubleValueStatistics]
      */
-    companion object Serializer : org.mapdb.Serializer<DoubleValueStatistics> {
-        override fun serialize(out: DataOutput2, value: DoubleValueStatistics) {
-            out.writeDouble(value.min)
-            out.writeDouble(value.max)
-            out.writeDouble(value.sum)
+    object Binding {
+        fun read(stream: ByteArrayInputStream): DoubleValueStatistics {
+            val stat = DoubleValueStatistics()
+            stat.min = DoubleBinding.BINDING.readObject(stream)
+            stat.max = DoubleBinding.BINDING.readObject(stream)
+            stat.sum = DoubleBinding.BINDING.readObject(stream)
+            return stat
         }
 
-        override fun deserialize(input: DataInput2, available: Int): DoubleValueStatistics {
-            val stat = DoubleValueStatistics()
-            stat.min = input.readDouble()
-            stat.max = input.readDouble()
-            stat.sum = input.readDouble()
-            return stat
+        fun write(output: LightOutputStream, statistics: DoubleValueStatistics) {
+            DoubleBinding.BINDING.writeObject(output, statistics.min)
+            DoubleBinding.BINDING.writeObject(output, statistics.max)
+            DoubleBinding.BINDING.writeObject(output, statistics.sum)
         }
     }
 

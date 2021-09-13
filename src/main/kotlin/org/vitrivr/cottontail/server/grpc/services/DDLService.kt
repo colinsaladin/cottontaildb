@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.single
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.column.ColumnDef
-import org.vitrivr.cottontail.database.column.ColumnEngine
 import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.extensions.fqn
@@ -24,7 +23,7 @@ import kotlin.time.ExperimentalTime
  * This is a gRPC service endpoint that handles DDL (= Data Definition Language) request for Cottontail DB.
  *
  * @author Ralph Gasser
- * @version 2.0.0
+ * @version 2.1.0
  */
 @ExperimentalTime
 class DDLService(val catalogue: DefaultCatalogue, override val manager: TransactionManager) : DDLGrpcKt.DDLCoroutineImplBase(), gRPCTransactionService {
@@ -73,7 +72,7 @@ class DDLService(val catalogue: DefaultCatalogue, override val manager: Transact
         val columns = request.definition.columnsList.map {
             val type = Type.forName(it.type.name, it.length)
             val name = entityName.column(it.name)
-            ColumnDef(name, type, it.nullable) to ColumnEngine.valueOf(it.engine.toString())
+            ColumnDef(name, type, it.nullable)
         }.toTypedArray()
         val op = CreateEntityOperator(this.catalogue, entityName, columns)
         executeAndMaterialize(QueryContext(this.catalogue, tx), op, q, 0).catch { e ->

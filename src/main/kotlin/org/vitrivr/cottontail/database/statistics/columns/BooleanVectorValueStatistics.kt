@@ -1,19 +1,41 @@
 package org.vitrivr.cottontail.database.statistics.columns
 
-import org.mapdb.DataInput2
-import org.mapdb.DataOutput2
+import jetbrains.exodus.bindings.LongBinding
+import jetbrains.exodus.util.LightOutputStream
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.BooleanVectorValue
 import org.vitrivr.cottontail.model.values.DoubleVectorValue
 import org.vitrivr.cottontail.model.values.types.Value
+import java.io.ByteArrayInputStream
 
 /**
  * A [ValueStatistics] implementation for [BooleanVectorValue]s.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
 class BooleanVectorValueStatistics(type: Type<BooleanVectorValue>) : ValueStatistics<BooleanVectorValue>(type) {
+
+    /**
+     * Xodus serializer for [BooleanVectorValueStatistics]
+     */
+    object Binding {
+        fun read(stream: ByteArrayInputStream, type: Type<BooleanVectorValue>): BooleanVectorValueStatistics {
+            val stat = BooleanVectorValueStatistics(type)
+            for (i in 0 until type.logicalSize) {
+                stat.numberOfTrueEntries[i] = LongBinding.readCompressed(stream)
+                stat.numberOfFalseEntries[i] = LongBinding.readCompressed(stream)
+            }
+            return stat
+        }
+
+        fun write(output: LightOutputStream, statistics: BooleanVectorValueStatistics) {
+            for (i in 0 until statistics.type.logicalSize) {
+                LongBinding.writeCompressed(output, statistics.numberOfTrueEntries[i])
+                LongBinding.writeCompressed(output, statistics.numberOfFalseEntries[i])
+            }
+        }
+    }
 
     /** A histogram capturing the number of true entries per component. */
     val numberOfTrueEntries: LongArray = LongArray(this.type.logicalSize)
@@ -49,24 +71,6 @@ class BooleanVectorValueStatistics(type: Type<BooleanVectorValue>) : ValueStatis
             for ((i, d) in deleted.data.withIndex()) {
                 if (d) this.numberOfTrueEntries[i] = this.numberOfTrueEntries[i] - 1
             }
-        }
-    }
-
-    /**
-     * A [org.mapdb.Serializer] implementation for a [DoubleVectorValueStatistics] object.
-     *
-     * @author Ralph Gasser
-     * @version 1.0.0
-     */
-    class Serializer(val type: Type<BooleanVectorValue>) : org.mapdb.Serializer<BooleanVectorValueStatistics> {
-        override fun serialize(out: DataOutput2, value: BooleanVectorValueStatistics) {
-            value.numberOfTrueEntries.forEach { out.writeLong(it) }
-        }
-
-        override fun deserialize(input: DataInput2, available: Int): BooleanVectorValueStatistics {
-            val stat = BooleanVectorValueStatistics(this.type)
-            repeat(this.type.logicalSize) { stat.numberOfTrueEntries[it] = input.readLong() }
-            return stat
         }
     }
 

@@ -1,7 +1,7 @@
 package org.vitrivr.cottontail.database.column
 
 import org.vitrivr.cottontail.config.Config
-import org.vitrivr.cottontail.database.column.mapdb.MapDBColumn
+import org.vitrivr.cottontail.legacy.v2.column.ColumnV2
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.model.values.types.Value
 import java.nio.file.Path
@@ -25,8 +25,8 @@ enum class ColumnEngine {
      * @param path The [Path] to the [Column] file.
      * @param parent The parent [DefaultEntity].
      */
-    fun open(path: Path, parent: DefaultEntity): MapDBColumn<Value> = when (this) {
-        MAPDB -> MapDBColumn(path, parent)
+    fun open(path: Path, parent: DefaultEntity): ColumnV2<Value> = when (this) {
+        MAPDB -> ColumnV2(path, parent)
         else -> throw IllegalArgumentException("Column typ $this is currently not supported by Cottontail DB.")
     }
 
@@ -38,7 +38,7 @@ enum class ColumnEngine {
      * @param config The [Config] to use.
      */
     fun create(path: Path, columnDef: ColumnDef<*>, config: Config) = when (this) {
-        MAPDB -> MapDBColumn.initialize(path, columnDef, config.mapdb)
+        MAPDB -> ColumnV2.initialize(path, columnDef, config.mapdb)
         else -> throw IllegalArgumentException("Column typ $this is currently not supported by Cottontail DB.")
     }
 }

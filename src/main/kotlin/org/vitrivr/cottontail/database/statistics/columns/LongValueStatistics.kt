@@ -1,10 +1,11 @@
 package org.vitrivr.cottontail.database.statistics.columns
 
-import org.mapdb.DataInput2
-import org.mapdb.DataOutput2
+import jetbrains.exodus.bindings.LongBinding
+import jetbrains.exodus.util.LightOutputStream
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.LongValue
 import org.vitrivr.cottontail.model.values.types.Value
+import java.io.ByteArrayInputStream
 import java.lang.Long.max
 import java.lang.Long.min
 
@@ -17,19 +18,19 @@ import java.lang.Long.min
 class LongValueStatistics : ValueStatistics<LongValue>(Type.Long) {
 
     /**
-     * Serializer for [LongValueStatistics].
+     * Xodus serializer for [LongValueStatistics]
      */
-    companion object Serializer : org.mapdb.Serializer<LongValueStatistics> {
-        override fun serialize(out: DataOutput2, value: LongValueStatistics) {
-            out.writeLong(value.min)
-            out.writeLong(value.max)
+    object Binding {
+        fun read(stream: ByteArrayInputStream): LongValueStatistics {
+            val stat = LongValueStatistics()
+            stat.min = LongBinding.BINDING.readObject(stream)
+            stat.max = LongBinding.BINDING.readObject(stream)
+            return stat
         }
 
-        override fun deserialize(input: DataInput2, available: Int): LongValueStatistics {
-            val stat = LongValueStatistics()
-            stat.min = input.readLong()
-            stat.max = input.readLong()
-            return stat
+        fun write(output: LightOutputStream, statistics: LongValueStatistics) {
+            LongBinding.BINDING.writeObject(output, statistics.min)
+            LongBinding.BINDING.writeObject(output, statistics.max)
         }
     }
 

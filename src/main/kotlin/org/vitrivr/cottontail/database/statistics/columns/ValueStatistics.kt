@@ -1,12 +1,13 @@
 package org.vitrivr.cottontail.database.statistics.columns
 
-import org.mapdb.DataInput2
-import org.mapdb.DataOutput2
-import org.mapdb.Serializer
+import jetbrains.exodus.bindings.BooleanBinding
+import jetbrains.exodus.bindings.LongBinding
+import jetbrains.exodus.util.LightOutputStream
 import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.database.statistics.selectivity.Selectivity
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.Value
+import java.io.ByteArrayInputStream
 import java.lang.Math.floorDiv
 
 /**
@@ -32,57 +33,54 @@ open class ValueStatistics<T : Value>(val type: Type<T>) {
     var numberOfNonNullEntries: Long = 0L
         protected set
 
-    companion object : Serializer<ValueStatistics<*>> {
-        override fun serialize(out: DataOutput2, value: ValueStatistics<*>) {
-            out.packInt(value.type.ordinal)
-            out.packInt(value.type.logicalSize)
-            when (value) {
-                is BooleanValueStatistics -> BooleanValueStatistics.serialize(out, value)
-                is ByteValueStatistics -> ByteValueStatistics.serialize(out, value)
-                is ShortValueStatistics -> ShortValueStatistics.serialize(out, value)
-                is IntValueStatistics -> IntValueStatistics.serialize(out, value)
-                is LongValueStatistics -> LongValueStatistics.serialize(out, value)
-                is FloatValueStatistics -> FloatValueStatistics.serialize(out, value)
-                is DoubleValueStatistics -> DoubleValueStatistics.serialize(out, value)
-                is DateValueStatistics -> DateValueStatistics.serialize(out, value)
-                is StringValueStatistics -> StringValueStatistics.serialize(out, value)
-                is BooleanVectorValueStatistics -> BooleanVectorValueStatistics.Serializer(value.type).serialize(out, value)
-                is DoubleVectorValueStatistics -> DoubleVectorValueStatistics.Serializer(value.type).serialize(out, value)
-                is FloatVectorValueStatistics -> FloatVectorValueStatistics.Serializer(value.type).serialize(out, value)
-                is LongVectorValueStatistics -> LongVectorValueStatistics.Serializer(value.type).serialize(out, value)
-                is IntVectorValueStatistics -> IntVectorValueStatistics.Serializer(value.type).serialize(out, value)
-            }
-            out.writeBoolean(value.fresh)
-            out.packLong(value.numberOfNullEntries)
-            out.packLong(value.numberOfNonNullEntries)
-        }
-
-        override fun deserialize(input: DataInput2, available: Int): ValueStatistics<*> {
-            val stat = when (val type = Type.forOrdinal(input.unpackInt(), input.unpackInt())) {
+    companion object Binding {
+        fun read(stream: ByteArrayInputStream, type: Type<*>): ValueStatistics<*> {
+            val stat = when (type) {
                 Type.Complex32,
                 Type.Complex64,
                 is Type.Complex32Vector,
-                is Type.Complex64Vector,
-                -> ValueStatistics(type)
-                Type.Boolean -> BooleanValueStatistics.deserialize(input, available)
-                Type.Byte -> ByteValueStatistics.deserialize(input, available)
-                Type.Double -> DoubleValueStatistics.deserialize(input, available)
-                Type.Float -> FloatValueStatistics.deserialize(input, available)
-                Type.Int -> IntValueStatistics.deserialize(input, available)
-                Type.Long -> LongValueStatistics.deserialize(input, available)
-                Type.Short -> ShortValueStatistics.deserialize(input, available)
-                Type.String -> StringValueStatistics.deserialize(input, available)
-                Type.Date -> DateValueStatistics.deserialize(input, available)
-                is Type.BooleanVector -> BooleanVectorValueStatistics.Serializer(type).deserialize(input, available)
-                is Type.DoubleVector -> DoubleVectorValueStatistics.Serializer(type).deserialize(input, available)
-                is Type.FloatVector -> FloatVectorValueStatistics.Serializer(type).deserialize(input, available)
-                is Type.IntVector -> IntVectorValueStatistics.Serializer(type).deserialize(input, available)
-                is Type.LongVector -> LongVectorValueStatistics.Serializer(type).deserialize(input, available)
+                is Type.Complex64Vector -> ValueStatistics(type)
+                Type.Boolean -> BooleanValueStatistics.Binding.read(stream)
+                Type.Byte -> ByteValueStatistics.Binding.read(stream)
+                Type.Double -> DoubleValueStatistics.Binding.read(stream)
+                Type.Float -> FloatValueStatistics.Binding.read(stream)
+                Type.Int -> IntValueStatistics.Binding.read(stream)
+                Type.Long -> LongValueStatistics.Binding.read(stream)
+                Type.Short -> ShortValueStatistics.Binding.read(stream)
+                Type.String -> StringValueStatistics.Binding.read(stream)
+                Type.Date -> DateValueStatistics.Binding.read(stream)
+                is Type.BooleanVector -> BooleanVectorValueStatistics.Binding.read(stream, type)
+                is Type.DoubleVector -> DoubleVectorValueStatistics.Binding.read(stream, type)
+                is Type.FloatVector -> FloatVectorValueStatistics.Binding.read(stream, type)
+                is Type.IntVector -> IntVectorValueStatistics.Binding.read(stream, type)
+                is Type.LongVector -> LongVectorValueStatistics.Binding.read(stream, type)
             }
-            stat.fresh = input.readBoolean()
-            stat.numberOfNullEntries = input.unpackLong()
-            stat.numberOfNonNullEntries = input.unpackLong()
+            stat.fresh = BooleanBinding.BINDING.readObject(stream)
+            stat.numberOfNullEntries = LongBinding.readCompressed(stream)
+            stat.numberOfNonNullEntries = LongBinding.readCompressed(stream)
             return stat
+        }
+
+        fun write(output: LightOutputStream, statistics: ValueStatistics<*>) {
+            when (statistics) {
+                is BooleanValueStatistics -> BooleanValueStatistics.Binding.write(output, statistics)
+                is ByteValueStatistics -> ByteValueStatistics.Binding.write(output, statistics)
+                is ShortValueStatistics -> ShortValueStatistics.Binding.write(output, statistics)
+                is IntValueStatistics -> IntValueStatistics.Binding.write(output, statistics)
+                is LongValueStatistics -> LongValueStatistics.Binding.write(output, statistics)
+                is FloatValueStatistics -> FloatValueStatistics.Binding.write(output, statistics)
+                is DoubleValueStatistics -> DoubleValueStatistics.Binding.write(output, statistics)
+                is DateValueStatistics -> DateValueStatistics.Binding.write(output, statistics)
+                is StringValueStatistics -> StringValueStatistics.Binding.write(output, statistics)
+                is BooleanVectorValueStatistics -> BooleanVectorValueStatistics.Binding.write(output, statistics)
+                is DoubleVectorValueStatistics -> DoubleVectorValueStatistics.Binding.write(output, statistics)
+                is FloatVectorValueStatistics -> FloatVectorValueStatistics.Binding.write(output, statistics)
+                is LongVectorValueStatistics -> LongVectorValueStatistics.Binding.write(output, statistics)
+                is IntVectorValueStatistics -> IntVectorValueStatistics.Binding.write(output, statistics)
+            }
+            BooleanBinding.BINDING.writeObject(output, statistics.fresh)
+            LongBinding.writeCompressed(output, statistics.numberOfNullEntries)
+            LongBinding.writeCompressed(output, statistics.numberOfNonNullEntries)
         }
     }
 

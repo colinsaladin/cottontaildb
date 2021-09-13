@@ -19,13 +19,13 @@ import kotlin.time.measureTimedValue
  * An [Operator.SourceOperator] used during query execution. Creates an [Entity]
  *
  * @author Ralph Gasser
- * @version 1.1.1
+ * @version 1.2.0
  */
 @ExperimentalTime
 class CreateEntityOperator(
     private val catalogue: Catalogue,
     private val name: Name.EntityName,
-    private val cols: Array<Pair<ColumnDef<*>, ColumnEngine>>
+    private val cols: Array<ColumnDef<*>>
 ) : AbstractDataDefinitionOperator(name, "CREATE ENTITY") {
 
     override fun toFlow(context: QueryContext): Flow<Record> {

@@ -19,7 +19,7 @@ import org.vitrivr.cottontail.model.basics.TupleId
  * @see EntityTx
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 2.0.0
  */
 interface Entity : DBO {
 
@@ -28,9 +28,6 @@ interface Entity : DBO {
 
     /** The [DefaultSchema] this [Entity] belongs to. */
     override val parent: Schema
-
-    /** The [EntityStatistics] in this [Entity]. This is a snapshot and may change immediately. */
-    val statistics: EntityStatistics
 
     /** Number of [Column]s in this [Entity]. */
     val numberOfColumns: Int

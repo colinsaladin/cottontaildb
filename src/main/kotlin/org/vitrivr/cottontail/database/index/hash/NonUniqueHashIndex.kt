@@ -39,7 +39,7 @@ class NonUniqueHashIndex(path: Path, parent: DefaultEntity) : AbstractIndex(path
     }
 
     /** The type of [AbstractIndex] */
-    override val type: IndexType = IndexType.HASH
+    override val type: IndexType = IndexType.BTREE
 
     /** True since [NonUniqueHashIndex] supports incremental updates. */
     override val supportsIncrementalUpdate: Boolean = true

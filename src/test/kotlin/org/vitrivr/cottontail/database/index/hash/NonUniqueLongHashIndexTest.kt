@@ -18,7 +18,6 @@ import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.LongValue
-import org.vitrivr.cottontail.model.values.types.Value
 import java.util.*
 import kotlin.collections.HashMap
 
@@ -43,7 +42,7 @@ class NonUniqueLongHashIndexTest : AbstractIndexTest() {
         get() = this.entityName.index("non_unique_long")
 
     override val indexType: IndexType
-        get() = IndexType.HASH
+        get() = IndexType.BTREE
 
     /** List of values stored in this [UniqueHashIndexTest]. */
     private var list = HashMap<LongValue, MutableList<DoubleValue>>(100)

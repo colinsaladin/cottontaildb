@@ -11,15 +11,11 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.entity.EntityTxSnapshot
 import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.general.DBOVersion
-import org.vitrivr.cottontail.database.general.TxAction
-import org.vitrivr.cottontail.database.general.TxSnapshot
 import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.IndexType
-import org.vitrivr.cottontail.database.schema.SchemaTx
 import org.vitrivr.cottontail.database.statistics.entity.EntityStatistics
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.legacy.BrokenIndex
@@ -50,9 +46,9 @@ import kotlin.math.min
  * @see EntityTx
  *
  * @author Ralph Gasser
- * @version 1.7.0
+ * @version 2.0.0
  */
-class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1) : Entity {
+class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1) : Entity, AutoCloseable {
     /**
      * Companion object of the [Entity]
      */
@@ -65,7 +61,7 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
     }
 
     /** The [Path] to the [Entity]'s main folder. */
-    override val path: Path = this.parent.path.resolve("entity_${name.simple}")
+    val path: Path = this.parent.path.resolve("entity_${name.simple}")
 
     /** Internal reference to the [StoreWAL] underpinning this [Entity]. */
     private val store: CottontailStoreWAL = try {
@@ -83,7 +79,7 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
     private val closeLock = StampedLock()
 
     /** List of all the [Column]s associated with this [Entity]; Iteration order of entries as defined in schema! */
-    private val columns: MutableMap<Name.ColumnName, Column<*>> = Object2ObjectLinkedOpenHashMap()
+    private val columns: MutableMap<Name.ColumnName, ColumnV1<*>> = Object2ObjectLinkedOpenHashMap()
 
     /** List of all the [Index]es associated with this [Entity]. */
     private val indexes: MutableMap<Name.IndexName, Index> = Object2ObjectOpenHashMap()
@@ -91,18 +87,13 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
     init {
         /* Initialize columns. */
         this.header.columns.map {
-            val columnName = this.name.column(
-                this.store.get(it, Serializer.STRING)
-                    ?: throw DatabaseException.DataCorruptionException("Failed to open entity '$name': Could not read column definition at position $it!")
-            )
-            this.columns[columnName] =
-                ColumnV1<Value>(columnName, this)
+            val columnName = this.name.column(this.store.get(it, Serializer.STRING) ?: throw DatabaseException.DataCorruptionException("Failed to open entity '$name': Could not read column definition at position $it!"))
+            this.columns[columnName] = ColumnV1<Value>(columnName, this)
         }
 
         /* Initialize indexes (broken). */
         this.header.indexes.forEach { idx ->
-            val indexEntry = this.store.get(idx, IndexV1Entry.Serializer)
-                ?: throw DatabaseException.DataCorruptionException("Failed to open entity '$name': Could not read index definition at position $idx!")
+            val indexEntry = this.store.get(idx, IndexV1Entry.Serializer) ?: throw DatabaseException.DataCorruptionException("Failed to open entity '$name': Could not read index definition at position $idx!")
             val indexName = this.name.index(indexEntry.name)
             val columns = indexEntry.columns.map { col ->
                 val split = col.split(".").last()
@@ -128,11 +119,6 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
 
     override val numberOfRows: Long
         get() = this.header.size
-
-    override val statistics: EntityStatistics
-        get() {
-            throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-        }
 
     override val maxTupleId: TupleId
         get() {
@@ -169,9 +155,6 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
     /**
      * A [Tx] that affects this [Entity]. Opening a [EntityTx] will automatically spawn [ColumnTx]
      * and [IndexTx] for every [Column] and [IndexTx] associated with this [Entity].
-     *
-     * @author Ralph Gasser
-     * @version 1.0.0
      */
     inner class Tx(context: TransactionContext) : AbstractTx(context), EntityTx {
 
@@ -181,17 +164,6 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
         /** Reference to the surrounding [Entity]. */
         override val dbo: Entity
             get() = this@EntityV1
-
-        /** The [TxSnapshot] of this [SchemaTx]. */
-        override val snapshot = object : EntityTxSnapshot {
-            override val statistics: EntityStatistics
-                get() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-            override val indexes: MutableMap<Name.IndexName, Index> = mutableMapOf()
-            override val actions: List<TxAction> = emptyList()
-            override fun commit() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-            override fun rollback() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-            override fun record(action: TxAction): Boolean = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-        }
 
         /** Tries to acquire a global read-lock on this entity. */
         init {
@@ -206,8 +178,8 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
          *
          * @return List of all [Column]s.
          */
-        override fun listColumns(): List<Column<*>> = this.withReadLock {
-            return this@EntityV1.columns.values.toList()
+        override fun listColumns(): List<ColumnDef<*>> = this.withReadLock {
+            return this@EntityV1.columns.values.map { it.columnDef }.toList()
         }
 
         /**
@@ -251,13 +223,7 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
             return this@EntityV1.columns.values.first().maxTupleId
         }
 
-
-        override fun createIndex(
-            name: Name.IndexName,
-            type: IndexType,
-            columns: Array<ColumnDef<*>>,
-            params: Map<String, String>
-        ): Index {
+        override fun createIndex(name: Name.IndexName, type: IndexType, columns: Array<ColumnDef<*>>, params: Map<String, String>): Index {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
@@ -290,9 +256,7 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
 
             /** The wrapped [Iterator] of the first (primary) column. */
             private val wrapped = this@Tx.withReadLock {
-                (this@Tx.context.getTx(this@EntityV1.columns.values.first()) as ColumnTx<*>).scan(
-                    range
-                )
+                (this@Tx.context.getTx(this@EntityV1.columns.values.first()) as ColumnV1<*>.Tx).scan(range)
             }
 
             /**
@@ -304,7 +268,7 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
                 val values = columns.map {
                     val column = this@EntityV1.columns[it.name]
                         ?: throw IllegalArgumentException("Column $it does not exist on entity ${this@EntityV1.name}.")
-                    (this@Tx.context.getTx(column) as ColumnTx<*>).read(tupleId)
+                    (this@Tx.context.getTx(column) as ColumnTx<*>).get(tupleId)
                 }.toTypedArray()
 
                 /* Return value of all the desired columns. */

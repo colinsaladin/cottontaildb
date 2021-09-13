@@ -1,7 +1,7 @@
 package org.vitrivr.cottontail.database.column
 
 import org.vitrivr.cottontail.database.general.Tx
-import org.vitrivr.cottontail.model.basics.Countable
+import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.values.types.Value
@@ -15,9 +15,9 @@ import org.vitrivr.cottontail.model.values.types.Value
  * level of isolation.
  *
  * @author Ralph Gasser
- * @version 1.3.0
+ * @version 2.0.0
  */
-interface ColumnTx<T : Value> : Tx, Countable {
+interface ColumnTx<T : Value> : Tx {
     /** Reference to the [Column] this [ColumnTx] belongs to. */
     override val dbo: Column<T>
 
@@ -26,22 +26,20 @@ interface ColumnTx<T : Value> : Tx, Countable {
         get() = this.dbo.columnDef
 
     /**
+     * Gets and returns [ValueStatistics] for this [ColumnTx]
+     *
+     * @return [ValueStatistics].
+     */
+    fun statistics(): ValueStatistics<T>
+
+    /**
      * Gets and returns an entry from this [Column].
      *
      * @param tupleId The ID of the desired entry
      * @return The desired entry.
-     *
-     * @throws DatabaseException If the tuple with the desired ID doesn't exist OR is invalid.
+     * @throws DatabaseException If the tuple with the desired ID is invalid.
      */
-    fun read(tupleId: TupleId): T?
-
-    /**
-     * Inserts a new [Value] in this [Column].
-     *
-     * @param record The [Value] that should be inserted. Can be null!
-     * @return The [TupleId] of the inserted record OR the allocated space in case of a null value.
-     */
-    fun insert(record: T?): TupleId
+    fun get(tupleId: TupleId): T?
 
     /**
      * Updates the entry with the specified [TupleId] and sets it to the new [Value].
@@ -50,17 +48,16 @@ interface ColumnTx<T : Value> : Tx, Countable {
      * @param value The new [Value]
      * @return The old [Value]
      */
-    fun update(tupleId: TupleId, value: T?): T?
+    fun put(tupleId: TupleId, value: T): T?
 
     /**
-     * Updates the entry with the specified [TupleId] and sets it to the new [Value] if, and only if,
-     * it currently hold the expected [Value].
+     * Updates the entry with the specified [TupleId] and sets it to the new [Value] if, and only if, it currently holds the expected [Value].
      *
      * @param tupleId The ID of the record that should be updated
      * @param value The new [Value].
      * @param expected The [Value] expected to be there.
      */
-    fun compareAndUpdate(tupleId: TupleId, value: T?, expected: T?): Boolean
+    fun compareAndPut(tupleId: TupleId, value: T, expected: T?): Boolean
 
     /**
      * Deletes the entry with the specified [TupleId] and sets it to the new value.
@@ -69,21 +66,4 @@ interface ColumnTx<T : Value> : Tx, Countable {
      * @return The old [Value]*
      */
     fun delete(tupleId: TupleId): T?
-
-    /**
-     * Creates and returns a new [Iterator] for this [ColumnTx] that returns all
-     * [TupleId]s contained within the surrounding [Column].
-     *
-     * @return [Iterator]
-     */
-    fun scan(): Iterator<TupleId>
-
-    /**
-     * Creates and returns a new [Iterator] for this [ColumnTx] that returns
-     * all [TupleId]s contained within the surrounding [Column] and a certain range.
-     *
-     * @param range The [LongRange] that should be scanned.
-     * @return [Iterator]
-     */
-    fun scan(range: LongRange): Iterator<TupleId>
 }

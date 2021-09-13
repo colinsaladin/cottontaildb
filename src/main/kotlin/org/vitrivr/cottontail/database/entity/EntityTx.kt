@@ -12,15 +12,20 @@ import org.vitrivr.cottontail.model.basics.*
  * A [Tx] that operates on a single [Entity]. [Tx]s are a unit of isolation for data operations (read/write).
  *
  * @author Ralph Gasser
- * @version 1.3.1
+ * @version 3.0.0
  */
 interface EntityTx : Tx, Scanable, Countable, Modifiable {
 
-    /** Reference to the [EntityTxSnapshot] held by this [EntityTx]. */
-    override val snapshot: EntityTxSnapshot
-
     /** Reference to the [Entity] this [EntityTx] belongs to. */
     override val dbo: Entity
+
+    /**
+     * Reads the specified [TupleId] and the specified [ColumnDef] through this [EntityTx].
+     *
+     * @param tupleId The [TupleId] to read.
+     * @param columns The [ColumnDef] to read.
+     */
+    fun read(tupleId: TupleId, columns: Array<ColumnDef<*>>): Record
 
     /**
      * Returns the maximum [TupleId] known by this [EntityTx].
@@ -34,7 +39,7 @@ interface EntityTx : Tx, Scanable, Countable, Modifiable {
      *
      * @return List of all [ColumnDef]s.
      */
-    fun listColumns(): List<Column<*>>
+    fun listColumns(): List<ColumnDef<*>>
 
     /**
      * Returns the [Column] for the specified [Name.ColumnName]. Should be able to handle
@@ -65,11 +70,11 @@ interface EntityTx : Tx, Scanable, Countable, Modifiable {
      *
      * @param name [Name.IndexName] of the [Index] to create.
      * @param type Type of the [Index] to create.
-     * @param columns The list of [columns] to [Index].
+     * @param columns The list of [Name.ColumnName] to create [Index] for.
      * @param params Additional parameters for index creation.
      * @return Newly created [Index] for use in context of this [Tx]
      */
-    fun createIndex(name: Name.IndexName, type: IndexType, columns: Array<ColumnDef<*>>, params: Map<String, String>): Index
+    fun createIndex(name: Name.IndexName, type: IndexType, columns: Array<Name.ColumnName>, params: Map<String, String>): Index
 
     /**
      * Drops the [Index] with the given name.
@@ -82,12 +87,4 @@ interface EntityTx : Tx, Scanable, Countable, Modifiable {
      * Optimizes the [Entity] underlying this [EntityTx]. Optimization involves rebuilding of [Index]es and statistics.
      */
     fun optimize()
-
-    /**
-     * Reads the specified [TupleId] and the specified [ColumnDef] through this [EntityTx].
-     *
-     * @param tupleId The [TupleId] to read.
-     * @param columns The [ColumnDef] to read.
-     */
-    fun read(tupleId: TupleId, columns: Array<ColumnDef<*>>): Record
 }

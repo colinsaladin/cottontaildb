@@ -43,7 +43,7 @@ class NonUniqueIntHashIndexTest : AbstractIndexTest() {
         get() = this.entityName.index("non_unique_int")
 
     override val indexType: IndexType
-        get() = IndexType.HASH
+        get() = IndexType.BTREE
 
     /** List of values stored in this [UniqueHashIndexTest]. */
     private var list = HashMap<IntValue, MutableList<FloatValue>>(100)

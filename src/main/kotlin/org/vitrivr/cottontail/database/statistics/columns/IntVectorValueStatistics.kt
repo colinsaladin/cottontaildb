@@ -1,10 +1,15 @@
 package org.vitrivr.cottontail.database.statistics.columns
 
+import jetbrains.exodus.bindings.FloatBinding
+import jetbrains.exodus.bindings.IntegerBinding
+import jetbrains.exodus.util.LightOutputStream
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
 import org.vitrivr.cottontail.model.basics.Type
+import org.vitrivr.cottontail.model.values.FloatVectorValue
 import org.vitrivr.cottontail.model.values.IntVectorValue
 import org.vitrivr.cottontail.model.values.types.Value
+import java.io.ByteArrayInputStream
 import java.lang.Integer.max
 import java.lang.Integer.min
 
@@ -20,6 +25,28 @@ class IntVectorValueStatistics(type: Type<IntVectorValue>) : ValueStatistics<Int
 
     /** Minimum value in this [IntVectorValueStatistics]. */
     val max: IntVectorValue = IntVectorValue(IntArray(this.type.logicalSize) { Int.MIN_VALUE })
+
+    /**
+     * Xodus serializer for [IntVectorValueStatistics]
+     */
+    object Binding {
+        fun read(stream: ByteArrayInputStream, type: Type<IntVectorValue>): IntVectorValueStatistics {
+            val stat = IntVectorValueStatistics(type)
+            for (i in 0 until type.logicalSize) {
+                stat.min.data[i] = IntegerBinding.BINDING.readObject(stream)
+                stat.max.data[i] = IntegerBinding.BINDING.readObject(stream)
+            }
+            return stat
+        }
+
+        fun write(output: LightOutputStream, statistics: IntVectorValueStatistics) {
+            for (i in 0 until statistics.type.logicalSize) {
+                IntegerBinding.BINDING.writeObject(output, statistics.min.data[i])
+                IntegerBinding.BINDING.writeObject(output, statistics.max.data[i])
+            }
+        }
+    }
+
 
     /**
      * Updates this [IntVectorValueStatistics] with an inserted [IntVectorValue]
@@ -49,26 +76,6 @@ class IntVectorValueStatistics(type: Type<IntVectorValue>) : ValueStatistics<Int
                     this.fresh = false
                 }
             }
-        }
-    }
-
-    /**
-     * A [org.mapdb.Serializer] implementation for a [IntVectorValueStatistics] object.
-     *
-     * @author Ralph Gasser
-     * @version 1.0.0
-     */
-    class Serializer(private val type: Type<IntVectorValue>) : org.mapdb.Serializer<IntVectorValueStatistics> {
-        override fun serialize(out: DataOutput2, value: IntVectorValueStatistics) {
-            value.min.data.forEach { out.writeInt(it) }
-            value.max.data.forEach { out.writeInt(it) }
-        }
-
-        override fun deserialize(input: DataInput2, available: Int): IntVectorValueStatistics {
-            val stat = IntVectorValueStatistics(this.type)
-            repeat(this.type.logicalSize) { stat.min.data[it] = input.readInt() }
-            repeat(this.type.logicalSize) { stat.max.data[it] = input.readInt() }
-            return stat
         }
     }
 

@@ -1,4 +1,4 @@
-package org.vitrivr.cottontail.database.catalogue
+package org.vitrivr.cottontail.legacy.v2.catalogue
 
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
@@ -16,15 +16,15 @@ import java.util.*
  * @author Ralph Gasser
  * @version 2.0.0
  */
-internal data class CatalogueHeader(
+internal data class CatalogueV2Header(
     val uid: String = UUID.randomUUID().toString(),
     val created: Long = System.currentTimeMillis(),
     val modified: Long = System.currentTimeMillis(),
     val schemas: List<SchemaRef> = emptyList()
 ) {
 
-    companion object Serializer : org.mapdb.Serializer<CatalogueHeader> {
-        override fun serialize(out: DataOutput2, value: CatalogueHeader) {
+    companion object Serializer : org.mapdb.Serializer<CatalogueV2Header> {
+        override fun serialize(out: DataOutput2, value: CatalogueV2Header) {
             out.packInt(DBOVersion.V2_0.ordinal)
             out.writeUTF(value.uid)
             out.writeLong(value.created)
@@ -33,11 +33,11 @@ internal data class CatalogueHeader(
             value.schemas.forEach { SchemaRef.serialize(out, it) }
         }
 
-        override fun deserialize(input: DataInput2, available: Int): CatalogueHeader {
+        override fun deserialize(input: DataInput2, available: Int): CatalogueV2Header {
             val version = DBOVersion.values()[input.unpackInt()]
             if (version != DBOVersion.V2_0)
                 throw DatabaseException.VersionMismatchException(version, DBOVersion.V2_0)
-            return CatalogueHeader(
+            return CatalogueV2Header(
                 input.readUTF(),
                 input.readLong(),
                 input.readLong(),

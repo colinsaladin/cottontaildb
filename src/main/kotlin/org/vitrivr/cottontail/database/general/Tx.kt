@@ -14,7 +14,7 @@ import org.vitrivr.cottontail.execution.TransactionContext
  * level of isolation and to obtain the necessary locks to safely execute an operation.
  *
  * @author Ralph Gasser
- * @version 1.3.0
+ * @version 3.0.0
  */
 interface Tx {
     /** The [DBO] this [Tx] belongs to. */
@@ -22,9 +22,6 @@ interface Tx {
 
     /** [TransactionContext] this [Tx] takes place in. */
     val context: TransactionContext
-
-    /** The [TxSnapshot] that captures changes made through this [Tx] that may not yet be visible to the surrounding [DBO]. */
-    val snapshot: TxSnapshot
 
     /** [TxStatus] of this [Tx]. */
     val status: TxStatus

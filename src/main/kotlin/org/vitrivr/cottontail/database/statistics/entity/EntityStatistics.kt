@@ -2,12 +2,9 @@ package org.vitrivr.cottontail.database.statistics.entity
 
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
-import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
-import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
-import org.vitrivr.cottontail.model.values.types.Value
 import kotlin.math.max
 
 /**
@@ -25,49 +22,9 @@ class EntityStatistics(var count: Long = 0L, var maximumTupleId: TupleId = -1) :
         override fun serialize(out: DataOutput2, value: EntityStatistics) {
             out.packLong(value.count)
             out.packLong(value.maximumTupleId)
-            out.packInt(value.columns.size)
-            value.columns.forEach { (t, u) ->
-                out.writeUTF(t.toString())
-                ValueStatistics.serialize(out, u)
-            }
         }
 
-        override fun deserialize(input: DataInput2, available: Int): EntityStatistics {
-            val statistics = EntityStatistics(input.unpackLong(), input.unpackLong())
-            repeat(input.unpackInt()) {
-                statistics.columns[Name.ColumnName(*input.readUTF().split('.').toTypedArray())] = ValueStatistics.deserialize(input, available) as ValueStatistics<Value>
-            }
-            return statistics
-        }
-    }
-
-    /**
-     * Consumes a [Operation.DataManagementOperation] and updates the [ValueStatistics] in this [EntityStatistics].
-     *
-     * @param action The [Operation.DataManagementOperation] to process
-     */
-    fun consume(action: Operation.DataManagementOperation) = when (action) {
-        is Operation.DataManagementOperation.DeleteOperation -> {
-            this.count -= 1
-            action.deleted.forEach { (t, u) -> this.columns[t]?.delete(u) }
-        }
-        is Operation.DataManagementOperation.InsertOperation -> {
-            this.count += 1
-            this.maximumTupleId = max(this.maximumTupleId, action.tupleId)
-            action.inserts.forEach { (t, u) -> this.columns[t]?.insert(u) }
-        }
-        is Operation.DataManagementOperation.UpdateOperation -> {
-            action.updates.forEach { (t, u) -> this.columns[t]?.update(u.first, u.second) }
-        }
-    }
-
-    /**
-     * Resets this [EntityStatistics] and sets all its values to to the default value.
-     */
-    override fun reset() {
-        super.reset()
-        this.count = 0
-        this.maximumTupleId = -1
+        override fun deserialize(input: DataInput2, available: Int): EntityStatistics = EntityStatistics(input.unpackLong(), input.unpackLong())
     }
 
     /**

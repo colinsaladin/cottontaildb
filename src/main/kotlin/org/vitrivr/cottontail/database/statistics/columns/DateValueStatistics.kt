@@ -1,11 +1,12 @@
 package org.vitrivr.cottontail.database.statistics.columns
 
-import org.mapdb.DataInput2
-import org.mapdb.DataOutput2
+import jetbrains.exodus.bindings.LongBinding
+import jetbrains.exodus.util.LightOutputStream
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.DateValue
 import org.vitrivr.cottontail.model.values.LongValue
 import org.vitrivr.cottontail.model.values.types.Value
+import java.io.ByteArrayInputStream
 import java.lang.Long.max
 import java.lang.Long.min
 
@@ -13,24 +14,24 @@ import java.lang.Long.min
  * A [ValueStatistics] implementation for [DateValue]s.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
 class DateValueStatistics : ValueStatistics<DateValue>(Type.Date) {
 
     /**
-     * Serializer for [DateValueStatistics].
+     * Xodus serializer for [DateValueStatistics]
      */
-    companion object Serializer : org.mapdb.Serializer<DateValueStatistics> {
-        override fun serialize(out: DataOutput2, value: DateValueStatistics) {
-            out.packLong(value.min)
-            out.packLong(value.max)
+    object Binding {
+        fun read(stream: ByteArrayInputStream): DateValueStatistics {
+            val stat = DateValueStatistics()
+            stat.min = LongBinding.readCompressed(stream)
+            stat.max = LongBinding.readCompressed(stream)
+            return stat
         }
 
-        override fun deserialize(input: DataInput2, available: Int): DateValueStatistics {
-            val stat = DateValueStatistics()
-            stat.min = input.unpackLong()
-            stat.max = input.unpackLong()
-            return stat
+        fun write(output: LightOutputStream, statistics: DateValueStatistics) {
+            LongBinding.writeCompressed(output, statistics.min)
+            LongBinding.writeCompressed(output, statistics.max)
         }
     }
 

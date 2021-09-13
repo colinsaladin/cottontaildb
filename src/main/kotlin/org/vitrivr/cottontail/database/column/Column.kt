@@ -20,9 +20,6 @@ interface Column<T: Value> : DBO {
     /** The [Entity] this [Column] belongs to. */
     override val parent: Entity
 
-    /** The maximum [TupleId] used by this [Column]. */
-    val maxTupleId: TupleId
-
     /** The [Name.ColumnName] of this [Column]. */
     override val name: Name.ColumnName
 
@@ -32,9 +29,6 @@ interface Column<T: Value> : DBO {
      * @return [ColumnDef] for this [Column]
      */
     val columnDef: ColumnDef<T>
-
-    /** The [ColumnEngine] that powers this [Column]. */
-    val engine: ColumnEngine
 
     /**
      * This [Column]'s type.

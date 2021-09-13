@@ -21,7 +21,7 @@ import kotlin.time.ExperimentalTime
  * An [Operator.SourceOperator] used during query execution. Lists all available [Schema]s.
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 1.2.0
  */
 class ListSchemaOperator(val catalogue: DefaultCatalogue) : Operator.SourceOperator() {
 
@@ -43,7 +43,7 @@ class ListSchemaOperator(val catalogue: DefaultCatalogue) : Operator.SourceOpera
         return flow {
             var i = 0L
             for (schema in txn.listSchemas()) {
-                values[0] = StringValue(schema.name.toString())
+                values[0] = StringValue(schema.toString())
                 emit(StandaloneRecord(i++, columns, values))
             }
         }

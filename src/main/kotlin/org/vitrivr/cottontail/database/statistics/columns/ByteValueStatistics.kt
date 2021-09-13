@@ -2,35 +2,36 @@ package org.vitrivr.cottontail.database.statistics.columns
 
 import com.google.common.primitives.SignedBytes.max
 import com.google.common.primitives.SignedBytes.min
-import org.mapdb.DataInput2
-import org.mapdb.DataOutput2
+import jetbrains.exodus.bindings.ByteBinding
+import jetbrains.exodus.util.LightOutputStream
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.ByteValue
 import org.vitrivr.cottontail.model.values.IntValue
 import org.vitrivr.cottontail.model.values.types.Value
+import java.io.ByteArrayInputStream
 
 /**
  * A [ValueStatistics] implementation for [ByteValue]s.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.1.0
  */
 class ByteValueStatistics : ValueStatistics<ByteValue>(Type.Byte) {
 
     /**
-     * Serializer for [LongValueStatistics].
+     * Xodus serializer for [ByteValueStatistics]
      */
-    companion object Serializer : org.mapdb.Serializer<ByteValueStatistics> {
-        override fun serialize(out: DataOutput2, value: ByteValueStatistics) {
-            out.writeByte(value.min.toInt())
-            out.writeByte(value.max.toInt())
+    object Binding {
+        fun read(stream: ByteArrayInputStream): ByteValueStatistics {
+            val stat = ByteValueStatistics()
+            stat.min = ByteBinding.BINDING.readObject(stream)
+            stat.max = ByteBinding.BINDING.readObject(stream)
+            return stat
         }
 
-        override fun deserialize(input: DataInput2, available: Int): ByteValueStatistics {
-            val stat = ByteValueStatistics()
-            stat.min = input.readByte()
-            stat.max = input.readByte()
-            return stat
+        fun write(output: LightOutputStream, statistics: ByteValueStatistics) {
+            ByteBinding.BINDING.writeObject(output, statistics.min)
+            ByteBinding.BINDING.writeObject(output, statistics.max)
         }
     }
 

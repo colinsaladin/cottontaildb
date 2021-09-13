@@ -12,10 +12,10 @@ import kotlin.concurrent.write
  * An abstract [Tx] implementation that provides some basic functionality.
  *
  * @author Ralph Gasser
- * @version 1.4.0
+ * @version 3.0.0
  */
 abstract class AbstractTx(override val context: TransactionContext) : Tx {
-    /** Flag indicating whether or not this [IndexTx] was closed */
+    /** Flag indicating whether this [AbstractTx] was closed */
     @Volatile
     final override var status: TxStatus = TxStatus.CLEAN
         protected set
@@ -37,16 +37,7 @@ abstract class AbstractTx(override val context: TransactionContext) : Tx {
      * actual commit.
      */
     final override fun commit() {
-        try {
-            if (this.status == TxStatus.DIRTY) {
-                this.snapshot.commit()
-            } else if (this.status == TxStatus.ERROR) {
-                throw IllegalArgumentException("Transaction ${this.context.txId} cannot be committed, because it is is an error state.")
-            }
-        } finally {
-            this.status = TxStatus.CLOSED
-            this.cleanup()
-        }
+
     }
 
     /**
@@ -57,24 +48,8 @@ abstract class AbstractTx(override val context: TransactionContext) : Tx {
      * commit.
      */
     final override fun rollback() {
-        try {
-            if (this.status == TxStatus.DIRTY || this.status == TxStatus.ERROR) {
-                this.snapshot.rollback()
-            }
-        } finally {
-            this.status = TxStatus.CLOSED
-            this.cleanup()
-        }
-    }
 
-    /**
-     * Cleans all local resources obtained by this [AbstractTx] implementation. Called as part of and
-     * prior to finalizing the [close] operation
-     *
-     * Implementers of this method may safely assume that upon reaching this method, all necessary locks on
-     * Cottontail DB's data structures have been obtained to safely perform the CLOSE operation.
-     */
-    protected abstract fun cleanup()
+    }
 
     /**
      * Checks if this [AbstractIndex.Tx] is in a valid state for write operations to happen and sets its

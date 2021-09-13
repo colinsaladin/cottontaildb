@@ -33,7 +33,7 @@ import kotlin.collections.ArrayDeque
 
 /**
  * An index structure for nearest neighbour search (NNS) based on fast grouping algorithm proposed in [1].
- * Can be used for for all types of [VectorValue]s (real and complex) as well as [Distances]. However,
+ * Can be used for all types of [VectorValue]s (real and complex) as well as [Distances]. However,
  * the index must be built and prepared for a specific [Distances] metric.
  *
  * The algorithm is based on Fast Group Matching proposed in [1].

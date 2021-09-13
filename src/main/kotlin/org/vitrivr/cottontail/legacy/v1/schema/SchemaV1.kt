@@ -7,9 +7,8 @@ import org.mapdb.Serializer
 import org.mapdb.Store
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnEngine
-import org.vitrivr.cottontail.database.column.mapdb.MapDBColumn
+import org.vitrivr.cottontail.legacy.v2.column.ColumnV2
 import org.vitrivr.cottontail.database.entity.DefaultEntity
-import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.*
 import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.database.schema.SchemaTx
@@ -27,9 +26,9 @@ import java.util.concurrent.locks.StampedLock
  * Represents legacy (V1) [Schema] in Cottontail DB. Only around to support data migration.
  *
  * @author Ralph Gasser
- * @version 1.5.0
+ * @version 2.0.0
  */
-class SchemaV1(override val name: Name.SchemaName, override val parent: CatalogueV1) : Schema {
+class SchemaV1(override val name: Name.SchemaName, override val parent: CatalogueV1) : Schema, AutoCloseable {
     /**
      * Companion object with different constants.
      */
@@ -42,9 +41,9 @@ class SchemaV1(override val name: Name.SchemaName, override val parent: Catalogu
     }
 
     /** The [Path] to the [Schema]'s main folder. */
-    override val path = this.parent.path.resolve("schema_${name.simple}")
+    val path = this.parent.path.resolve("schema_${name.simple}")
 
-    /** Internal reference to the [Store] underpinning this [MapDBColumn]. */
+    /** Internal reference to the [Store] underpinning this [ColumnV2]. */
     private val store: CottontailStoreWAL = try {
         this.parent.config.mapdb.store(this.path.resolve(FILE_CATALOGUE))
     } catch (e: DBException) {
@@ -120,14 +119,6 @@ class SchemaV1(override val name: Name.SchemaName, override val parent: Catalogu
         /** Obtains a global (non-exclusive) read-lock on [Schema]. Prevents enclosing [Schema] from being closed. */
         private val closeStamp = this@SchemaV1.closeLock.readLock()
 
-        /** The [TxSnapshot] of this [SchemaTx]. */
-        override val snapshot = object : TxSnapshot {
-            override val actions: List<TxAction> = emptyList()
-            override fun commit() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-            override fun rollback() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-            override fun record(action: TxAction): Boolean = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-        }
-
         /** Reference to the surrounding [Schema]. */
         override val dbo: DBO
             get() = this@SchemaV1
@@ -137,8 +128,8 @@ class SchemaV1(override val name: Name.SchemaName, override val parent: Catalogu
          *
          * @return [List] of all [Name.EntityName].
          */
-        override fun listEntities(): List<Entity> = this.withReadLock {
-            return this@SchemaV1.registry.values.toList()
+        override fun listEntities(): List<Name.EntityName> = this.withReadLock {
+            return this@SchemaV1.registry.values.map { it.name }.toList()
         }
 
         /**
@@ -153,10 +144,7 @@ class SchemaV1(override val name: Name.SchemaName, override val parent: Catalogu
                 ?: throw DatabaseException.EntityDoesNotExistException(name)
         }
 
-        override fun createEntity(
-            name: Name.EntityName,
-            vararg columns: Pair<ColumnDef<*>, ColumnEngine>
-        ): DefaultEntity {
+        override fun createEntity(name: Name.EntityName, vararg columns: ColumnDef<*>): DefaultEntity {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 

@@ -2,12 +2,13 @@ package org.vitrivr.cottontail.database.statistics.columns
 
 import com.google.common.primitives.Shorts.max
 import com.google.common.primitives.Shorts.min
-import org.mapdb.DataInput2
-import org.mapdb.DataOutput2
+import jetbrains.exodus.bindings.ShortBinding
+import jetbrains.exodus.util.LightOutputStream
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.IntValue
 import org.vitrivr.cottontail.model.values.ShortValue
 import org.vitrivr.cottontail.model.values.types.Value
+import java.io.ByteArrayInputStream
 
 /**
  * A [ValueStatistics] implementation for [ShortValue]s.
@@ -18,19 +19,19 @@ import org.vitrivr.cottontail.model.values.types.Value
 class ShortValueStatistics : ValueStatistics<ShortValue>(Type.Short) {
 
     /**
-     * Serializer for [LongValueStatistics].
+     * Xodus serializer for [ShortValueStatistics]
      */
-    companion object Serializer : org.mapdb.Serializer<ShortValueStatistics> {
-        override fun serialize(out: DataOutput2, value: ShortValueStatistics) {
-            out.writeShort(value.min.toInt())
-            out.writeShort(value.max.toInt())
+    object Binding {
+        fun read(stream: ByteArrayInputStream): ShortValueStatistics {
+            val stat = ShortValueStatistics()
+            stat.min = ShortBinding.BINDING.readObject(stream)
+            stat.max = ShortBinding.BINDING.readObject(stream)
+            return stat
         }
 
-        override fun deserialize(input: DataInput2, available: Int): ShortValueStatistics {
-            val stat = ShortValueStatistics()
-            stat.min = input.readShort()
-            stat.max = input.readShort()
-            return stat
+        fun write(output: LightOutputStream, statistics: ShortValueStatistics) {
+            ShortBinding.BINDING.writeObject(output, statistics.min)
+            ShortBinding.BINDING.writeObject(output, statistics.max)
         }
     }
 

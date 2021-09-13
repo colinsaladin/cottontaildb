@@ -11,7 +11,9 @@ import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.general.DBOVersion
 import org.vitrivr.cottontail.database.general.TxAction
 import org.vitrivr.cottontail.database.general.TxSnapshot
+import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import org.vitrivr.cottontail.execution.TransactionContext
+import org.vitrivr.cottontail.legacy.v1.entity.EntityV1
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.basics.Type
@@ -32,12 +34,9 @@ import java.util.concurrent.locks.StampedLock
  * @param <T> Type of the value held by this [ColumnV1].
  *
  * @author Ralph Gasser
- * @version 1.4.0
+ * @version 2.0.0
  */
-class ColumnV1<T : Value>(
-    override val name: Name.ColumnName,
-    override val parent: Entity
-) : Column<T> {
+class ColumnV1<T : Value>(override val name: Name.ColumnName, override val parent: EntityV1) : Column<T>, AutoCloseable {
 
     /**
      * Companion object with some important constants.
@@ -48,7 +47,7 @@ class ColumnV1<T : Value>(
     }
 
     /** The [Path] to the [Entity]'s main folder. */
-    override val path: Path = parent.path.resolve("col_${name.simple}.db")
+    val path: Path = parent.path.resolve("col_${name.simple}.db")
 
     /** Internal reference to the [Store] underpinning this [ColumnV1]. */
     private var store: CottontailStoreWAL = try {
@@ -76,13 +75,13 @@ class ColumnV1<T : Value>(
         get() = DBOVersion.V1_0
 
     /** The [ColumnEngine] of this [ColumnV1]. */
-    override val engine: ColumnEngine
+    val engine: ColumnEngine
         get() = ColumnEngine.MAPDB
 
     /**
      * The maximum tuple ID used by this [Column].
      */
-    override val maxTupleId: Long
+    val maxTupleId: Long
         get() = this.store.maxRecid
 
     /**
@@ -143,15 +142,6 @@ class ColumnV1<T : Value>(
             }
         }
 
-        /** The [TxSnapshot] for this [ColumnV1.Tx] */
-        override val snapshot: TxSnapshot = object : TxSnapshot {
-            override val actions: List<TxAction> = emptyList()
-            override fun commit() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-            override fun rollback() = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-            override fun record(action: TxAction): Boolean = throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-
-        }
-
         /**
          * Gets and returns an entry from this [ColumnV1].
          *
@@ -160,7 +150,7 @@ class ColumnV1<T : Value>(
          *
          * @throws DatabaseException If the tuple with the desired ID doesn't exist OR is invalid.
          */
-        override fun read(tupleId: Long): T? = this.withReadLock {
+        override fun get(tupleId: TupleId): T? = this.withReadLock {
             this@ColumnV1.store.get(tupleId, this.serializer)
         }
 
@@ -169,7 +159,7 @@ class ColumnV1<T : Value>(
          *
          * @return The number of entries in this [ColumnV1].
          */
-        override fun count(): Long = this.withReadLock {
+        fun count(): Long = this.withReadLock {
             this@ColumnV1.header.count
         }
 
@@ -179,7 +169,7 @@ class ColumnV1<T : Value>(
          *
          * @return [Iterator]
          */
-        override fun scan() = this.scan(1L..this@ColumnV1.maxTupleId)
+        fun scan() = this.scan(1L..this@ColumnV1.maxTupleId)
 
         /**
          * Creates and returns a new [Iterator] for this [ColumnV1.Tx] that returns
@@ -188,7 +178,7 @@ class ColumnV1<T : Value>(
          * @param range The [LongRange] that should be scanned.
          * @return [Iterator]
          */
-        override fun scan(range: LongRange) = this.withReadLock {
+        fun scan(range: LongRange) = this.withReadLock {
             object : Iterator<TupleId> {
 
                 /** Wraps a [RecordIdIterator] from the [ColumnV1]. */
@@ -210,19 +200,19 @@ class ColumnV1<T : Value>(
             }
         }
 
-        override fun insert(record: T?): TupleId {
+        override fun put(tupleId: Long, value: T): T? {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
-        override fun update(tupleId: Long, value: T?): T? {
-            throw UnsupportedOperationException("Operation not supported on legacy DBO.")
-        }
-
-        override fun compareAndUpdate(tupleId: Long, value: T?, expected: T?): Boolean {
+        override fun compareAndPut(tupleId: Long, value: T, expected: T?): Boolean {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
         override fun delete(tupleId: Long): T? {
+            throw UnsupportedOperationException("Operation not supported on legacy DBO.")
+        }
+
+        override fun statistics(): ValueStatistics<T> {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 

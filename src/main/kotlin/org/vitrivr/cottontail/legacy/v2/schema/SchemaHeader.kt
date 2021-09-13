@@ -1,4 +1,4 @@
-package org.vitrivr.cottontail.database.schema
+package org.vitrivr.cottontail.legacy.v2.schema
 
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2

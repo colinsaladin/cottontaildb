@@ -23,7 +23,7 @@ import kotlin.time.ExperimentalTime
  * An [Operator.SourceOperator] used during query execution. Retrieves information regarding entities.
  *
  * @author Ralph Gasser
- * @version 1.3.0
+ * @version 1.4.0
  */
 class EntityDetailsOperator(val catalogue: DefaultCatalogue, val name: Name.EntityName) : Operator.SourceOperator() {
 
@@ -60,8 +60,8 @@ class EntityDetailsOperator(val catalogue: DefaultCatalogue, val name: Name.Enti
             cols.forEach {
                 values[0] = StringValue(it.name.toString())
                 values[2] = StringValue(it.type.toString())
-                values[4] = IntValue(it.columnDef.type.logicalSize)
-                values[5] =  BooleanValue(it.nullable)
+                values[4] = IntValue(it.type.logicalSize)
+                values[5] = BooleanValue(it.nullable)
                 emit(StandaloneRecord(rowId++, columns, values))
             }
 

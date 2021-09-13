@@ -21,7 +21,7 @@ import kotlin.time.ExperimentalTime
  * An [Operator.SourceOperator] used during query execution. Lists all available [Entity]s.
  *
  * @author Ralph Gasser
- * @version 1.1.0
+ * @version 1.2.0
  */
 class ListEntityOperator(val catalogue: DefaultCatalogue, val schema: Name.SchemaName? = null) : Operator.SourceOperator() {
 
@@ -40,7 +40,7 @@ class ListEntityOperator(val catalogue: DefaultCatalogue, val schema: Name.Schem
         val schemas = if (this.schema != null) {
             listOf(txn.schemaForName(this.schema))
         } else {
-            txn.listSchemas()
+            txn.listSchemas().map { txn.schemaForName(it) }
         }
         val columns = this.columns.toTypedArray()
         val values = arrayOfNulls<Value?>(columns.size)
@@ -50,7 +50,7 @@ class ListEntityOperator(val catalogue: DefaultCatalogue, val schema: Name.Schem
             for (schema in schemas) {
                 val schemaTxn = context.txn.getTx(schema) as SchemaTx
                 for (entity in schemaTxn.listEntities()) {
-                    values[0] = StringValue(entity.name.toString())
+                    values[0] = StringValue(entity.toString())
                     emit(StandaloneRecord(i++, columns, values))
                 }
             }

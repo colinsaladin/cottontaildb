@@ -42,7 +42,7 @@ class UniqueHashIndexTest : AbstractIndexTest() {
         get() = this.entityName.index("idx_id_unique")
 
     override val indexType: IndexType
-        get() = IndexType.HASH_UQ
+        get() = IndexType.BTREE_UQ
 
     /** List of values stored in this [UniqueHashIndexTest]. */
     private var list = HashMap<StringValue, FloatVectorValue>(100)

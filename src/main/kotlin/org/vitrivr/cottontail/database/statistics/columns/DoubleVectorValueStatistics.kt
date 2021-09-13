@@ -1,10 +1,15 @@
 package org.vitrivr.cottontail.database.statistics.columns
 
+import jetbrains.exodus.bindings.DoubleBinding
+import jetbrains.exodus.bindings.LongBinding
+import jetbrains.exodus.util.LightOutputStream
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
 import org.vitrivr.cottontail.model.basics.Type
+import org.vitrivr.cottontail.model.values.BooleanVectorValue
 import org.vitrivr.cottontail.model.values.DoubleVectorValue
 import org.vitrivr.cottontail.model.values.types.Value
+import java.io.ByteArrayInputStream
 
 /**
  * A [ValueStatistics] implementation for [DoubleVectorValue]s.
@@ -27,6 +32,30 @@ class DoubleVectorValueStatistics(type: Type<DoubleVectorValue>) : ValueStatisti
         get() = DoubleVectorValue(DoubleArray(this.type.logicalSize) {
             this.sum[it].value / this.numberOfNonNullEntries
         })
+
+    /**
+     * Xodus serializer for [DoubleVectorValueStatistics]
+     */
+    object Binding {
+        fun read(stream: ByteArrayInputStream, type: Type<DoubleVectorValue>): DoubleVectorValueStatistics {
+            val stat = DoubleVectorValueStatistics(type)
+            for (i in 0 until type.logicalSize) {
+                stat.min.data[i] = DoubleBinding.BINDING.readObject(stream)
+                stat.max.data[i] = DoubleBinding.BINDING.readObject(stream)
+                stat.sum.data[i] = DoubleBinding.BINDING.readObject(stream)
+            }
+            return stat
+        }
+
+        fun write(output: LightOutputStream, statistics: DoubleVectorValueStatistics) {
+            for (i in 0 until statistics.type.logicalSize) {
+                DoubleBinding.BINDING.writeObject(output, statistics.min.data[i])
+                DoubleBinding.BINDING.writeObject(output, statistics.max.data[i])
+                DoubleBinding.BINDING.writeObject(output, statistics.sum.data[i])
+            }
+        }
+    }
+
 
     /**
      * Updates this [DoubleVectorValueStatistics] with an inserted [DoubleVectorValue]
@@ -59,28 +88,6 @@ class DoubleVectorValueStatistics(type: Type<DoubleVectorValue>) : ValueStatisti
                 }
                 this.sum.data[i] -= d
             }
-        }
-    }
-
-    /**
-     * A [org.mapdb.Serializer] implementation for a [DoubleVectorValueStatistics] object.
-     *
-     * @author Ralph Gasser
-     * @version 1.0.0
-     */
-    class Serializer(val type: Type<DoubleVectorValue>) : org.mapdb.Serializer<DoubleVectorValueStatistics> {
-        override fun serialize(out: DataOutput2, value: DoubleVectorValueStatistics) {
-            value.min.data.forEach { out.writeDouble(it) }
-            value.max.data.forEach { out.writeDouble(it) }
-            value.sum.data.forEach { out.writeDouble(it) }
-        }
-
-        override fun deserialize(input: DataInput2, available: Int): DoubleVectorValueStatistics {
-            val stat = DoubleVectorValueStatistics(this.type)
-            repeat(this.type.logicalSize) { stat.min.data[it] = input.readDouble() }
-            repeat(this.type.logicalSize) { stat.max.data[it] = input.readDouble() }
-            repeat(this.type.logicalSize) { stat.sum.data[it] = input.readDouble() }
-            return stat
         }
     }
 

@@ -1,10 +1,15 @@
 package org.vitrivr.cottontail.database.statistics.columns
 
+import jetbrains.exodus.bindings.DoubleBinding
+import jetbrains.exodus.bindings.FloatBinding
+import jetbrains.exodus.util.LightOutputStream
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
 import org.vitrivr.cottontail.model.basics.Type
+import org.vitrivr.cottontail.model.values.DoubleVectorValue
 import org.vitrivr.cottontail.model.values.FloatVectorValue
 import org.vitrivr.cottontail.model.values.types.Value
+import java.io.ByteArrayInputStream
 import java.lang.Float.max
 import java.lang.Float.min
 
@@ -29,6 +34,30 @@ class FloatVectorValueStatistics(type: Type<FloatVectorValue>) : ValueStatistics
         get() = FloatVectorValue(FloatArray(this.type.logicalSize) {
             this.sum[it].value / this.numberOfNonNullEntries
         })
+
+    /**
+     * Xodus serializer for [FloatVectorValueStatistics]
+     */
+    object Binding {
+        fun read(stream: ByteArrayInputStream, type: Type<FloatVectorValue>): FloatVectorValueStatistics {
+            val stat = FloatVectorValueStatistics(type)
+            for (i in 0 until type.logicalSize) {
+                stat.min.data[i] = FloatBinding.BINDING.readObject(stream)
+                stat.max.data[i] = FloatBinding.BINDING.readObject(stream)
+                stat.sum.data[i] = FloatBinding.BINDING.readObject(stream)
+            }
+            return stat
+        }
+
+        fun write(output: LightOutputStream, statistics: FloatVectorValueStatistics) {
+            for (i in 0 until statistics.type.logicalSize) {
+                FloatBinding.BINDING.writeObject(output, statistics.min.data[i])
+                FloatBinding.BINDING.writeObject(output, statistics.max.data[i])
+                FloatBinding.BINDING.writeObject(output, statistics.sum.data[i])
+            }
+        }
+    }
+
 
     /**
      * Updates this [FloatVectorValueStatistics] with an inserted [FloatVectorValue]
@@ -61,28 +90,6 @@ class FloatVectorValueStatistics(type: Type<FloatVectorValue>) : ValueStatistics
                 }
                 this.sum.data[i] -= d
             }
-        }
-    }
-
-    /**
-     * A [org.mapdb.Serializer] implementation for a [FloatVectorValueStatistics] object.
-     *
-     * @author Ralph Gasser
-     * @version 1.0.0
-     */
-    class Serializer(val type: Type<FloatVectorValue>) : org.mapdb.Serializer<FloatVectorValueStatistics> {
-        override fun serialize(out: DataOutput2, value: FloatVectorValueStatistics) {
-            value.min.data.forEach { out.writeFloat(it) }
-            value.max.data.forEach { out.writeFloat(it) }
-            value.sum.data.forEach { out.writeFloat(it) }
-        }
-
-        override fun deserialize(input: DataInput2, available: Int): FloatVectorValueStatistics {
-            val stat = FloatVectorValueStatistics(this.type)
-            repeat(this.type.logicalSize) { stat.min.data[it] = input.readFloat() }
-            repeat(this.type.logicalSize) { stat.max.data[it] = input.readFloat() }
-            repeat(this.type.logicalSize) { stat.sum.data[it] = input.readFloat() }
-            return stat
         }
     }
 

@@ -3,7 +3,7 @@ package org.vitrivr.cottontail.legacy
 import org.mapdb.CottontailStoreWAL
 import org.mapdb.DB
 import org.vitrivr.cottontail.config.Config
-import org.vitrivr.cottontail.database.catalogue.CatalogueHeader
+import org.vitrivr.cottontail.legacy.v2.catalogue.CatalogueV2Header
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.general.DBOVersion
 import org.vitrivr.cottontail.legacy.v1.catalogue.CatalogueV1
@@ -81,7 +81,7 @@ class VersionProber(private val config: Config) {
         }
 
         val header = try {
-            store?.atomicVar(DefaultCatalogue.CATALOGUE_HEADER_FIELD, CatalogueHeader.Serializer)?.open()?.get()
+            store?.atomicVar(DefaultCatalogue.CATALOGUE_STORE_NAME, CatalogueV2Header.Serializer)?.open()?.get()
         } catch (e: Throwable) {
             store?.close()
             return false

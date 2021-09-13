@@ -25,6 +25,9 @@ interface IndexTx : Tx, Filterable, Countable {
     val order: Array<Pair<ColumnDef<*>, SortOrder>>
 
     /** The [IndexType] of the [AbstractIndex] that underpins this [IndexTx]. */
+    val state: IndexState
+
+    /** The [IndexType] of the [AbstractIndex] that underpins this [IndexTx]. */
     val type: IndexType
 
     /**

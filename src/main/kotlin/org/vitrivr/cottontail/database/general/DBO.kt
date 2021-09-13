@@ -9,18 +9,15 @@ import java.nio.file.Path
  * a [Name] and usually part of a [DBO] hierarchy. Furthermore, they can be used to create [Tx]
  * objects that act on the [DBO].
  *
- * @version 1.2.0
+ * @version 3.0.0
  * @author Ralph Gasser
  */
-interface DBO : AutoCloseable {
+interface DBO {
     /** The [Name] of this [DBO]. */
     val name: Name
 
     /** The parent DBO (if such exists). */
     val parent: DBO?
-
-    /** The [Path] to the [DBO]'s main file OR folder. */
-    val path: Path
 
     /** True if this [DBO] was closed, false otherwise. */
     val closed: Boolean

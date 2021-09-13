@@ -10,6 +10,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.slf4j.LoggerFactory
+import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.general.DBO
 import org.vitrivr.cottontail.database.general.Tx
 import org.vitrivr.cottontail.database.general.TxStatus
@@ -31,9 +32,9 @@ import java.util.concurrent.atomic.AtomicLong
  * create and execute queries within different [Transaction]s.
  *
  * @author Ralph Gasser
- * @version 1.5.0
+ * @version 2.0.0
  */
-class TransactionManager(transactionTableSize: Int, private val transactionHistorySize: Int) {
+class TransactionManager(private val catalogue: DefaultCatalogue, private val transactionHistorySize: Int, transactionTableSize: Int) {
     /** Logger used for logging the output. */
     companion object {
         private val LOGGER = LoggerFactory.getLogger(TransactionManager::class.java)
@@ -74,6 +75,10 @@ class TransactionManager(transactionTableSize: Int, private val transactionHisto
         override var state: TransactionStatus = TransactionStatus.READY
             private set
 
+        /** The [jetbrains.exodus.env.Transaction] used by this [Transaction]. */
+        override val xodusTx: jetbrains.exodus.env.Transaction
+            get() = this@TransactionManager.catalogue.environment.beginTransaction()
+
         /** Map of all [Tx] that have been created as part of this [Transaction]. */
         private val txns: MutableMap<DBO, Tx> = Object2ObjectMaps.synchronize(Object2ObjectLinkedOpenHashMap())
 
@@ -86,8 +91,6 @@ class TransactionManager(transactionTableSize: Int, private val transactionHisto
 
         /** Timestamp of when this [Transaction] was created. */
         val created = System.currentTimeMillis()
-
-
 
         /** Timestamp of when this [Transaction] was either COMMITTED or ABORTED. */
         var ended: Long? = null

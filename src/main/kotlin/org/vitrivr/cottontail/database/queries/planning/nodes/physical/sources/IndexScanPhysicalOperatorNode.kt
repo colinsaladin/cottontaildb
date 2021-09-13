@@ -1,7 +1,9 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources
 
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.AbstractIndex
 import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx
@@ -13,12 +15,15 @@ import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
+import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
+import org.vitrivr.cottontail.database.statistics.entity.EntityStatistics
 import org.vitrivr.cottontail.database.statistics.entity.RecordStatistics
 import org.vitrivr.cottontail.database.statistics.selectivity.NaiveSelectivityCalculator
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.execution.operators.sort.MergeLimitingHeapSortOperator
 import org.vitrivr.cottontail.execution.operators.sources.IndexScanOperator
 import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.values.types.Value
 
 /**
  * A [IndexScanPhysicalOperatorNode] that represents a predicated lookup using an [AbstractIndex].
@@ -48,10 +53,20 @@ class IndexScanPhysicalOperatorNode(override val groupId: Int, val index: IndexT
     override val canBePartitioned: Boolean = this.index.dbo.supportsPartitioning
 
     /** The [RecordStatistics] is taken from the underlying [Entity]. [RecordStatistics] are used by the query planning for [Cost] estimation. */
-    override val statistics: RecordStatistics = this.index.dbo.parent.statistics
+    override val statistics: RecordStatistics
 
     /** Cost estimation for [IndexScanPhysicalOperatorNode]s is delegated to the [Index]. */
     override val cost: Cost = this.index.dbo.cost(this.predicate)
+
+
+    init {
+        /* Obtain statistics. */
+        val entityTx = this.index.context.getTx(this.index.dbo.parent) as EntityTx
+        this.statistics = EntityStatistics(entityTx.count(), entityTx.maxTupleId())
+        entityTx.listColumns().forEach { columnDef ->
+            this.statistics[columnDef] = (this.index.context.getTx(entityTx.columnForName(columnDef.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
+        }
+    }
 
     /** */
     override val outputSize: Long = when (this.predicate) {

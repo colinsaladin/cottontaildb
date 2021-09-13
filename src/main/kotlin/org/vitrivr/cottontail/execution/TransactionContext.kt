@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.execution
 
+import jetbrains.exodus.env.Transaction
 import kotlinx.coroutines.flow.Flow
 import org.vitrivr.cottontail.database.general.DBO
 import org.vitrivr.cottontail.database.general.Tx
@@ -16,12 +17,15 @@ import org.vitrivr.cottontail.model.basics.TransactionId
  * A [TransactionContext] used by operators and their [Txn]s to execute and obtain necessary locks
  *
  * @author Ralph Gasser
- * @version 1.4.0
+ * @version 3.0.0
  */
 interface TransactionContext {
 
     /** The [TransactionId] of this [TransactionContext]. */
     val txId: TransactionId
+
+    /** The Xodus [Transaction] associated with this. */
+    val xodusTx: Transaction
 
     /** The [TransactionType] of this [TransactionContext]. */
     val type: TransactionType

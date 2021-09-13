@@ -44,7 +44,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * 3) A [OperatorNode.Logical] tree is constructed from the internal query objects.
  *
  * @author Ralph Gasser
- * @version 2.0.0
+ * @version 2.1.0
  */
 object GrpcQueryBinder {
 
@@ -132,7 +132,7 @@ object GrpcQueryBinder {
 
             /* Create and return INSERT-clause. */
             val record = RecordBinding(-1L, columns, values)
-            context.register(InsertLogicalOperatorNode(context.nextGroupId(), entity, mutableListOf(record)))
+            context.register(InsertLogicalOperatorNode(context.nextGroupId(), entityTx, mutableListOf(record)))
         } catch (e: DatabaseException.ColumnDoesNotExistException) {
             throw QueryException.QueryBindException("Failed to bind '${e.column}'. Column does not exist!")
         }
@@ -164,7 +164,7 @@ object GrpcQueryBinder {
                    context.bindings.bind(i.valuesList[it].toValue(columns[it].type))
                 })
             }.toMutableList()
-            context.register(InsertLogicalOperatorNode(context.nextGroupId(), entity, records))
+            context.register(InsertLogicalOperatorNode(context.nextGroupId(), entityTx, records))
         } catch (e: DatabaseException.ColumnDoesNotExistException) {
             throw QueryException.QueryBindException("Failed to bind '${e.column}'. Column does not exist!")
         }
@@ -289,7 +289,7 @@ object GrpcQueryBinder {
                 val entity = parseAndBindEntity(from.scan.entity, context)
                 val entityTx = context.txn.getTx(entity) as EntityTx
                 val fetch = entityTx.listColumns().map {
-                    val column = it.columnDef
+                    val column = it
                     val name = columnAliases[column.name] ?: column.name
                     name to column
                 }
@@ -299,7 +299,7 @@ object GrpcQueryBinder {
                 val entity = parseAndBindEntity(from.sample.entity, context)
                 val entityTx = context.txn.getTx(entity) as EntityTx
                 val fetch = entityTx.listColumns().map {
-                    val column = it.columnDef
+                    val column = it
                     val name = columnAliases[column.name] ?: column.name
                     name to column
                 }

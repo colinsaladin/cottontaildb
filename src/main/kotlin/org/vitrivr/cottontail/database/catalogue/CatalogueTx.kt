@@ -10,18 +10,18 @@ import java.nio.file.Path
  * operations (read/write).
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 3.0.0
  */
 interface CatalogueTx : Tx {
     /** Reference to the [Catalogue] this [CatalogueTx] belongs to. */
     override val dbo: Catalogue
 
     /**
-     * Returns a list of [Schema] held by this [Catalogue].
+     * Returns a list of [Name.SchemaName] held by this [Catalogue].
      *
-     * @return [List] of all [Schema].
+     * @return [List] of all [Name.SchemaName].
      */
-    fun listSchemas(): List<Schema>
+    fun listSchemas(): List<Name.SchemaName>
 
     /**
      * Returns the [Schema] for the given [Name.SchemaName].

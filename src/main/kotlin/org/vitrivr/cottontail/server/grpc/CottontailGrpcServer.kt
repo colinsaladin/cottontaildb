@@ -16,28 +16,28 @@ import kotlin.time.ExperimentalTime
  * Main server class for the gRPC endpoint provided by Cottontail DB.
  *
  * @author Ralph Gasser
- * @version 1.1.1
+ * @version 1.2.0
  */
 @ExperimentalTime
-class CottontailGrpcServer(val config: Config, val catalogue: DefaultCatalogue) {
+class CottontailGrpcServer(config: Config, catalogue: DefaultCatalogue) {
 
     /** The [ThreadPoolExecutor] used for handling gRPC calls and executing queries. */
-    private val executor = this.config.execution.newExecutor()
+    private val executor = config.execution.newExecutor()
 
     /** The [TransactionManager] used by this [CottontailGrpcServer] instance. */
-    private val transactionManager: TransactionManager = TransactionManager(this.config.execution.transactionTableSize, this.config.execution.transactionHistorySize)
+    private val transactionManager: TransactionManager = TransactionManager(catalogue, config.execution.transactionHistorySize, config.execution.transactionTableSize)
 
     /** Reference to the gRPC server. */
-    private val server = ServerBuilder.forPort(this.config.server.port)
+    private val server = ServerBuilder.forPort(config.server.port)
         .executor(this.executor)
-        .addService(DDLService(this.catalogue, this.transactionManager))
-        .addService(DMLService(this.catalogue, this.transactionManager))
-        .addService(DQLService(this.catalogue, this.transactionManager))
-        .addService(TXNService(this.catalogue, this.transactionManager))
+        .addService(DDLService(catalogue, this.transactionManager))
+        .addService(DMLService(catalogue, this.transactionManager))
+        .addService(DQLService(catalogue, this.transactionManager))
+        .addService(TXNService(catalogue, this.transactionManager))
         .let {
-            if (this.config.server.useTls) {
-                val certFile = this.config.server.certFile!!.toFile()
-                val privateKeyFile = this.config.server.privateKey!!.toFile()
+            if (config.server.useTls) {
+                val certFile = config.server.certFile!!.toFile()
+                val privateKeyFile = config.server.privateKey!!.toFile()
                 it.useTransportSecurity(certFile, privateKeyFile)
             } else {
                 it
