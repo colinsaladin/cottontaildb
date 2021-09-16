@@ -8,13 +8,16 @@ import jetbrains.exodus.env.Store
 import jetbrains.exodus.env.StoreConfig
 import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
+import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
 import org.vitrivr.cottontail.database.catalogue.storeName
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
+import org.vitrivr.cottontail.database.index.basics.IndexState
 import org.vitrivr.cottontail.database.index.basics.IndexType
+import org.vitrivr.cottontail.database.index.gg.GGIndexConfig
 import org.vitrivr.cottontail.database.index.lsh.LSHIndex
 import org.vitrivr.cottontail.database.index.va.signature.VAFSignature
 import org.vitrivr.cottontail.database.logging.operations.Operation
@@ -60,7 +63,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
 
     /** The [SuperBitLSHIndexConfig] used by this [SuperBitLSHIndex] instance. */
     override val config: SuperBitLSHIndexConfig = this.catalogue.environment.computeInTransaction { tx ->
-        val entry = DefaultCatalogue.readEntryForIndex(this.name, this.parent.parent.parent, tx)
+        val entry = IndexCatalogueEntry.read(this.name, this.parent.parent.parent, tx) ?: throw DatabaseException.DataCorruptionException("Failed to read catalogue entry for index ${this.name}.")
         SuperBitLSHIndexConfig.fromParamMap(entry.config)
     }
 
@@ -71,7 +74,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
 
     /**
      * Checks if the provided [Predicate] can be processed by this instance of [SuperBitLSHIndex].
-     * note: only use the innerproduct distances with normalized vectors!
+     * note: only use the inner product distances with normalized vectors!
      *
      * @param predicate The [Predicate] to check.
      * @return True if [Predicate] can be processed, false otherwise.
@@ -106,11 +109,6 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
      */
     private inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context) {
 
-        /** Internal data [Store] reference. */
-        private var dataStore: Store = this@SuperBitLSHIndex.catalogue.environment.openStore(this@SuperBitLSHIndex.name.storeName(), this@SuperBitLSHIndex.type.storeConfig(), this.context.xodusTx, false)
-            ?: throw DatabaseException.DataCorruptionException("Data store for column ${this@SuperBitLSHIndex.name} is missing.")
-
-
         /**
          * Adds a mapping from the given [Value] to the given [TupleId].
          *
@@ -120,9 +118,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
          * This is an internal function and can be used safely with values o
          */
         private fun addMapping(buckets: IntArray, tupleId: TupleId): Boolean {
-            val keyRaw = ComparableSet
-
-                IntegerBinding.intToCompressedEntry(bucket)
+            val keyRaw = IntegerBinding.intToCompressedEntry(0) //TODO
             val tupleIdRaw = LongBinding.longToCompressedEntry(tupleId)
             return if (this.dataStore.exists(this.context.xodusTx, keyRaw, tupleIdRaw)) {
                 this.dataStore.put(this.context.xodusTx, keyRaw, tupleIdRaw)
@@ -139,7 +135,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
          * This is an internal function and can be used safely with values o
          */
         private fun removeMapping(buckets: IntArray, tupleId: TupleId): Boolean {
-            val keyRaw = IntegerBinding.intToCompressedEntry(bucket)
+            val keyRaw = IntegerBinding.intToCompressedEntry(0) //TODO
             val valueRaw = LongBinding.longToCompressedEntry(tupleId)
             val cursor = this.dataStore.openCursor(this.context.xodusTx)
             if (cursor.getSearchBoth(keyRaw, valueRaw)) {
@@ -159,7 +155,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
         /**
          * (Re-)builds the [SuperBitLSHIndex].
          */
-        override fun rebuild() = this.withWriteLock {
+        override fun rebuild() {
             LOGGER.debug("Rebuilding SB-LSH index {}", this@SuperBitLSHIndex.name)
 
             /* LSH. */
@@ -188,15 +184,15 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
             }
 
             /* Clear existing maps. */
-            (this@SuperBitLSHIndex.maps zip local).forEach { (map, localdata) ->
-                map.clear()
-                localdata.forEachIndexed { bucket, tIds ->
-                    map[bucket] = tIds.toLongArray()
-                }
-            }
+            //TODO: (this@SuperBitLSHIndex.maps zip local).forEach { (map, localdata) ->
+            //    map.clear()
+            //    localdata.forEachIndexed { bucket, tIds ->
+            //        map[bucket] = tIds.toLongArray()
+            //   }
+            // }
 
-            /* Update dirty flag. */
-            this@SuperBitLSHIndex.dirtyField.compareAndSet(true, false)
+            /* Update state of index. */
+            this.updateState(IndexState.CLEAN)
             LOGGER.debug("Rebuilding SB-LSH index completed.")
         }
 
@@ -206,19 +202,20 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
          *
          * @param event [Operation.DataManagementOperation]s to process.
          */
-        override fun update(event: Operation.DataManagementOperation) = this.withWriteLock {
-            this@SuperBitLSHIndex.dirtyField.compareAndSet(false, true)
-            Unit
+        override fun update(event: Operation.DataManagementOperation) {
+            /* Update state of index. */
+            this.updateState(IndexState.STALE)
         }
 
         /**
          * Clears the [SuperBitLSHIndex] underlying this [Tx] and removes all entries it contains.
          */
-        override fun clear() = this.withWriteLock {
-            this@SuperBitLSHIndex.dirtyField.compareAndSet(false, true)
-            (this@SuperBitLSHIndex.maps).forEach { map ->
-                map.clear()
-            }
+        override fun clear() {
+            /* Update state of index. */
+            this.updateState(IndexState.STALE)
+            // TODO: (this@SuperBitLSHIndex.maps).forEach { map ->
+            //    map.clear()
+            //}
         }
 
         /**
@@ -267,9 +264,9 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
                 this.tupleIds = LinkedList<TupleId>()
                 val signature = lsh.hash(value)
                 for (stage in signature.indices) {
-                    for (tupleId in this@SuperBitLSHIndex.maps[stage].getValue(signature[stage])) {
-                        this.tupleIds.offer(tupleId)
-                    }
+                    //TODO: for (tupleId in this@SuperBitLSHIndex.maps[stage].getValue(signature[stage])) {
+                    //    this.tupleIds.offer(tupleId)
+                    //}
                 }
             }
 

@@ -9,7 +9,10 @@ import jetbrains.exodus.env.StoreConfig
 import jetbrains.exodus.env.forEach
 
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
+import org.vitrivr.cottontail.database.catalogue.entries.ColumnCatalogueEntry
+import org.vitrivr.cottontail.database.catalogue.entries.EntityCatalogueEntry
 import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
+import org.vitrivr.cottontail.database.catalogue.entries.SequenceCatalogueEntries
 import org.vitrivr.cottontail.database.catalogue.storeName
 import org.vitrivr.cottontail.database.column.*
 import org.vitrivr.cottontail.database.general.*
@@ -56,13 +59,14 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
     /** Number of [Column]s in this [DefaultEntity]. */
     override val numberOfColumns: Int
         get() = this.catalogue.environment.computeInTransaction { tx ->
-            DefaultCatalogue.readEntryForEntity(this.name, this.catalogue, tx).columns.size
+            EntityCatalogueEntry.read(this.name, this.catalogue, tx)?.columns?.size
+                ?: throw DatabaseException.DataCorruptionException("Catalogue entry for entity ${this@DefaultEntity.name} is missing.")
         }
 
     /** Estimated maximum [TupleId]s for this [DefaultEntity]. This is a snapshot and may change immediately after calling this method. */
     override val maxTupleId: TupleId
         get() = this.catalogue.environment.computeInTransaction { tx ->
-            DefaultCatalogue.readSequence(Name.EntityName.objectToEntry(this.name), this.catalogue, tx)
+            SequenceCatalogueEntries.read(this.sequenceName, this.catalogue, tx)
                 ?: throw DatabaseException.DataCorruptionException("Sequence entry for entity ${this@DefaultEntity.name} is missing.")
         }
 
@@ -77,6 +81,9 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
     /** Status indicating whether this [DefaultEntity] is open or closed. */
     override val closed: Boolean
         get() = this.parent.closed
+
+    /** The [Name.SequenceName] for this [DefaultEntity]*/
+    private val sequenceName: Name.SequenceName = this@DefaultEntity.name.tid()
 
     /**
      * Creates and returns a new [DefaultEntity.Tx] for the given [TransactionContext].
@@ -104,20 +111,15 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
 
         /** Checks if DBO is still open. */
         init {
-            val entityEntry = try {
-                DefaultCatalogue.readEntryForEntity(this@DefaultEntity.name, this@DefaultEntity.catalogue, this.context.xodusTx)
-            } catch (e: DatabaseException.EntityDoesNotExistException) {
-                throw DatabaseException.DataCorruptionException("Catalogue entry for entity ${this@DefaultEntity.name} is missing.")
-            }
+            /* Load entity entry.  */
+            val entityEntry = EntityCatalogueEntry.read(this@DefaultEntity.name, this@DefaultEntity.catalogue, this.context.xodusTx)
+                ?: throw DatabaseException.DataCorruptionException("Catalogue entry for entity ${this@DefaultEntity.name} is missing.")
 
             /* Load a (ordered) map of columns. This map can be kept in memory for the duration of the transaction, because Transaction works with a fixed snapshot.  */
             this.columns = entityEntry.columns.associateWith {
-                try {
-                    val columnEntry = DefaultCatalogue.readEntryForColumn(it, this@DefaultEntity.catalogue, this.context.xodusTx)
-                    DefaultColumn(columnEntry.toColumnDef(), this@DefaultEntity)
-                } catch (e: DatabaseException.ColumnDoesNotExistException) {
-                    throw DatabaseException.DataCorruptionException("Catalogue entry for column $it is missing.")
-                }
+                val columnEntry = ColumnCatalogueEntry.read(it, this@DefaultEntity.catalogue, this.context.xodusTx)
+                    ?: throw DatabaseException.DataCorruptionException("Catalogue entry for entity $it is missing.")
+                DefaultColumn(columnEntry.toColumnDef(), this@DefaultEntity)
             }
         }
 
@@ -153,7 +155,7 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          *
          * @return The maximum tuple ID occupied by entries in this [DefaultEntity].
          */
-        override fun maxTupleId(): TupleId = DefaultCatalogue.readSequence(Name.EntityName.objectToEntry(this@DefaultEntity.name), this@DefaultEntity.catalogue, this.context.xodusTx)
+        override fun maxTupleId(): TupleId = SequenceCatalogueEntries.read(this@DefaultEntity.sequenceName, this@DefaultEntity.catalogue, this.context.xodusTx)
             ?: throw DatabaseException.DataCorruptionException("Sequence entry for entity ${this@DefaultEntity.name} is missing.")
 
         /**
@@ -179,8 +181,7 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          * @return List of [Name.IndexName] managed by this [EntityTx]
          */
         override fun listIndexes(): List<Index>  {
-            val store = this@DefaultEntity.parent.parent.environment.openStore(DefaultCatalogue.CATALOGUE_INDEX_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, this.context.xodusTx, false)
-                ?: throw DatabaseException.DataCorruptionException("Failed to load index catalogue.")
+            val store = IndexCatalogueEntry.store(this@DefaultEntity.catalogue, this.context.xodusTx)
             val list = mutableListOf<Index>()
             val cursor = store.openCursor(this.context.xodusTx)
             cursor.getSearchKeyRange(Name.EntityName.objectToEntry(this@DefaultEntity.name))
@@ -197,7 +198,7 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          * @return List of [Name.IndexName] managed by this [EntityTx]
          */
         override fun indexForName(name: Name.IndexName): Index {
-            val entry = DefaultCatalogue.readEntryForIndex(name, this@DefaultEntity.catalogue, this.context.xodusTx)
+            val entry = IndexCatalogueEntry.read(name, this@DefaultEntity.catalogue, this.context.xodusTx) ?: throw DatabaseException.IndexDoesNotExistException(name)
             return entry.type.open(entry.name, this@DefaultEntity)
         }
 
@@ -209,16 +210,14 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          * @param columns The list of [columns] to [Index].
          */
         override fun createIndex(name: Name.IndexName, type: IndexType, columns: Array<Name.ColumnName>, params: Map<String, String>): Index {
-            try {
-                DefaultCatalogue.readEntryForIndex(name, this@DefaultEntity.catalogue, this.context.xodusTx)
+            /* Checks if index exists. */
+            if (IndexCatalogueEntry.exists(name, this@DefaultEntity.catalogue, this.context.xodusTx)) {
                 throw DatabaseException.IndexAlreadyExistsException(name)
-            } catch (e: DatabaseException.IndexDoesNotExistException) {
-                /* Ignore. */
             }
 
             /* Create index catalogue entry. */
             val indexEntry = IndexCatalogueEntry(name, type, IndexState.DIRTY, columns, params)
-            if (!DefaultCatalogue.writeEntryForIndex(indexEntry, this@DefaultEntity.catalogue, this.context.xodusTx)) {
+            if (!IndexCatalogueEntry.write(indexEntry, this@DefaultEntity.catalogue, this.context.xodusTx)) {
                 throw DatabaseException.DataCorruptionException("CREATE index $name failed: Failed to create catalogue entry.")
             }
 
@@ -235,20 +234,18 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          * @param name [Name.IndexName] of the [Index] to drop.
          */
         override fun dropIndex(name: Name.IndexName) = this.withWriteLock {
-            val indexKey = Name.IndexName.objectToEntry(name)
+            /* Check if index exists. */
+            if (!IndexCatalogueEntry.exists(name, this@DefaultEntity.catalogue, this.context.xodusTx)) {
+                throw DatabaseException.IndexDoesNotExistException(name)
+            }
 
             /* Open index catalogue. */
-            val environment = this.dbo.parent.parent.environment
-            val indexCatalogue = environment.openStore(DefaultCatalogue.CATALOGUE_INDEX_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, this.context.xodusTx, false)
-                ?: throw DatabaseException.DataCorruptionException("Failed to load index catalogue.")
-
-            /* Read entity catalogue entry (does it exist?) */
-            val indexEntry = IndexCatalogueEntry.entryToObject(indexCatalogue.get(this.context.xodusTx, indexKey) ?: throw DatabaseException.IndexDoesNotExistException(name)) as IndexCatalogueEntry
-            if (!indexCatalogue.delete(this.context.xodusTx, indexKey))
+            if (!IndexCatalogueEntry.delete(name, this@DefaultEntity.catalogue, this.context.xodusTx)) {
                 throw DatabaseException.DataCorruptionException("DROP index $name failed: Failed to delete catalogue entry.")
+            }
 
-            /* Remove store. */
-            environment.removeStore(name.storeName(), this.context.xodusTx)
+            /* Remove index store. */
+            this@DefaultEntity.catalogue.environment.removeStore(name.storeName(), this.context.xodusTx)
         }
 
         /**
@@ -342,7 +339,7 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          */
         override fun insert(record: Record): TupleId {
             /* Execute INSERT on entity level. */
-            val nextTupleId = DefaultCatalogue.nextSequence(Name.EntityName.objectToEntry(this@DefaultEntity.name), this@DefaultEntity.catalogue, this.context.xodusTx)
+            val nextTupleId = SequenceCatalogueEntries.next(this@DefaultEntity.sequenceName, this@DefaultEntity.catalogue, this.context.xodusTx)
                 ?: throw DatabaseException.DataCorruptionException("Sequence entry for entity ${this@DefaultEntity.name} is missing.")
             this.entityStore.putRight(this.context.xodusTx, LongBinding.longToCompressedEntry(nextTupleId), ByteBinding.BINDING.objectToEntry(0.toByte()))
 

@@ -3,12 +3,9 @@ package org.vitrivr.cottontail.database.index.va
 import jetbrains.exodus.ArrayByteIterable
 import jetbrains.exodus.bindings.LongBinding
 import jetbrains.exodus.env.Cursor
-import jetbrains.exodus.env.Store
-import jetbrains.exodus.env.StoreConfig
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
-import org.vitrivr.cottontail.database.catalogue.storeName
+import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.DefaultEntity
@@ -77,7 +74,7 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
 
     /** The [VAFIndexConfig] used by this [VAFIndex] instance. */
     override val config: VAFIndexConfig = this.catalogue.environment.computeInTransaction { tx ->
-        val entry = DefaultCatalogue.readEntryForIndex(this.name, this.parent.parent.parent, tx)
+        val entry = IndexCatalogueEntry.read(this.name, this.parent.parent.parent, tx) ?: throw DatabaseException.DataCorruptionException("Failed to read catalogue entry for index ${this.name}.")
         VAFIndexConfig.fromParamMap(entry.config)
     }
 
@@ -207,9 +204,18 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
             }
 
             /* Update catalogue entry for index. */
-            val entry = DefaultCatalogue.readEntryForIndex(this@VAFIndex.name, this@VAFIndex.catalogue, this.context.xodusTx)
-            DefaultCatalogue.writeEntryForIndex(entry.copy(state = IndexState.CLEAN), this@VAFIndex.catalogue, this.context.xodusTx)
-            LOGGER.debug("Done rebuilding VAF index {}", this@VAFIndex.name)
+            this.updateState(IndexState.CLEAN)
+        }
+
+        /**
+         * Updates this [VAFIndex] with a new [Operation.DataManagementOperation]. Currently sets the [VAFIndex] to stale.
+         *
+         * TODO: Implement write model for [VAFIndex].
+         *
+         * @param event The [Operation.DataManagementOperation] to process.
+         */
+        override fun update(event: Operation.DataManagementOperation) {
+            this.updateState(IndexState.STALE)
         }
 
         /**

@@ -1,18 +1,16 @@
 package org.vitrivr.cottontail.database.index.gg
 
-import org.mapdb.HTreeMap
-import org.mapdb.Serializer
 import org.slf4j.LoggerFactory
-import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
+import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.basics.AbstractHDIndex
+import org.vitrivr.cottontail.database.index.basics.IndexState
 import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.index.pq.PQIndex
-import org.vitrivr.cottontail.database.index.va.VAFIndexConfig
 import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
@@ -25,12 +23,12 @@ import org.vitrivr.cottontail.utilities.selection.ComparablePair
 import org.vitrivr.cottontail.utilities.selection.MinHeapSelection
 import org.vitrivr.cottontail.utilities.selection.MinSingleSelection
 import org.vitrivr.cottontail.model.basics.*
+import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
 import org.vitrivr.cottontail.utilities.math.KnnUtilities
-import java.nio.file.Path
 import java.util.*
 import kotlin.collections.ArrayDeque
 
@@ -49,7 +47,6 @@ import kotlin.collections.ArrayDeque
  */
 class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(name, parent) {
     companion object {
-        const val GG_INDEX_NAME = "cdb_gg_means"
         val LOGGER = LoggerFactory.getLogger(GGIndex::class.java)!!
     }
 
@@ -61,16 +58,9 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
 
     /** The [GGIndexConfig] used by this [GGIndex] instance. */
     override val config: GGIndexConfig = this.catalogue.environment.computeInTransaction { tx ->
-        val entry = DefaultCatalogue.readEntryForIndex(this.name, this.parent.parent.parent, tx)
+        val entry = IndexCatalogueEntry.read(this.name, this.parent.parent.parent, tx) ?: throw DatabaseException.DataCorruptionException("Failed to read catalogue entry for index ${this.name}.")
         GGIndexConfig.fromParamsMap(entry.config)
     }
-
-    /** Store of the groups mean vector and the associated [TupleId]s. */
-    private val groupsStore: HTreeMap<VectorValue<*>, LongArray> = this.store.hashMap(
-        GG_INDEX_NAME,
-        this.columns[0].type.serializerFactory() as Serializer<VectorValue<*>>,
-        Serializer.LONG_ARRAY
-    ).counterEnable().createOrOpen()
 
     /** False since [GGIndex] currently doesn't support incremental updates. */
     override val supportsIncrementalUpdate: Boolean = false
@@ -111,14 +101,15 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
     /**
      * A [IndexTx] that affects this [AbstractIndex].
      */
-    private inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context) {
+    private inner class Tx(context: TransactionContext) : AbstractHDIndex.Tx(context) {
         /**
          * Returns the number of groups in this [GGIndex]
          *
          * @return The number of groups stored in this [GGIndex]
          */
-        override fun count(): Long = this.withReadLock {
-            this@GGIndex.groupsStore.size.toLong()
+        override fun count(): Long {
+            TODO()
+            //this@GGIndex.groupsStore.size.toLong()
         }
 
         /**
@@ -149,7 +140,7 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
             val random = SplittableRandom(this@GGIndex.config.seed)
 
             /* Start rebuilding the index. */
-            this@GGIndex.groupsStore.clear()
+            this.clear()
             while (remainingTids.isNotEmpty()) {
                 /* Randomly pick group seed value. */
                 val groupSeedTid = remainingTids.elementAt(random.nextInt(remainingTids.size))
@@ -181,30 +172,29 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
                         check(finishedTIds.add(element.first)) { "${name.simple} processed an element that was already processed." }
                     }
                     groupMean /= DoubleValue(knn.size)
-                    this@GGIndex.groupsStore[groupMean] = groupTids.toLongArray()
+                    //TODO: this@GGIndex.groupsStore[groupMean] = groupTids.toLongArray()
                 }
             }
-            this@GGIndex.dirtyField.compareAndSet(true, false)
+            this.updateState(IndexState.CLEAN)
             PQIndex.LOGGER.debug("Rebuilding GGIndex {} complete.", this@GGIndex.name)
         }
 
         /**
-         * Updates the [GGIndex] with the provided [Operation.DataManagementOperation]s. This method determines,
-         * whether the [Record] affected by the [Operation.DataManagementOperation] should be added or updated
+         * Updates the [GGIndex] with the provided [Operation.DataManagementOperation]s. Since incremental updates
+         * are not supported, the [GGIndex] is set to stale.
          *
-         * @param event [Operation.DataManagementOperation]s to process.
+         * @param event The [Operation.DataManagementOperation] to process.
          */
-        override fun update(event: Operation.DataManagementOperation) = this.withWriteLock {
-            this@GGIndex.dirtyField.compareAndSet(false, true)
-            Unit
+        override fun update(event: Operation.DataManagementOperation) {
+            this.updateState(IndexState.STALE)
         }
 
         /**
          * Clears the [GGIndex] underlying this [Tx] and removes all entries it contains.
          */
         override fun clear() = this.withWriteLock {
-            this@GGIndex.dirtyField.compareAndSet(false, true)
-            this@GGIndex.groupsStore.clear()
+            this.updateState(IndexState.STALE)
+            //TODO: this@GGIndex.groupsStore.clear()
         }
 
         /**
@@ -259,9 +249,9 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
                 val groupKnn = MinHeapSelection<ComparablePair<LongArray, DoubleValue>>(considerNumGroups)
 
                 LOGGER.debug("Scanning group mean signals.")
-                this@GGIndex.groupsStore.forEach {
-                    groupKnn.offer(ComparablePair(it.value, function(it.key)))
-                }
+                //TODO: this@GGIndex.groupsStore.forEach {
+                //    groupKnn.offer(ComparablePair(it.value, function(it.key)))
+                //}
 
 
                 /** Phase 2): Perform kNN on the per-group results. */

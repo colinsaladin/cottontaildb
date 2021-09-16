@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.index.basics
 
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
+import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.index.Index
@@ -10,6 +11,7 @@ import org.vitrivr.cottontail.database.index.pq.PQIndex
 import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.exceptions.DatabaseException
 
 
 /**
@@ -32,14 +34,6 @@ abstract class AbstractHDIndex(name: Name.IndexName, parent: DefaultEntity) : Ab
      * A [Tx] that affects this [AbstractIndex].
      */
     protected abstract inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context), IndexTx {
-        /**
-         * Default action: Mark index as stale as [AbstractHDIndex]es usually can't handle update.
-         *
-         * @param event Collection of [Operation.DataManagementOperation]s to process.
-         */
-        override fun update(event: Operation.DataManagementOperation) {
-            val entry = DefaultCatalogue.readEntryForIndex(this@AbstractHDIndex.name, this@AbstractHDIndex.catalogue, this.context.xodusTx)
-            DefaultCatalogue.writeEntryForIndex(entry.copy(state = IndexState.STALE), this@AbstractHDIndex.catalogue, this.context.xodusTx)
-        }
+
     }
 }

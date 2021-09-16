@@ -2,7 +2,7 @@ package org.vitrivr.cottontail.database.index.pq
 
 import jetbrains.exodus.bindings.LongBinding
 import org.slf4j.LoggerFactory
-import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
+import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
 import org.vitrivr.cottontail.database.column.*
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
@@ -22,6 +22,7 @@ import org.vitrivr.cottontail.utilities.selection.ComparablePair
 import org.vitrivr.cottontail.utilities.selection.MinHeapSelection
 import org.vitrivr.cottontail.utilities.selection.MinSingleSelection
 import org.vitrivr.cottontail.model.basics.*
+import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.DoubleValue
@@ -29,7 +30,6 @@ import org.vitrivr.cottontail.model.values.types.VectorValue
 import org.vitrivr.cottontail.utilities.math.KnnUtilities
 import java.util.*
 import kotlin.collections.ArrayDeque
-import kotlin.math.min
 
 /**
  * An [AbstractIndex] structure for nearest neighbor search (NNS) that uses a product quantization (PQ). Can
@@ -87,7 +87,7 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
 
     /** The [PQIndexConfig] used by this [PQIndex] instance. */
     override val config: PQIndexConfig = this.catalogue.environment.computeInTransaction { tx ->
-        val entry = DefaultCatalogue.readEntryForIndex(this.name, this.parent.parent.parent, tx)
+        val entry = IndexCatalogueEntry.read(this.name, this.parent.parent.parent, tx) ?: throw DatabaseException.DataCorruptionException("Failed to read catalogue entry for index ${this.name}.")
         PQIndexConfig.fromParamMap(entry.config)
     }
 
@@ -144,7 +144,7 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
     private inner class Tx(context: TransactionContext) : AbstractHDIndex.Tx(context) {
 
         /** Internal [VAFMarks] reference. */
-        private var pq: PQ
+        private var pq: PQ? = null
 
         init {
 
@@ -170,22 +170,32 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
             val data = this.acquireLearningData(txn)
 
             /* Obtain PQ data structure. */
-            this.pq = PQ.fromData(this@PQIndex.config, this@PQIndex.columns[0], data)
+            //TODO: this.pq = PQ.fromData(this@PQIndex.config, this@PQIndex.columns[0], data)
 
             /* Clear and re-generate signatures. */
             this.clear()
             txn.scan(this.dbo.columns).forEach { rec ->
                 val value = rec[this@PQIndex.columns[0]]
                 if (value is VectorValue<*>) {
-                    val sig = pq.getSignature(value)
-                    this.dataStore.put(this.context.xodusTx, sig, rec.tupleId.toKey())
+                    //TODO: val sig = pq.getSignature(value)
+                    //TODO: this.dataStore.put(this.context.xodusTx, sig, rec.tupleId.toKey())
                 }
             }
 
-            /* Update catalogue entry for index. */
-            val entry = DefaultCatalogue.readEntryForIndex(this@PQIndex.name, this@PQIndex.catalogue, this.context.xodusTx)
-            DefaultCatalogue.writeEntryForIndex(entry.copy(state = IndexState.CLEAN), this@PQIndex.catalogue, this.context.xodusTx)
+            /* Update index state for index. */
+            this.updateState(IndexState.CLEAN)
             VAFIndex.LOGGER.debug("Rebuilding PQIndex {} completed!", this@PQIndex.name)
+        }
+
+        /**
+         * Updates this [PQIndex] with a new [Operation.DataManagementOperation]. Currently sets the [PQIndex] to stale.
+         *
+         * TODO: Implement write model for [PQIndex].
+         *
+         * @param event The [Operation.DataManagementOperation] to process.
+         */
+        override fun update(event: Operation.DataManagementOperation) {
+            this.updateState(IndexState.STALE)
         }
 
         /**
@@ -221,10 +231,10 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
             }
 
             /** The [PQ] instance used for this [Iterator]. */
-            private val pq = this@PQIndex.pqStore.get()
+            //TODO: private val pq = this@PQIndex.pqStore.get()
 
             /** Prepares [PQLookupTable]s for the given query vector(s). */
-            private val lookupTable: PQLookupTable
+            //TODO: private val lookupTable: PQLookupTable
 
             /** The [ArrayDeque] of [StandaloneRecord] produced by this [VAFIndex]. Evaluated lazily! */
             private val resultsQueue: ArrayDeque<StandaloneRecord> by lazy {
@@ -232,17 +242,17 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
             }
 
             /** The [IntRange] that should be scanned by this [VAFIndex]. */
-            private val range: IntRange
+            private val range: IntRange = 0 until 1
 
             init {
                 this@Tx.withReadLock { }
                 val value = this.predicate.query.value
                 check(value is VectorValue<*>) { "Bound value for query vector has wrong type (found = ${value?.type})." }
-                this.lookupTable = this.pq.getLookupTable(value, this.predicate.distance)
+                //TODO: this.lookupTable = this.pq.getLookupTable(value, this.predicate.distance)
 
                 /* Calculate partition size. */
-                val pSize = Math.floorDiv(this@PQIndex.signaturesStore.size, partitions) + 1
-                this.range = pSize * partitionIndex until min(pSize * (partitionIndex + 1), this@PQIndex.signaturesStore.size)
+                // TODO: val pSize = Math.floorDiv(this@PQIndex.signaturesStore.size, partitions) + 1
+                // TODO: this.range = pSize * partitionIndex until min(pSize * (partitionIndex + 1), this@PQIndex.signaturesStore.size)
             }
 
             override fun hasNext(): Boolean = this.resultsQueue.isNotEmpty()
@@ -260,12 +270,12 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
 
                 /* Phase 1: Perform pre-kNN based on signatures. */
                 for (i in range) {
-                    val entry = this@PQIndex.signaturesStore[i]
-                    val approximation =
-                        this.lookupTable.approximateDistance(entry!!.signature)
-                    if (preKnn.size < this.predicate.k || preKnn.peek()!!.second > approximation) {
-                        preKnn.offer(ComparablePair(entry.tupleIds, approximation))
-                    }
+                    //TODO: val entry = this@PQIndex.signaturesStore[i]
+                    //val approximation =
+                    //   this.lookupTable.approximateDistance(entry!!.signature)
+                    //if (preKnn.size < this.predicate.k || preKnn.peek()!!.second > approximation) {
+                    //    preKnn.offer(ComparablePair(entry.tupleIds, approximation))
+                    //}
                 }
 
                 /* Phase 2: Perform exact kNN based on pre-kNN results. */

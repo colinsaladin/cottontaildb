@@ -36,7 +36,7 @@ abstract class AbstractTx(final override val context: TransactionContext) : Tx {
      * sanity checks etc). Implementing classes need to implement [TxSnapshot] to execute the
      * actual commit.
      */
-    final override fun commit() {
+    override fun commit() {
 
     }
 
@@ -47,7 +47,7 @@ abstract class AbstractTx(final override val context: TransactionContext) : Tx {
      * sanity checks etc). Implementing classes need to implement [TxSnapshot] to execute the actual
      * commit.
      */
-    final override fun rollback() {
+    override fun rollback() {
 
     }
 

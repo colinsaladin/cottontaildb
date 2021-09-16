@@ -4,6 +4,7 @@ import jetbrains.exodus.bindings.LongBinding
 import jetbrains.exodus.env.Store
 import jetbrains.exodus.env.StoreConfig
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
+import org.vitrivr.cottontail.database.catalogue.entries.StatisticsCatalogueEntry
 import org.vitrivr.cottontail.database.catalogue.storeName
 import org.vitrivr.cottontail.legacy.v2.column.ColumnV2
 import org.vitrivr.cottontail.database.entity.DefaultEntity
@@ -61,13 +62,6 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
             false
         ) ?: throw DatabaseException.DataCorruptionException("Data store for column ${this@DefaultColumn.name} is missing.")
 
-        /** Load internal statistics [Store] reference. */
-        private val statisticsStore = this@DefaultColumn.parent.parent.parent.environment.openStore(DefaultCatalogue.CATALOGUE_STATISTICS_STORE_NAME,
-            StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING,
-            this.context.xodusTx,
-            false
-        ) ?: throw DatabaseException.DataCorruptionException("Statistics store is missing.")
-
         /** The internal [XodusBinding] reference used for de-/serialization. */
         private val binding: XodusBinding<T> = this@DefaultColumn.columnDef.type.serializerFactory().xodus(this.columnDef.type.logicalSize)
 
@@ -81,7 +75,8 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          * @return [ValueStatistics].
          */
         override fun statistics(): ValueStatistics<T> {
-            return DefaultCatalogue.readEntryForStatistics(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx). statistics as ValueStatistics<T>
+            return (StatisticsCatalogueEntry.read(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)?.statistics
+                ?: throw DatabaseException.DataCorruptionException("Failed to PUT value from ${this@DefaultColumn.name}: Reading column statistics failed.")) as ValueStatistics<T>
         }
 
         /**
@@ -108,17 +103,17 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
             val existing = this.dataStore.get(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))?.let { this.binding.entryToValue(it) }
 
             /* Read and update statistics. */
-            val entry = DefaultCatalogue.readEntryForStatistics(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)
+            val entry = StatisticsCatalogueEntry.read(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)
+                ?: throw DatabaseException.DataCorruptionException("Failed to PUT value to ${this@DefaultColumn.name}: Reading column statistics failed.")
             if (existing == null) {
                 (entry.statistics as ValueStatistics<T>).insert(value)
             } else {
                 (entry.statistics as ValueStatistics<T>).update(existing, value)
             }
-            if (DefaultCatalogue.writeEntryForStatistics(entry, this@DefaultColumn.catalogue, this.context.xodusTx)) {
-                this.dataStore.put(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId), this.binding.objectToEntry(value))
-            } else {
+            if (!StatisticsCatalogueEntry.write(entry, this@DefaultColumn.catalogue, this.context.xodusTx)) {
                 throw DatabaseException.DataCorruptionException("Failed to PUT value from ${this@DefaultColumn.name}: Update of column statistics failed.")
             }
+            this.dataStore.put(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId), this.binding.objectToEntry(value))
 
             /* Update value. */
             return existing
@@ -152,14 +147,14 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
             val existing = this.dataStore.get(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))?.let { this.binding.entryToValue(it) }
 
             /* Read and update statistics. */
-            val statisticsEntry = DefaultCatalogue.readEntryForStatistics(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)
+            val entry = StatisticsCatalogueEntry.read(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)
+                ?: throw DatabaseException.DataCorruptionException("Failed to DELETE value from ${this@DefaultColumn.name}: Reading column statistics failed.")
             if (existing != null) {
-                (statisticsEntry.statistics as ValueStatistics<T>).delete(existing)
-                if (DefaultCatalogue.writeEntryForStatistics(statisticsEntry, this@DefaultColumn.catalogue, this.context.xodusTx)) {
-                    this.dataStore.delete(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))
-                } else {
+                (entry.statistics as ValueStatistics<T>).delete(existing)
+                if (!StatisticsCatalogueEntry.write(entry, this@DefaultColumn.catalogue, this.context.xodusTx)) {
                     throw DatabaseException.DataCorruptionException("Failed to DELETE value from ${this@DefaultColumn.name}: Update of column statistics failed.")
                 }
+                this.dataStore.delete(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))
             }
 
             /* Return existing value. */

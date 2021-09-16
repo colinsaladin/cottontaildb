@@ -155,6 +155,24 @@ sealed class Name : Comparable<Name> {
         fun index(name: String) = IndexName(*this.components, name)
 
         /**
+         * Generates the special '__tid' [SequenceName] as child of this [EntityName].
+         *
+         * @return [SequenceName]
+         */
+        fun tid() = SequenceName(*this.components, "__tid")
+
+        /**
+         * Generates an [SequenceName] as child of this [EntityName].
+         *
+         * @param name Name of the [SequenceName]
+         * @return [SequenceName]
+         */
+        fun sequence(name: String): SequenceName {
+            require(name != "__tid") { "The name '__tid' is reserved and cannot be used as sequence name!" }
+            return SequenceName(*this.components, name)
+        }
+
+        /**
          * Generates an [ColumnName] as child of this [EntityName].
          *
          * @param name Name of the [ColumnName]
@@ -172,7 +190,60 @@ sealed class Name : Comparable<Name> {
     }
 
     /**
-     * A [Name] object used to identify a [Index][org.vitrivr.cottontail.database.index.AbstractIndex].
+     * A [Name] object used to identify a sequence.
+     */
+    class SequenceName(vararg components: String) : Name() {
+        companion object Binding: ComparableBinding() {
+            override fun readObject(stream: ByteArrayInputStream) = SequenceName(StringBinding.BINDING.readObject(stream), StringBinding.BINDING.readObject(stream), StringBinding.BINDING.readObject(stream))
+            override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
+                check(`object` is SequenceName) { "Cannot serialize $`object` as sequence name." }
+                StringBinding.BINDING.writeObject(output, `object`.components[1])
+                StringBinding.BINDING.writeObject(output, `object`.components[2])
+                StringBinding.BINDING.writeObject(output, `object`.components[3])
+            }
+        }
+
+        /** Normalized [Name] components of this [IndexName]. */
+        override val components = when {
+            components.size == 3 -> arrayOf(NAME_COMPONENT_ROOT,
+                components[0].lowercase(),
+                components[1].lowercase(),
+                components[2].lowercase()
+            )
+            components.size == 4 && components[0].lowercase() == NAME_COMPONENT_ROOT -> arrayOf(
+                components[0].lowercase(),
+                components[1].lowercase(),
+                components[2].lowercase(),
+                components[3].lowercase()
+            )
+            else -> throw IllegalStateException("${components.joinToString(".")} is not a valid sequence name.")
+        }
+
+        /**
+         * Returns parent [SchemaName] of this [SequenceName].
+         *
+         * @return Parent [SchemaName]
+         */
+        fun schema(): SchemaName = SchemaName(*this.components.copyOfRange(0, 2))
+
+        /**
+         * Returns parent [EntityName] of this [SequenceName].
+         *
+         * @return Parent [EntityName]
+         */
+        fun entity(): EntityName = EntityName(*this.components.copyOfRange(0, 3))
+
+        /**
+         * Checks for a match with another name. Only exact matches, i.e. equality, are possible for [SequenceName]s.
+         *
+         * @param other [Name] to compare to.
+         * @return True on match, false otherwise.
+         */
+        override fun matches(other: Name): Boolean = (other == this)
+    }
+
+    /**
+     * A [Name] object used to identify an [Index].
      */
     class IndexName(vararg components: String) : Name() {
 
@@ -226,7 +297,7 @@ sealed class Name : Comparable<Name> {
     }
 
     /**
-     * A [Name] object used to identify a [Index][org.vitrivr.cottontail.database.column.Column].
+     * A [Name] object used to identify a [Column].
      */
     class ColumnName(vararg components: String) : Name() {
 

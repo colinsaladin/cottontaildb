@@ -9,18 +9,16 @@ import org.apache.lucene.search.similarities.SimilarityBase.log2
 import org.apache.lucene.store.Directory
 import org.apache.lucene.store.FSDirectory
 import org.apache.lucene.store.NativeFSLockFactory
-import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
+import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.general.TxAction
-import org.vitrivr.cottontail.database.general.TxSnapshot
 import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
+import org.vitrivr.cottontail.database.index.basics.IndexState
 import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.index.hash.UniqueHashIndex
 import org.vitrivr.cottontail.database.index.lsh.superbit.SuperBitLSHIndex
-import org.vitrivr.cottontail.database.index.pq.PQIndexConfig
 import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.queries.binding.Binding
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
@@ -31,17 +29,16 @@ import org.vitrivr.cottontail.database.queries.predicates.bool.ConnectionOperato
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.*
 import org.vitrivr.cottontail.model.basics.Type
+import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.FloatValue
 import org.vitrivr.cottontail.model.values.StringValue
 import org.vitrivr.cottontail.model.values.pattern.LikePatternValue
 import org.vitrivr.cottontail.model.values.pattern.LucenePatternValue
-import java.nio.file.Path
 
 /**
- * An Apache Lucene based [AbstractIndex]. The [LuceneIndex] allows for fast search on text using the EQUAL
- * or LIKE operator.
+ * An Apache Lucene based [AbstractIndex]. The [LuceneIndex] allows for fast search on text using the EQUAL or LIKE operator.
  *
  * @author Luca Rossetto & Ralph Gasser
  * @version 3.0.0
@@ -67,41 +64,15 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
 
     /** The [LuceneIndexConfig] used by this [LuceneIndex] instance. */
     override val config: LuceneIndexConfig = this.catalogue.environment.computeInTransaction { tx ->
-        val entry = DefaultCatalogue.readEntryForIndex(this.name, this.parent.parent.parent, tx)
+        val entry = IndexCatalogueEntry.read(this.name, this.parent.parent.parent, tx) ?: throw DatabaseException.DataCorruptionException("Failed to read catalogue entry for index ${this.name}.")
         LuceneIndexConfig.fromParamMap(entry.config)
     }
 
     /** The [Directory] containing the data for this [LuceneIndex]. */
     private val directory: Directory = FSDirectory.open(
-        this.path.parent.resolve("${this.name.simple}.lucene"),
+        this@LuceneIndex.catalogue.config.root.resolve("lucene").resolve(this@LuceneIndex.name.toString()),
         NativeFSLockFactory.getDefault()
     )
-
-    init {
-        /** Tries to obtain config from disk. */
-        val configOnDisk =
-            this.store.atomicVar(INDEX_CONFIG_FIELD, LuceneIndexConfig.Serializer).createOrOpen()
-        if (configOnDisk.get() == null) {
-            if (config != null) {
-                this.config = config
-            } else {
-                this.config = LuceneIndexConfig(LuceneAnalyzerType.STANDARD)
-            }
-            configOnDisk.set(config)
-        } else {
-            this.config = configOnDisk.get()
-        }
-
-        /** Initial commit of write in case writer was created freshly. */
-        val writer = IndexWriter(this.directory, IndexWriterConfig(this.config.getAnalyzer()).setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND).setCommitOnClose(true))
-        writer.close()
-
-        /* Initial commit of store. */
-        this.store.commit()
-    }
-
-    /** The [IndexReader] instance used for accessing the [LuceneIndex]. */
-    private var indexReader = DirectoryReader.open(this.directory)
 
     /**
      * Checks if this [LuceneIndex] can process the given [Predicate].
@@ -122,10 +93,10 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
      */
     override fun cost(predicate: Predicate): Cost = when {
         canProcess(predicate) -> {
-            val searcher = IndexSearcher(this.indexReader)
+            val reader = DirectoryReader.open(this.directory)
             var cost = Cost.ZERO
             repeat(predicate.columns.size) {
-                cost += Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * log2(searcher.indexReader.numDocs().toDouble()) /* TODO: This is an assumption. */
+                cost += Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * log2(reader.numDocs().toDouble()) /* TODO: This is an assumption. */
             }
             cost
         }
@@ -138,18 +109,6 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
      * @param context If the [TransactionContext] to create the [IndexTx] for.
      */
     override fun newTx(context: TransactionContext): IndexTx = Tx(context)
-
-    /**
-     * Closes this [LuceneIndex] and the associated data structures.
-     */
-    override fun close() {
-        try {
-            super.close()
-        } finally {
-            this.indexReader.close()
-            this.directory.close()
-        }
-    }
 
     /**
      * Converts a [Record] to a [Document] that can be processed by Lucene.
@@ -270,34 +229,12 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
      */
     private inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context) {
 
-        /** The [IndexWriter] instance used to access this [LuceneIndex]. */
-        private var writer: IndexWriter? = null
+        /** The [IndexReader] instance used for accessing the [LuceneIndex]. */
+        private val indexReader = DirectoryReader.open(this@LuceneIndex.directory)
 
-        /** The default [TxSnapshot] of this [IndexTx].  */
-        override val snapshot = object : TxSnapshot {
-            override val actions: List<TxAction> = emptyList()
 
-            /** Commits DB and Lucene writer and updates lucene reader. */
-            override fun commit() {
-                this@LuceneIndex.store.commit()
-                if (this@Tx.writer?.hasUncommittedChanges() == true) {
-                    this@Tx.writer?.commit()
-                    val oldReader = this@LuceneIndex.indexReader
-                    this@LuceneIndex.indexReader = DirectoryReader.open(this@LuceneIndex.directory)
-                    oldReader.close()
-                }
-            }
-
-            /** Rolls back DB and Lucene writer . */
-            override fun rollback() {
-                this@LuceneIndex.store.rollback()
-                if (this@Tx.writer?.hasUncommittedChanges() == true) {
-                    this@Tx.writer?.rollback()
-                }
-            }
-
-            override fun record(action: TxAction): Boolean = false
-        }
+        /** The [IndexWriter] instance used for accessing the [LuceneIndex]. */
+        private val indexWriter = IndexWriter(this@LuceneIndex.directory, IndexWriterConfig(this@LuceneIndex.config.getAnalyzer()).setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND).setCommitOnClose(true))
 
         /**
          * Returns the number of [Document] in this [LuceneIndex], which should roughly correspond
@@ -305,23 +242,21 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
          *
          * @return Number of [Document]s in this [LuceneIndex]
          */
-        override fun count(): Long = this.withReadLock {
-            return this@LuceneIndex.indexReader.numDocs().toLong()
+        override fun count(): Long {
+            return this.indexReader.numDocs().toLong()
         }
 
         /**
          * (Re-)builds the [LuceneIndex].
          */
-        override fun rebuild() = this.withWriteLock {
-            this.ensureWriterAvailable()
-
+        override fun rebuild() {
             /* Obtain Tx for parent [Entity. */
             val entityTx = this.context.getTx(this.dbo.parent) as EntityTx
 
             /* Recreate entries. */
-            this.writer?.deleteAll()
+            this.indexWriter.deleteAll()
             entityTx.scan(this@LuceneIndex.columns).forEach { record ->
-                this.writer?.addDocument(documentFromRecord(record))
+                this.indexWriter.addDocument(documentFromRecord(record))
             }
         }
 
@@ -330,37 +265,33 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
          *
          * @param event [Operation.DataManagementOperation] to process.
          */
-        override fun update(event: Operation.DataManagementOperation) = this.withWriteLock {
-            this.ensureWriterAvailable()
+        override fun update(event: Operation.DataManagementOperation) {
             when (event) {
                 is Operation.DataManagementOperation.InsertOperation -> {
                     val new = event.inserts[this.dbo.columns[0].name]
                     if (new is StringValue) {
-                        this.writer?.addDocument(this@LuceneIndex.documentFromValue(new, event.tupleId))
+                        this.indexWriter.addDocument(this@LuceneIndex.documentFromValue(new, event.tupleId))
                     }
                 }
                 is Operation.DataManagementOperation.UpdateOperation -> {
-                    this.writer?.deleteDocuments(Term(TID_COLUMN, event.tupleId.toString()))
+                    this.indexWriter.deleteDocuments(Term(TID_COLUMN, event.tupleId.toString()))
                     val new = event.updates[this.dbo.columns[0].name]?.second
                     if (new is StringValue) {
-                        this.writer?.addDocument(this@LuceneIndex.documentFromValue(new, event.tupleId))
+                        this.indexWriter.addDocument(this@LuceneIndex.documentFromValue(new, event.tupleId))
                     }
                 }
                 is Operation.DataManagementOperation.DeleteOperation -> {
-                    this.writer?.deleteDocuments(Term(TID_COLUMN, event.tupleId.toString()))
+                    this.indexWriter.deleteDocuments(Term(TID_COLUMN, event.tupleId.toString()))
                 }
             }
-            Unit
         }
 
         /**
          * Clears the [LuceneIndex] underlying this [Tx] and removes all entries it contains.
          */
-        override fun clear() = this.withWriteLock {
-            this.ensureWriterAvailable()
-            this.writer?.deleteAll()
-            this@LuceneIndex.dirtyField.compareAndSet(false, true)
-            Unit
+        override fun clear() {
+            this.indexWriter.deleteAll()
+            this.updateState(IndexState.STALE)
         }
 
         /**
@@ -396,7 +327,7 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
             private val query: Query = this.predicate.toLuceneQuery()
 
             /** [IndexSearcher] instance used for lookup. */
-            private val searcher = IndexSearcher(this@LuceneIndex.indexReader)
+            private val searcher = IndexSearcher(this@Tx.indexReader)
 
             /* Execute query and add results. */
             private val results = this.searcher.search(this.query, Integer.MAX_VALUE)
@@ -430,18 +361,30 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
             throw UnsupportedOperationException("The LuceneIndex does not support ranged filtering!")
         }
 
-        /** Makes the necessary cleanup by closing the [IndexWriter]. */
-        override fun cleanup() {
-            this.writer?.close()
-            super.cleanup()
+        /**
+         * Commits changes made through the [IndexWriter]
+         */
+        override fun commit() {
+            if (this.indexWriter.hasUncommittedChanges()) {
+                this.indexWriter.commit()
+            }
+
+            /* Close reader and writer. */
+            this.indexReader.close()
+            this.indexWriter.close()
         }
 
-        /** Makes sure that an [IndexWriter] instance is available. */
-        private fun ensureWriterAvailable() {
-            if (this.writer == null) {
-                val config = IndexWriterConfig(this@LuceneIndex.config.getAnalyzer()).setOpenMode(IndexWriterConfig.OpenMode.APPEND).setMaxBufferedDocs(10000).setCommitOnClose(false)
-                this.writer = IndexWriter(this@LuceneIndex.directory, config)
+        /**
+         * Rolls back changes made through the [IndexWriter]
+         */
+        override fun rollback() {
+            if (this.indexWriter.hasUncommittedChanges()) {
+                this.indexWriter.rollback()
             }
+
+            /* Close reader and writer. */
+            this.indexReader.close()
+            this.indexWriter.close()
         }
     }
 }

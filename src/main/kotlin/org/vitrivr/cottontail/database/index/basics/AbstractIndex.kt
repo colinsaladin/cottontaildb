@@ -2,6 +2,8 @@ package org.vitrivr.cottontail.database.index.basics
 
 import jetbrains.exodus.env.Store
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
+import org.vitrivr.cottontail.database.catalogue.entries.ColumnCatalogueEntry
+import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
 import org.vitrivr.cottontail.database.catalogue.storeName
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
@@ -33,9 +35,9 @@ abstract class AbstractIndex(final override val name: Name.IndexName, final over
     /** The [ColumnDef] that are covered (i.e. indexed) by this [AbstractIndex]. */
     final override val columns: Array<ColumnDef<*>>
         get() = this.catalogue.environment.computeInTransaction { tx ->
-            DefaultCatalogue.readEntryForIndex(this.name, this.catalogue, tx).columns.map {
-                DefaultCatalogue.readEntryForColumn(it, this.catalogue, tx).toColumnDef()
-            }.toTypedArray()
+            IndexCatalogueEntry.read(this.name, this.catalogue, tx)?.columns?.map {
+                ColumnCatalogueEntry.read(it, this.catalogue, tx)?.toColumnDef() ?: throw DatabaseException.DataCorruptionException("Failed to obtain columns for index ${this.name}: Could not read catalogue entry for column ${it}.")
+            }?.toTypedArray() ?: throw DatabaseException.DataCorruptionException("Failed to obtain columns for index ${this.name}: Could not read catalogue entry for index.")
         }
 
     /**
@@ -45,7 +47,8 @@ abstract class AbstractIndex(final override val name: Name.IndexName, final over
      */
     final override val state: IndexState
         get() = this.catalogue.environment.computeInTransaction { tx ->
-            DefaultCatalogue.readEntryForIndex(this.name, this.parent.parent.parent, tx).state
+            IndexCatalogueEntry.read(this.name, this.catalogue, tx)?.state
+                ?: throw DatabaseException.DataCorruptionException("Failed to obtain state for index ${this.name}: Could not read catalogue entry for index.")
         }
 
     /**
@@ -91,12 +94,14 @@ abstract class AbstractIndex(final override val name: Name.IndexName, final over
 
         /** Flag indicating, if this [AbstractIndex] reflects all changes done to the [DefaultEntity]it belongs to. */
         override val state: IndexState
-            get() = DefaultCatalogue.readEntryForIndex(this@AbstractIndex.name, this@AbstractIndex.catalogue, this.context.xodusTx).state
+            get() = IndexCatalogueEntry.read(this@AbstractIndex.name, this@AbstractIndex.catalogue, this.context.xodusTx)?.state
+                ?: throw DatabaseException.DataCorruptionException("Failed to obtain state for index ${this@AbstractIndex.name}: Could not read catalogue entry for index.")
 
         protected val columns: Array<ColumnDef<*>>
-            get() = DefaultCatalogue.readEntryForIndex(this@AbstractIndex.name, this@AbstractIndex.catalogue, this.context.xodusTx).columns.map {
-                DefaultCatalogue.readEntryForColumn(it, this@AbstractIndex.catalogue,  this.context.xodusTx).toColumnDef()
-            }.toTypedArray()
+            get() = IndexCatalogueEntry.read(this@AbstractIndex.name, this@AbstractIndex.catalogue, this.context.xodusTx)?.columns?.map {
+                ColumnCatalogueEntry.read(it, this@AbstractIndex.catalogue, this.context.xodusTx)?.toColumnDef() ?: throw DatabaseException.DataCorruptionException("Failed to obtain columns for index ${this@AbstractIndex.name}: Could not read catalogue entry for column ${it}.")
+            }?.toTypedArray() ?: throw DatabaseException.DataCorruptionException("Failed to obtain columns for index ${this@AbstractIndex.name}: Could not read catalogue entry for index.")
+
 
         /**
          * Clears the [AbstractTx] underlying this [Tx] and removes all entries it contains.
@@ -108,8 +113,20 @@ abstract class AbstractIndex(final override val name: Name.IndexName, final over
                 ?: throw DatabaseException.DataCorruptionException("Data store for index ${this@AbstractIndex.name} (${this@AbstractIndex.type}) is missing.")
 
             /* Update catalogue entry for index. */
-            val entry = DefaultCatalogue.readEntryForIndex(this@AbstractIndex.name, this@AbstractIndex.catalogue, this.context.xodusTx)
-            DefaultCatalogue.writeEntryForIndex(entry.copy(state = IndexState.STALE), this@AbstractIndex.catalogue, this.context.xodusTx)
+            this.updateState(IndexState.STALE)
+        }
+
+        /**
+         * Convenience method to update [IndexState] for this [AbstractHDIndex].
+         *
+         * @param state The new [IndexState].
+         */
+        protected fun updateState(state: IndexState) {
+            val entry = IndexCatalogueEntry.read(this@AbstractIndex.name, this@AbstractIndex.catalogue, this.context.xodusTx) ?:
+            throw DatabaseException.DataCorruptionException("Failed to update state for index ${this@AbstractIndex.name}: Could not read catalogue entry for index.")
+            if (!IndexCatalogueEntry.write(entry.copy(state = state), this@AbstractIndex.catalogue, this.context.xodusTx)) {
+                throw DatabaseException.DataCorruptionException("Failed to update state for index ${this@AbstractIndex.name}: Could not update catalogue entry for index.")
+            }
         }
 
         /**
