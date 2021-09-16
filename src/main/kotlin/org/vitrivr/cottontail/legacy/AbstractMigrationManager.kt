@@ -180,9 +180,9 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
         for ((s, srcSchemaName) in schemas.withIndex()) {
             val srcSchemaTx = sourceContext.getTx(srcCatalogueTx.schemaForName(srcSchemaName)) as SchemaTx
             val entities = srcSchemaTx.listEntities()
-            for ((e, srcEntityName) in entities.withIndex()) {
-                this.logStdout("+ Migrating data for schema ${srcSchemaName} (${s + 1} / ${schemas.size})...\n")
+            this.logStdout("+ Migrating data for schema $srcSchemaName (${s + 1} / ${schemas.size})...\n")
 
+            for ((e, srcEntityName) in entities.withIndex()) {
                 val srcEntityTx = sourceContext.getTx(srcSchemaTx.entityForName(srcEntityName)) as EntityTx
                 val count = srcEntityTx.count()
                 val maxTupleId = srcEntityTx.maxTupleId()
@@ -362,7 +362,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
             check(this.state === TransactionStatus.READY) { "Cannot commit transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
             this.state = TransactionStatus.FINALIZING
             try {
-                this.xodusTx?.commit()
+                this.xodusTx.commit()
             } finally {
                 this.txns.clear()
                 this.state = TransactionStatus.COMMIT
@@ -376,7 +376,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
             check(this.state === TransactionStatus.READY || this.state === TransactionStatus.ERROR) { "Cannot rollback transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
             this.state = TransactionStatus.FINALIZING
             try {
-                this.xodusTx?.abort()
+                this.xodusTx.abort()
             } finally {
                 this.txns.clear()
                 this.state = TransactionStatus.COMMIT
