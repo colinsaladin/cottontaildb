@@ -102,11 +102,11 @@ data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, va
 
         override fun readObject(stream: ByteArrayInputStream): Comparable<Nothing> {
             val entityName = Name.EntityName.readObject(stream)
-            val created = LongBinding.BINDING.readObject(stream)
-            val columns = (0 until ShortBinding.BINDING.readObject(stream)).map {
+            val created = LongBinding.readCompressed(stream)
+            val columns = (0 until IntegerBinding.readCompressed(stream)).map {
                 Name.ColumnName.readObject(stream)
             }
-            val indexes = (0 until ShortBinding.BINDING.readObject(stream)).map {
+            val indexes = (0 until IntegerBinding.readCompressed(stream)).map {
                 Name.IndexName.readObject(stream)
             }
             return EntityCatalogueEntry(entityName, created, columns, indexes)
@@ -118,13 +118,13 @@ data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, va
             LongBinding.writeCompressed(output, `object`.created)
 
             /* Write all columns. */
-            ShortBinding.BINDING.writeObject(output,`object`.columns.size)
+            IntegerBinding.writeCompressed(output,`object`.columns.size)
             for (columnName in `object`.columns) {
                 Name.ColumnName.writeObject(output, columnName)
             }
 
             /* Write all indexes. */
-            ShortBinding.BINDING.writeObject(output,`object`.indexes.size)
+            IntegerBinding.writeCompressed(output,`object`.indexes.size)
             for (indexName in `object`.indexes) {
                 Name.IndexName.writeObject(output, indexName)
             }

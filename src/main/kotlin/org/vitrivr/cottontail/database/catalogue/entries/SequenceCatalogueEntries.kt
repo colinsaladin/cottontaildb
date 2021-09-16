@@ -49,7 +49,7 @@ object SequenceCatalogueEntries {
     internal fun read(name: Name.SequenceName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Long? {
         val rawEntry = store(catalogue, transaction).get(transaction, Name.SequenceName.objectToEntry(name))
         return if (rawEntry != null) {
-            LongBinding.entryToLong(rawEntry)
+            LongBinding.compressedEntryToLong(rawEntry)
         } else {
             null
         }
@@ -67,7 +67,7 @@ object SequenceCatalogueEntries {
         val rawName = Name.SequenceName.objectToEntry(name)
         val rawEntry = store(catalogue, transaction).get(transaction, rawName)
         return if (rawEntry != null) {
-            val next = LongBinding.entryToLong(rawEntry) + 1
+            val next = LongBinding.compressedEntryToLong(rawEntry) + 1
             store.put(transaction, rawName, LongBinding.longToCompressedEntry(next))
             return next
         } else {
