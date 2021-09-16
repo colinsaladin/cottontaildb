@@ -45,8 +45,8 @@ fun main(args: Array<String>) {
         return
     }
 
-    var config: Config? = null
-    var configPath = findConfigPathOrdered(args)
+    var config: Config?
+    val configPath = findConfigPathOrdered(args)
     try {
         config = loadConfig(configPath)
     } catch (e: FileNotFoundException) {
@@ -91,7 +91,7 @@ private fun findConfigPathOrdered(args: Array<String>): String {
             COTTONTAIL_CONFIG_FILE_ENV_KEY
         ).isNotBlank()
     ) {
-        System.getenv(COTTONTAIL_CONFIG_FILE_ENV_KEY);
+        System.getenv(COTTONTAIL_CONFIG_FILE_ENV_KEY)
     } else {
         System.err.println("No CottontailDB Config file specified. Defaulting to ./config.json")
         "./config.json"
@@ -138,7 +138,7 @@ fun standalone(config: Config) {
     }
 
     /* Check catalogue version. */
-    val detected = VersionProber(config).probe(config.root)
+    val detected = VersionProber(config).probe()
     if (detected != VersionProber.EXPECTED && detected != DBOVersion.UNDEFINED) {
         System.err.println("Version mismatch: Trying to open an incompatible Cottontail DB catalogue version. Run system migration to upgrade catalogue (detected = $detected, expected = ${VersionProber.EXPECTED}, path = ${config.root}).")
         exitProcess(1)
@@ -189,7 +189,7 @@ fun embedded(config: Config): CottontailGrpcServer {
     }
 
     /* Check catalogue version. */
-    val detected = VersionProber(config).probe(config.root)
+    val detected = VersionProber(config).probe()
     if (detected != VersionProber.EXPECTED && detected != DBOVersion.UNDEFINED) {
         throw DatabaseException.VersionMismatchException(VersionProber.EXPECTED, detected)
     }
