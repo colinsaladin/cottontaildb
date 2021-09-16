@@ -7,6 +7,7 @@ import org.vitrivr.cottontail.config.Config
 import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.CatalogueTx
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
+import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.general.DBO
@@ -25,7 +26,6 @@ import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.utilities.io.TxFileUtilities
 import java.io.BufferedWriter
 import java.nio.file.*
-import java.util.*
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
@@ -182,7 +182,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
             val entities = srcSchemaTx.listEntities()
             this.logStdout("+ Migrating data for schema $srcSchemaName (${s + 1} / ${schemas.size})...\n")
 
-            for ((e, srcEntityName) in entities.withIndex()) {
+            for (srcEntityName in entities) {
                 val srcEntityTx = sourceContext.getTx(srcSchemaTx.entityForName(srcEntityName)) as EntityTx
                 val count = srcEntityTx.count()
                 val maxTupleId = srcEntityTx.maxTupleId()
