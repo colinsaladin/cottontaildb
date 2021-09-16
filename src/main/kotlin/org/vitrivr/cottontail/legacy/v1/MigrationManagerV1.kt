@@ -3,6 +3,7 @@ package org.vitrivr.cottontail.legacy.v1
 import org.vitrivr.cottontail.config.Config
 import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
+import org.vitrivr.cottontail.database.general.DBOVersion
 import org.vitrivr.cottontail.legacy.AbstractMigrationManager
 import org.vitrivr.cottontail.legacy.v1.catalogue.CatalogueV1
 import java.nio.file.Path
@@ -19,7 +20,7 @@ import kotlin.time.ExperimentalTime
 class MigrationManagerV1(batchSize: Int = 1_000_000, logFile: Path = Paths.get(".")) : AbstractMigrationManager(batchSize, logFile) {
 
     /** The version this [MigrationManagerV1] migrates from. */
-    override val from: Short = 1
+    override val from: DBOVersion = DBOVersion.V1_0
 
     /**
      * Tries to open the source [Catalogue] for migration.

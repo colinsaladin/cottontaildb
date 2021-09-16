@@ -8,7 +8,7 @@ import com.github.ajalt.clikt.parameters.types.int
 import kotlinx.serialization.json.Json
 import org.vitrivr.cottontail.cli.AbstractCottontailCommand
 import org.vitrivr.cottontail.config.Config
-import org.vitrivr.cottontail.legacy.v1.MigrationManagerV1
+import org.vitrivr.cottontail.legacy.VersionProber
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -53,7 +53,7 @@ class MigrationCommand : AbstractCottontailCommand(
     override fun exec() {
         Files.newBufferedReader(input).use { reader ->
             val config = Json.decodeFromString(Config.serializer(), reader.readText())
-            MigrationManagerV1(this.batchSize, this.log).use { it.migrate(config) }
+            VersionProber(config).migrate(this.batchSize, this.log)
         }
     }
 }

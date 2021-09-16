@@ -348,7 +348,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
         }
 
         override fun signalEvent(action: Operation.DataManagementOperation) {
-            throw UnsupportedOperationException("Operation signalEvent() not supported for AbstractMigrationManager.")
+            /* No op. */
         }
 
         override fun execute(operator: Operator, context: QueryContext): Flow<Record> {
