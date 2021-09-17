@@ -28,21 +28,17 @@ class EntitySampleOperator(groupId: GroupId, entity: EntityTx, fetch: List<Pair<
      */
     override fun toFlow(context: QueryContext): Flow<Record> {
         val fetch = this.fetch.map { it.second }.toTypedArray()
-        val columns = this.columns.toTypedArray()
-        val values = arrayOfNulls<Value?>(this.columns.size)
+        val random = SplittableRandom(this@EntitySampleOperator.seed)
         return flow {
-            val random = SplittableRandom(this@EntitySampleOperator.seed)
-            val cursor = this@EntitySampleOperator.entity.cursor(fetch)
-            for (record in cursor) {
-                if (random.nextDouble(0.0, 1.0) <= this@EntitySampleOperator.p) {
-                    var i = 0
-                    record.forEach { _, v -> values[i++] = v }
-                    val r = StandaloneRecord(record.tupleId, columns, values)
-                    context.bindings.bindRecord(r) /* Important: Make new record available to binding context. */
-                    emit(r)
+            this@EntitySampleOperator.entity.cursor(fetch).use { cursor ->
+                while (cursor.moveNext()) {
+                    if (random.nextDouble(0.0, 1.0) <= this@EntitySampleOperator.p) {
+                        val record = cursor.value()
+                        context.bindings.bindRecord(record) /* Important: Make new record available to binding context. */
+                        emit(record)
+                    }
                 }
             }
-            cursor.close()
         }
     }
 }

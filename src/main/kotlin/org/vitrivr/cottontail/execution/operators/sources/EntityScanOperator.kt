@@ -28,18 +28,14 @@ class EntityScanOperator(groupId: GroupId, entity: EntityTx, fetch: List<Pair<Na
      */
     override fun toFlow(context: QueryContext): Flow<Record> {
         val fetch = this.fetch.map { it.second }.toTypedArray()
-        val columns = this.columns.toTypedArray()
-        val values = arrayOfNulls<Value?>(this.columns.size)
         return flow {
-            val cursor = this@EntityScanOperator.entity.cursor(fetch, this@EntityScanOperator.partitionIndex, this@EntityScanOperator.partitions)
-            for (record in cursor) {
-                var i = 0
-                record.forEach { _, v -> values[i++] = v }
-                val r = StandaloneRecord(record.tupleId, columns, values)
-                context.bindings.bindRecord(r) /* Important: Make new record available to binding context. */
-                emit(r)
+            this@EntityScanOperator.entity.cursor(fetch, this@EntityScanOperator.partitionIndex, this@EntityScanOperator.partitions).use { cursor ->
+                while (cursor.moveNext()) {
+                    val record = cursor.value()
+                    context.bindings.bindRecord(record) /* Important: Make new record available to binding context. */
+                    emit(record)
+                }
             }
-            cursor.close()
         }
     }
 }
