@@ -34,7 +34,7 @@ class DMLService(val catalogue: Catalogue, override val manager: TransactionMana
     /**
      * gRPC endpoint for handling UPDATE queries.
      */
-    override suspend fun update(request: CottontailGrpc.UpdateMessage): CottontailGrpc.QueryResponseMessage = this.withTransactionContext(request.txId, "UPDATE") { tx, q ->
+    override suspend fun update(request: CottontailGrpc.UpdateMessage): CottontailGrpc.QueryResponseMessage = this.withTransactionContext(request.txId, "UPDATE", false) { tx, q ->
         val ctx = QueryContext(this.catalogue, tx)
 
         /* Bind query and create logical plan. */
@@ -50,7 +50,7 @@ class DMLService(val catalogue: Catalogue, override val manager: TransactionMana
     /**
      * gRPC endpoint for handling DELETE queries.
      */
-    override suspend fun delete(request: CottontailGrpc.DeleteMessage): CottontailGrpc.QueryResponseMessage = this.withTransactionContext(request.txId, "DELETE") { tx, q ->
+    override suspend fun delete(request: CottontailGrpc.DeleteMessage): CottontailGrpc.QueryResponseMessage = this.withTransactionContext(request.txId, "DELETE", false) { tx, q ->
         val ctx = QueryContext(this.catalogue, tx)
 
         /* Bind query and create logical plan. */
@@ -66,7 +66,7 @@ class DMLService(val catalogue: Catalogue, override val manager: TransactionMana
     /**
      * gRPC endpoint for handling INSERT queries.
      */
-    override suspend fun insert(request: CottontailGrpc.InsertMessage): CottontailGrpc.QueryResponseMessage = this.withTransactionContext(request.txId, "INSERT") { tx, q ->
+    override suspend fun insert(request: CottontailGrpc.InsertMessage): CottontailGrpc.QueryResponseMessage = this.withTransactionContext(request.txId, "INSERT", false) { tx, q ->
         val ctx = QueryContext(this.catalogue, tx)
 
         /* Bind query and create logical + physical plan (bypass query planner). */
@@ -80,7 +80,7 @@ class DMLService(val catalogue: Catalogue, override val manager: TransactionMana
     /**
      * gRPC endpoint for handling INSERT BATCH queries.
      */
-    override suspend fun insertBatch(request: CottontailGrpc.BatchInsertMessage): CottontailGrpc.QueryResponseMessage = this.withTransactionContext(request.txId, "INSERT BATCH") { tx, q ->
+    override suspend fun insertBatch(request: CottontailGrpc.BatchInsertMessage): CottontailGrpc.QueryResponseMessage = this.withTransactionContext(request.txId, "INSERT BATCH", false) { tx, q ->
         val ctx = QueryContext(this.catalogue, tx)
 
         /* Bind query and create logical plan. */

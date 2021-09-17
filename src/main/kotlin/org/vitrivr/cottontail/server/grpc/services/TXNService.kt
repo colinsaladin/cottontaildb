@@ -89,14 +89,14 @@ class TXNService constructor(val catalogue: Catalogue, override val manager: Tra
     /**
      * gRPC for listing all [TransactionManager.Transaction]s.
      */
-    override fun listTransactions(request: Empty): Flow<CottontailGrpc.QueryResponseMessage> = this.withTransactionContext(description = "LIST TRANSACTIONS") { tx, q ->
+    override fun listTransactions(request: Empty): Flow<CottontailGrpc.QueryResponseMessage> = this.withTransactionContext(description = "LIST TRANSACTIONS", readonly = true) { tx, q ->
         executeAndMaterialize(QueryContext(this.catalogue, tx), ListTransactionsOperator(this.manager), q, 0)
     }
 
     /**
      * gRPC for listing all active locks.
      */
-    override fun listLocks(request: Empty): Flow<CottontailGrpc.QueryResponseMessage> = this.withTransactionContext(description = "LIST LOCKS") { tx, q ->
+    override fun listLocks(request: Empty): Flow<CottontailGrpc.QueryResponseMessage> = this.withTransactionContext(description = "LIST LOCKS", readonly = true) { tx, q ->
         executeAndMaterialize(QueryContext(this.catalogue, tx), ListLocksOperator(this.manager.lockManager), q, 0)
     }
 }

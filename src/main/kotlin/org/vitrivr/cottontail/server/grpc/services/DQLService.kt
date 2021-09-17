@@ -44,7 +44,7 @@ class DQLService(val catalogue: Catalogue, override val manager: TransactionMana
     /**
      * gRPC endpoint for executing queries.
      */
-    override fun query(request: CottontailGrpc.QueryMessage): Flow<CottontailGrpc.QueryResponseMessage> = this.withTransactionContext(request.txId, "EXECUTE QUERY") { tx, q ->
+    override fun query(request: CottontailGrpc.QueryMessage): Flow<CottontailGrpc.QueryResponseMessage> = this.withTransactionContext(request.txId, "EXECUTE QUERY", true) { tx, q ->
         /* Start query execution. */
         val ctx = QueryContext(this.catalogue, tx)
 
@@ -61,7 +61,7 @@ class DQLService(val catalogue: Catalogue, override val manager: TransactionMana
     /**
      * gRPC endpoint for explaining queries.
      */
-    override fun explain(request: CottontailGrpc.QueryMessage): Flow<CottontailGrpc.QueryResponseMessage> = this.withTransactionContext(request.txId, "EXPLAIN QUERY") { tx, q ->
+    override fun explain(request: CottontailGrpc.QueryMessage): Flow<CottontailGrpc.QueryResponseMessage> = this.withTransactionContext(request.txId, "EXPLAIN QUERY", true) { tx, q ->
         val ctx = QueryContext(this.catalogue, tx)
 
         /* Bind query and create logical plan. */
