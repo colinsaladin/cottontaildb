@@ -44,6 +44,7 @@ import org.vitrivr.cottontail.model.values.types.VectorValue
 import org.vitrivr.cottontail.utilities.math.KnnUtilities
 import java.lang.Math.floorDiv
 import kotlin.collections.ArrayDeque
+import kotlin.concurrent.withLock
 import kotlin.math.max
 import kotlin.math.min
 
@@ -141,16 +142,9 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
         }
 
         /**
-         * Returns the number of [VAFSignature]s in this [VAFIndex]
-         *
-         * @return The number of [VAFSignature] stored in this [VAFIndex]
-         */
-        override fun count(): Long = this.dataStore.count(this.context.xodusTx)
-
-        /**
          * (Re-)builds the [VAFIndex] from scratch.
          */
-        override fun rebuild() = this.withWriteLock {
+        override fun rebuild() = this.txLatch.withLock {
             LOGGER.debug("Rebuilding VAF index {}", this@VAFIndex.name)
 
             /* Prepare transaction for entity. */
@@ -214,7 +208,7 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
          *
          * @param event The [Operation.DataManagementOperation] to process.
          */
-        override fun update(event: Operation.DataManagementOperation) {
+        override fun update(event: Operation.DataManagementOperation) = this.txLatch.withLock {
             this.updateState(IndexState.STALE)
         }
 
@@ -269,7 +263,6 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
             private val endKey: ArrayByteIterable
 
             init {
-                this@Tx.withReadLock { }
                 val value = this.predicate.query.value
                 check(value is RealVectorValue<*>) { "Bound value for query vector has wrong type (found = ${value?.type})." }
                 this.query = value

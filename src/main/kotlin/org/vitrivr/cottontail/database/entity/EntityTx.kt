@@ -55,7 +55,7 @@ interface EntityTx : Tx, Scanable, Countable, Modifiable {
      *
      * @return List of [Name.IndexName] managed by this [EntityTx]
      */
-    fun listIndexes(): List<Index>
+    fun listIndexes(): List<Name.IndexName>
 
     /**
      * Returns the [IndexTx] for the given [Name.IndexName].

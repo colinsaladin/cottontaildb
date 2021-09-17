@@ -141,7 +141,7 @@ class CatalogueV1(override val config: Config) : Catalogue {
          *
          * @return [List] of all [Name.SchemaName].
          */
-        override fun listSchemas(): List<Name.SchemaName> = this.withReadLock {
+        override fun listSchemas(): List<Name.SchemaName> {
             return this@CatalogueV1.registry.values.map { it.name }
         }
 
@@ -150,10 +150,8 @@ class CatalogueV1(override val config: Config) : Catalogue {
          *
          * @param name [Name.SchemaName] to obtain the [SchemaV1] for.
          */
-        override fun schemaForName(name: Name.SchemaName): SchemaV1 = this.withReadLock {
-            this@CatalogueV1.registry[name] ?: throw DatabaseException.SchemaDoesNotExistException(
-                name
-            )
+        override fun schemaForName(name: Name.SchemaName): SchemaV1 {
+            return this@CatalogueV1.registry[name] ?: throw DatabaseException.SchemaDoesNotExistException(name)
         }
 
         override fun createSchema(name: Name.SchemaName): Schema {
@@ -167,7 +165,7 @@ class CatalogueV1(override val config: Config) : Catalogue {
         /**
          * Releases the [closeLock] on the [CatalogueV1].
          */
-        fun cleanup() {
+        override fun cleanup() {
             this@CatalogueV1.closeLock.unlockRead(this.closeStamp)
         }
     }

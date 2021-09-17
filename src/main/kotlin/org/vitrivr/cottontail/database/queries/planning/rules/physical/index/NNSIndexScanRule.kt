@@ -45,7 +45,7 @@ object NNSIndexScanRule : RewriteRule {
                     if (limit is LimitPhysicalOperatorNode) {
                         /* Column produced by the kNN. */
                         val predicate = KnnPredicate(physicalQueryColumn, limit.limit.toInt(), node.function, vectorLiteral)
-                        val candidate = scan.entity.listIndexes().find { it.canProcess(predicate) }
+                        val candidate = scan.entity.listIndexes().map { scan.entity.indexForName(it) }.find { it.canProcess(predicate) }
                         if (candidate != null) {
                             when {
                                 /* Case 1: Index produces distance, hence no distance calculation required! */

@@ -146,13 +146,6 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
         }
 
         /**
-         * Returns the number of [VAFSignature]s in this [SuperBitLSHIndex]
-         *
-         * @return The number of [VAFSignature] stored in this [SuperBitLSHIndex]
-         */
-        override fun count(): Long = this.dataStore.count(this.context.xodusTx)
-
-        /**
          * (Re-)builds the [SuperBitLSHIndex].
          */
         override fun rebuild() {
@@ -250,7 +243,6 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
                 check(value is VectorValue<*>) { "Bound value for query vector has wrong type (found = ${value?.type})." }
 
                 /** Prepare SuperBitLSH data structure. */
-                this@Tx.withReadLock { }
                 val lsh = SuperBitLSH(
                     this@SuperBitLSHIndex.config.stages,
                     this@SuperBitLSHIndex.config.buckets,

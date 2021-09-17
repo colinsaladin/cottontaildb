@@ -15,10 +15,16 @@ import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
+import org.vitrivr.cottontail.model.exceptions.TxException
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
+import kotlin.concurrent.withLock
 
 /**
+ * The default [ColumnDef] implementation based on JetBrains Xodus.
+ *
+ * @see Column
+ * @see ColumnTx
  *
  * @author Ralph Gasser
  * @version 3.0.0
@@ -65,18 +71,36 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
         /** The internal [XodusBinding] reference used for de-/serialization. */
         private val binding: XodusBinding<T> = this@DefaultColumn.columnDef.type.serializerFactory().xodus(this.columnDef.type.logicalSize)
 
+        /** Internal reference to the [ValueStatistics] for this [DefaultColumn]. */
+        private val statistics: ValueStatistics<T> = (StatisticsCatalogueEntry.read(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)?.statistics
+            ?: throw DatabaseException.DataCorruptionException("Failed to PUT value from ${this@DefaultColumn.name}: Reading column statistics failed.")) as ValueStatistics<T>
+
         /** Reference to [Column] this [Tx] belongs to. */
-        override val dbo: Column<T>
+        override val dbo: DefaultColumn<T>
             get() = this@DefaultColumn
+
+        /**
+         * Obtains a global (non-exclusive) read-lock on [DefaultCatalogue].
+         *
+         * Prevents [DefaultCatalogue] from being closed while transaction is ongoing.
+         */
+        private val closeStamp = this.dbo.catalogue.closeLock.readLock()
+
+        init {
+            /** Checks if DBO is still open. */
+            if (this.dbo.closed) {
+                this.dbo.catalogue.closeLock.unlockRead(this.closeStamp)
+                throw TxException.TxDBOClosedException(this.context.txId, this.dbo)
+            }
+        }
 
         /**
          * Gets and returns [ValueStatistics] for this [ColumnTx]
          *
          * @return [ValueStatistics].
          */
-        override fun statistics(): ValueStatistics<T> {
-            return (StatisticsCatalogueEntry.read(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)?.statistics
-                ?: throw DatabaseException.DataCorruptionException("Failed to PUT value from ${this@DefaultColumn.name}: Reading column statistics failed.")) as ValueStatistics<T>
+        override fun statistics(): ValueStatistics<T> = this.txLatch.withLock {
+            this.statistics
         }
 
         /**
@@ -86,7 +110,7 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          * @return The desired entry.
          * @throws DatabaseException If the tuple with the desired ID is invalid.
          */
-        override fun get(tupleId: TupleId): T? {
+        override fun get(tupleId: TupleId): T? = this.txLatch.withLock {
             val ret = this.dataStore.get(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId)) ?: return null
             return this.binding.entryToValue(ret)
         }
@@ -98,22 +122,22 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          * @param value The new [Value]
          * @return The old [Value]
          */
-        override fun put(tupleId: TupleId, value: T): T? {
+        override fun put(tupleId: TupleId, value: T): T? = this.txLatch.withLock {
             /* Read existing value. */
             val existing = this.dataStore.get(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))?.let { this.binding.entryToValue(it) }
 
-            /* Read and update statistics. */
-            val entry = StatisticsCatalogueEntry.read(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)
-                ?: throw DatabaseException.DataCorruptionException("Failed to PUT value to ${this@DefaultColumn.name}: Reading column statistics failed.")
+            /* Perform PUT and update statistics. */
             if (existing == null) {
-                (entry.statistics as ValueStatistics<T>).insert(value)
+                if (!this.dataStore.add(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId), this.binding.objectToEntry(value))) {
+                    throw DatabaseException.DataCorruptionException("Failed to ADD tuple $tupleId to column ${this@DefaultColumn.name}.")
+                }
+                this.statistics.insert(value)
             } else {
-                (entry.statistics as ValueStatistics<T>).update(existing, value)
+                if (!this.dataStore.put(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId), this.binding.objectToEntry(value))) {
+                    throw DatabaseException.DataCorruptionException("Failed to PUT tuple $tupleId to column ${this@DefaultColumn.name}.")
+                }
+                this.statistics.update(existing, value)
             }
-            if (!StatisticsCatalogueEntry.write(entry, this@DefaultColumn.catalogue, this.context.xodusTx)) {
-                throw DatabaseException.DataCorruptionException("Failed to PUT value from ${this@DefaultColumn.name}: Update of column statistics failed.")
-            }
-            this.dataStore.put(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId), this.binding.objectToEntry(value))
 
             /* Update value. */
             return existing
@@ -126,7 +150,7 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          * @param value The new [Value].
          * @param expected The [Value] expected to be there.
          */
-        override fun compareAndPut(tupleId: TupleId, value: T, expected: T?): Boolean {
+        override fun compareAndPut(tupleId: TupleId, value: T, expected: T?): Boolean = this.txLatch.withLock {
             val existing = this.dataStore.get(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))?.let { this.binding.entryToValue(it) }
             return if (existing == expected) {
                 this.put(tupleId, value)
@@ -142,23 +166,39 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          * @param tupleId The ID of the record that should be updated
          * @return The old [Value]
          */
-        override fun delete(tupleId: TupleId): T? {
+        override fun delete(tupleId: TupleId): T? = this.txLatch.withLock {
             /* Read existing value. */
             val existing = this.dataStore.get(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))?.let { this.binding.entryToValue(it) }
 
-            /* Read and update statistics. */
-            val entry = StatisticsCatalogueEntry.read(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)
-                ?: throw DatabaseException.DataCorruptionException("Failed to DELETE value from ${this@DefaultColumn.name}: Reading column statistics failed.")
+            /* Delete entry and update statistics. */
             if (existing != null) {
-                (entry.statistics as ValueStatistics<T>).delete(existing)
-                if (!StatisticsCatalogueEntry.write(entry, this@DefaultColumn.catalogue, this.context.xodusTx)) {
-                    throw DatabaseException.DataCorruptionException("Failed to DELETE value from ${this@DefaultColumn.name}: Update of column statistics failed.")
+                if (!this.dataStore.delete(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))) {
+                    throw DatabaseException.DataCorruptionException("Failed to DELETE tuple $tupleId to column ${this@DefaultColumn.name}.")
                 }
-                this.dataStore.delete(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))
+                this.statistics.delete(existing)
             }
 
             /* Return existing value. */
             return existing
+        }
+
+        /**
+         * Called when a transactions commits. Updates [StatisticsCatalogueEntry].
+         */
+        override fun onCommit() {
+            val entry = StatisticsCatalogueEntry.read(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)
+                ?: throw DatabaseException.DataCorruptionException("Failed to DELETE value from ${this@DefaultColumn.name}: Reading column statistics failed.")
+            if (!StatisticsCatalogueEntry.write(entry.copy(statistics = this.statistics), this@DefaultColumn.catalogue, this.context.xodusTx)) {
+                throw DatabaseException.DataCorruptionException("Failed to PUT value from ${this@DefaultColumn.name}: Update of column statistics failed.")
+            }
+            super.onCommit()
+        }
+
+        /**
+         * Called when a transaction finalizes. Releases the lock held on the [DefaultCatalogue].
+         */
+        override fun cleanup() {
+            this.dbo.catalogue.closeLock.unlockRead(this.closeStamp)
         }
     }
 }

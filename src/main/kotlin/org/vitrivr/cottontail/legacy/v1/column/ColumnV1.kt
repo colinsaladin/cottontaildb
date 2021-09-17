@@ -19,6 +19,7 @@ import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.TxException
 import org.vitrivr.cottontail.model.values.types.Value
+import org.vitrivr.cottontail.storage.serializers.mapdb.MapDBSerializer
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.file.Path
 import java.util.*
@@ -48,15 +49,15 @@ class ColumnV1<T : Value>(override val name: Name.ColumnName, override val paren
     /** The [Path] to the [Entity]'s main folder. */
     val path: Path = parent.path.resolve("col_${name.simple}.db")
 
-    /** Internal reference to the [Store] underpinning this [ColumnV1]. */
+    /** Internal reference to the [CottontailStoreWAL] underpinning this [ColumnV1]. */
     private var store: CottontailStoreWAL = try {
         this.parent.parent.parent.config.mapdb.store(this.path)
     } catch (e: DBException) {
         throw DatabaseException("Failed to open column at '$path': ${e.message}'")
     }
 
-    /** Internal reference to the [Header] of this [ColumnV1]. */
-    private val header
+    /** Internal reference to the [ColumnV1Header] of this [ColumnV1]. */
+    private val header: ColumnV1Header
         get() = this.store.get(HEADER_RECORD_ID, ColumnV1Header.Serializer)
             ?: throw DatabaseException.DataCorruptionException("Failed to open header of column '$name'!'")
 
@@ -109,30 +110,25 @@ class ColumnV1<T : Value>(override val name: Name.ColumnName, override val paren
     /**
      * Creates a new [ColumnV1.Tx] and returns it.
      *
-     * @param readonly True, if the resulting [ColumnV1.Tx] should be a read-only transaction.
-     * @param tid The ID for the new [ColumnV1.Tx]
+     * @param context [TransactionContext]
      *
-     * @return A new [ColumnTransaction] object.
+     * @return A new [ColumnTx] object.
      */
     override fun newTx(context: TransactionContext): ColumnTx<T> = Tx(context)
 
     /**
-     * A [Transaction] that affects this [ColumnV1].
+     * A [ColumnTx] that affects this [ColumnV1].
      */
     inner class Tx constructor(context: TransactionContext) : AbstractTx(context), ColumnTx<T> {
-        /**
-         * The [ColumnDef] of the [Column] underlying this [ColumnTransaction].
-         *
-         * @return [ColumnTransaction]
-         */
+        /** The [ColumnDef] of the [Column] underlying this [ColumnTx]. */
         override val columnDef: ColumnDef<T>
             get() = this@ColumnV1.columnDef
 
         override val dbo: Column<T>
             get() = this@ColumnV1
 
-        /** The [Serializer] used for de-/serialization of [ColumnV1] entries. */
-        private val serializer = this@ColumnV1.type.serializerFactory().mapdb(this@ColumnV1.type.logicalSize)
+        /** The [MapDBSerializer] used for de-/serialization of [ColumnV1] entries. */
+        private val serializer: MapDBSerializer<T> = this@ColumnV1.type.serializerFactory().mapdb(this@ColumnV1.type.logicalSize)
 
         /** Obtains a global (non-exclusive) read-lock on [ColumnV1]. Prevents enclosing [ColumnV1] from being closed while this [ColumnV1.Tx] is still in use. */
         private val closeStamp = this@ColumnV1.closeLock.readLock()
@@ -153,8 +149,8 @@ class ColumnV1<T : Value>(override val name: Name.ColumnName, override val paren
          *
          * @throws DatabaseException If the tuple with the desired ID doesn't exist OR is invalid.
          */
-        override fun get(tupleId: TupleId): T? = this.withReadLock {
-            this@ColumnV1.store.get(tupleId, this.serializer)
+        override fun get(tupleId: TupleId): T? {
+            return this@ColumnV1.store.get(tupleId, this.serializer)
         }
 
         /**
@@ -162,8 +158,8 @@ class ColumnV1<T : Value>(override val name: Name.ColumnName, override val paren
          *
          * @return The number of entries in this [ColumnV1].
          */
-        fun count(): Long = this.withReadLock {
-            this@ColumnV1.header.count
+        fun count(): Long {
+            return this@ColumnV1.header.count
         }
 
         /**
@@ -181,25 +177,23 @@ class ColumnV1<T : Value>(override val name: Name.ColumnName, override val paren
          * @param range The [LongRange] that should be scanned.
          * @return [Iterator]
          */
-        fun scan(range: LongRange) = this.withReadLock {
-            object : Iterator<TupleId> {
+        fun scan(range: LongRange) = object : Iterator<TupleId> {
 
-                /** Wraps a [RecordIdIterator] from the [ColumnV1]. */
-                private val wrapped = this@ColumnV1.store.RecordIdIterator(range)
+            /** Wraps a [CottontailStoreWAL.RecordIdIterator] from the [ColumnV1]. */
+            private val wrapped: CottontailStoreWAL.RecordIdIterator = this@ColumnV1.store.RecordIdIterator(range)
 
-                /**
-                 * Returns the next element in the iteration.
-                 */
-                override fun next(): TupleId {
-                    return this.wrapped.next()
-                }
+            /**
+             * Returns the next element in the iteration.
+             */
+            override fun next(): TupleId {
+                return this.wrapped.next()
+            }
 
-                /**
-                 * Returns `true` if the iteration has more elements.
-                 */
-                override fun hasNext(): Boolean {
-                    return this.wrapped.hasNext()
-                }
+            /**
+             * Returns `true` if the iteration has more elements.
+             */
+            override fun hasNext(): Boolean {
+                return this.wrapped.hasNext()
             }
         }
 
@@ -219,7 +213,7 @@ class ColumnV1<T : Value>(override val name: Name.ColumnName, override val paren
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
-        fun cleanup() {
+        override fun cleanup() {
             this@ColumnV1.closeLock.unlockRead(this.closeStamp)
         }
     }

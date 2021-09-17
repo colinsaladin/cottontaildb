@@ -132,7 +132,7 @@ class SchemaV1(override val name: Name.SchemaName, override val parent: Catalogu
          *
          * @return [List] of all [Name.EntityName].
          */
-        override fun listEntities(): List<Name.EntityName> = this.withReadLock {
+        override fun listEntities(): List<Name.EntityName> {
             return this@SchemaV1.registry.values.map { it.name }.toList()
         }
 
@@ -143,9 +143,8 @@ class SchemaV1(override val name: Name.SchemaName, override val parent: Catalogu
          * @param name Name of the [EntityV1] to access.
          * @return [EntityV1] or null.
          */
-        override fun entityForName(name: Name.EntityName): EntityV1 = this.withReadLock {
-            return this@SchemaV1.registry[name]
-                ?: throw DatabaseException.EntityDoesNotExistException(name)
+        override fun entityForName(name: Name.EntityName): EntityV1 {
+            return this@SchemaV1.registry[name] ?: throw DatabaseException.EntityDoesNotExistException(name)
         }
 
         override fun createEntity(name: Name.EntityName, vararg columns: ColumnDef<*>): DefaultEntity {
@@ -159,7 +158,7 @@ class SchemaV1(override val name: Name.SchemaName, override val parent: Catalogu
         /**
          * Releases the [closeLock] on the [Schema].
          */
-        fun cleanup() {
+        override fun cleanup() {
             this@SchemaV1.closeLock.unlockRead(this.closeStamp)
         }
     }

@@ -131,8 +131,8 @@ class SchemaV2(val path: Path, override val parent: CatalogueV2) : Schema, AutoC
          *
          * @return [List] of all [Name.EntityName].
          */
-        override fun listEntities(): List<Name.EntityName> = this.withReadLock {
-            this@SchemaV2.registry.values.map { it.name }.toList()
+        override fun listEntities(): List<Name.EntityName> {
+           return this@SchemaV2.registry.values.map { it.name }.toList()
         }
 
         /**
@@ -142,8 +142,8 @@ class SchemaV2(val path: Path, override val parent: CatalogueV2) : Schema, AutoC
          * @param name Name of the [EntityV2] to access.
          * @return [EntityV2] or null.
          */
-        override fun entityForName(name: Name.EntityName): Entity = this.withReadLock {
-            this@SchemaV2.registry[name] ?: throw DatabaseException.EntityDoesNotExistException(name)
+        override fun entityForName(name: Name.EntityName): Entity {
+            return this@SchemaV2.registry[name] ?: throw DatabaseException.EntityDoesNotExistException(name)
         }
 
         override fun createEntity(name: Name.EntityName, vararg columns: ColumnDef<*>): EntityV2 {
@@ -157,7 +157,7 @@ class SchemaV2(val path: Path, override val parent: CatalogueV2) : Schema, AutoC
         /**
          * Releases the [closeLock] on the [SchemaV2].
          */
-        fun cleanup() {
+        override fun cleanup() {
             this@SchemaV2.closeLock.unlockRead(this.closeStamp)
         }
     }

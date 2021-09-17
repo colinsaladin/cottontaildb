@@ -71,8 +71,9 @@ class EntityDetailsOperator(val catalogue: DefaultCatalogue, val name: Name.Enti
             values[4] = null
             values[5] = null
             indexes.forEach {
-                values[0] = StringValue(it.name.toString())
-                values[2] = StringValue(it.type.toString())
+                val index = entityTxn.indexForName(it)
+                values[0] = StringValue(it.toString())
+                values[2] = StringValue(index.type.toString())
                 emit(StandaloneRecord(rowId++, columns, values))
             }
         }

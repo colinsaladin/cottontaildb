@@ -9,7 +9,6 @@ import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.*
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import org.vitrivr.cottontail.execution.TransactionContext
-import org.vitrivr.cottontail.legacy.v2.catalogue.CatalogueV2
 
 import org.vitrivr.cottontail.model.basics.*
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
@@ -158,7 +157,7 @@ class ColumnV2<T : Value>(val path: Path, override val parent: Entity) : Column<
          *
          * @throws DatabaseException If the tuple with the desired ID doesn't exist OR is invalid.
          */
-        override fun get(tupleId: Long): T? = this.withReadLock {
+        override fun get(tupleId: Long): T? {
             return this@ColumnV2.store.get(tupleId + RECORD_ID_TUPLE_ID_SHIFT, this.serializer)
         }
 
@@ -167,7 +166,7 @@ class ColumnV2<T : Value>(val path: Path, override val parent: Entity) : Column<
          *
          * @return The number of entries in this [ColumnV2].
          */
-        fun count(): Long = this.withReadLock {
+        fun count(): Long {
             return this@ColumnV2.header.count
         }
 
@@ -186,12 +185,10 @@ class ColumnV2<T : Value>(val path: Path, override val parent: Entity) : Column<
          * @param range The [LongRange] that should be scanned.
          * @return [Iterator]
          */
-        fun scan(range: LongRange) = this@Tx.withReadLock {
-            object : Iterator<TupleId> {
-                private val wrapped = this@ColumnV2.store.RecordIdIterator((range.first + RECORD_ID_TUPLE_ID_SHIFT)..(range.last + RECORD_ID_TUPLE_ID_SHIFT))
-                override fun hasNext(): Boolean = this.wrapped.hasNext()
-                override fun next(): TupleId = this.wrapped.next() - RECORD_ID_TUPLE_ID_SHIFT
-            }
+        fun scan(range: LongRange) = object : Iterator<TupleId> {
+            private val wrapped = this@ColumnV2.store.RecordIdIterator((range.first + RECORD_ID_TUPLE_ID_SHIFT)..(range.last + RECORD_ID_TUPLE_ID_SHIFT))
+            override fun hasNext(): Boolean = this.wrapped.hasNext()
+            override fun next(): TupleId = this.wrapped.next() - RECORD_ID_TUPLE_ID_SHIFT
         }
 
         override fun put(tupleId: Long, value: T): T? {
@@ -213,7 +210,7 @@ class ColumnV2<T : Value>(val path: Path, override val parent: Entity) : Column<
         /**
          * Releases the [closeLock] on the [ColumnV2].
          */
-        fun cleanup() {
+        override fun cleanup() {
             this@ColumnV2.closeLock.unlockRead(this.closeStamp)
         }
     }

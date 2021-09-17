@@ -20,8 +20,8 @@ import org.vitrivr.cottontail.model.basics.Name
  * to an [Entity] and can be used to index one to many [Column]s. Usually, [Entity]es allow for
  * faster data access.
  *
- * @see DefaultSchema
- * @see Column
+ * [Index] structures are uniquely identified by their [Name.IndexName].
+ *
  * @see IndexTx
  *
  * @author Ralph Gasser
@@ -29,31 +29,31 @@ import org.vitrivr.cottontail.model.basics.Name
  */
 interface Index : DBO {
 
-    /** [Entity] this [AbstractIndex] belongs to. */
+    /** [Entity] this [Index] belongs to. */
     override val parent: Entity
 
-    /** The [Name.IndexName] of this [AbstractIndex]. */
+    /** The [Name.IndexName] of this [Index]. */
     override val name: Name.IndexName
 
-    /** The [ColumnDef] that are covered (i.e. indexed) by this [AbstractIndex]. */
+    /** The [ColumnDef] that are covered (i.e. indexed) by this [Index]. */
     val columns: Array<ColumnDef<*>>
 
-    /** The [ColumnDef] that are produced by this [AbstractIndex]. They often differ from the indexed columns. */
+    /** The [ColumnDef] that are produced by this [Index]. They often differ from the indexed columns. */
     val produces: Array<ColumnDef<*>>
 
     /** The order in which results of this [Index] appear. Empty array that there is no particular order. */
     val order: Array<Pair<ColumnDef<*>, SortOrder>>
 
-    /** The type of [AbstractIndex]. */
+    /** The type of [Index]. */
     val type: IndexType
 
-    /** True, if the [AbstractIndex] supports incremental updates, and false otherwise. */
+    /** True, if the [Index] supports incremental updates, and false otherwise. */
     val supportsIncrementalUpdate: Boolean
 
-    /** True, if the [AbstractIndex] supports querying filtering an indexable range of the data. */
+    /** True, if the [Index] supports querying filtering an indexable range of the data. */
     val supportsPartitioning: Boolean
 
-    /** Flag indicating, if this [AbstractIndex] reflects all changes done to the [DefaultEntity] it belongs to. */
+    /** Flag indicating, if this [Index] reflects all changes done to the [DefaultEntity] it belongs to. */
     val state: IndexState
 
     /** The configuration map used for the [Index]. */
@@ -63,7 +63,7 @@ interface Index : DBO {
     val count: Long
 
     /**
-     * Checks if this [AbstractIndex] can process the provided [Predicate] and returns true if so and false otherwise.
+     * Checks if this [Index] can process the provided [Predicate] and returns true if so and false otherwise.
      *
      * @param predicate [Predicate] to check.
      * @return True if [Predicate] can be processed, false otherwise.
@@ -71,7 +71,7 @@ interface Index : DBO {
     fun canProcess(predicate: Predicate): Boolean
 
     /**
-     * Calculates the cost estimate if this [AbstractIndex] processing the provided [Predicate].
+     * Calculates the cost estimate if this [Index] processing the provided [Predicate].
      *
      * @param predicate [Predicate] to check.
      * @return Cost estimate for the [Predicate]
@@ -79,7 +79,7 @@ interface Index : DBO {
     fun cost(predicate: Predicate): Cost
 
     /**
-     * Opens and returns a new [IndexTx] object that can be used to interact with this [AbstractIndex].
+     * Opens and returns a new [IndexTx] object that can be used to interact with this [Index].
      *
      * @param context If the [TransactionContext] that requested the [IndexTx].
      */

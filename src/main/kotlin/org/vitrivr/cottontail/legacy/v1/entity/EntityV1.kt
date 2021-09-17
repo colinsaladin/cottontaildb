@@ -31,6 +31,7 @@ import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.file.Path
 import java.util.concurrent.locks.StampedLock
+import kotlin.concurrent.withLock
 import kotlin.math.min
 
 /**
@@ -182,7 +183,7 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
          *
          * @return List of all [Column]s.
          */
-        override fun listColumns(): List<ColumnDef<*>> = this.withReadLock {
+        override fun listColumns(): List<ColumnDef<*>> {
             return this@EntityV1.columns.values.map { it.columnDef }.toList()
         }
 
@@ -192,7 +193,7 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
          * @param name The [Name.ColumnName] of the [Column].
          * @return [ColumnDef] of the [Column].
          */
-        override fun columnForName(name: Name.ColumnName): Column<*> = this.withReadLock {
+        override fun columnForName(name: Name.ColumnName): Column<*> = this.txLatch.withLock {
             if (!name.wildcard) {
                 this@EntityV1.columns[name] ?: throw DatabaseException.ColumnDoesNotExistException(
                     name
@@ -210,8 +211,8 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
          *
          * @return List of [Name.IndexName] managed by this [EntityTx]
          */
-        override fun listIndexes(): List<Index> = this.withReadLock {
-            return this@EntityV1.indexes.values.toList()
+        override fun listIndexes(): List<Name.IndexName> {
+            return this@EntityV1.indexes.keys.toList()
         }
 
         /**
@@ -219,11 +220,11 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
          *
          * @return List of [Name.IndexName] managed by this [EntityTx]
          */
-        override fun indexForName(name: Name.IndexName): Index = this.withReadLock {
-            this@EntityV1.indexes[name] ?: throw DatabaseException.IndexDoesNotExistException(name)
+        override fun indexForName(name: Name.IndexName): Index {
+            return this@EntityV1.indexes[name] ?: throw DatabaseException.IndexDoesNotExistException(name)
         }
 
-        override fun maxTupleId(): TupleId = this.withReadLock {
+        override fun maxTupleId(): TupleId {
             return this@EntityV1.columns.values.first().maxTupleId
         }
 
@@ -259,9 +260,7 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
             }
 
             /** The wrapped [Iterator] of the first (primary) column. */
-            private val wrapped = this@Tx.withReadLock {
-                (this@Tx.context.getTx(this@EntityV1.columns.values.first()) as ColumnV1<*>.Tx).scan(range)
-            }
+            private val wrapped = (this@Tx.context.getTx(this@EntityV1.columns.values.first()) as ColumnV1<*>.Tx).scan(range)
 
             /**
              * Returns the next element in the iteration.
@@ -306,7 +305,7 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
         /**
          * Closes all the [ColumnTx] and [IndexTx] and releases the [closeLock] on the [Entity].
          */
-        fun cleanup() {
+        override fun cleanup() {
             this@EntityV1.closeLock.unlockRead(this.closeStamp)
         }
     }

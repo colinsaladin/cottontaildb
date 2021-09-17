@@ -316,7 +316,6 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
                 if (!this@LuceneIndex.canProcess(predicate)) {
                     throw QueryException.UnsupportedPredicateException("Index '${this@LuceneIndex.name}' (lucene-index) cannot process the provided predicate.")
                 }
-                this@Tx.withReadLock { }
             }
 
             /** Number of [TupleId]s returned by this [Iterator]. */
@@ -364,7 +363,7 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
         /**
          * Commits changes made through the [IndexWriter]
          */
-        override fun commit() {
+        override fun onCommit() {
             if (this.indexWriter.hasUncommittedChanges()) {
                 this.indexWriter.commit()
             }
@@ -377,7 +376,7 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
         /**
          * Rolls back changes made through the [IndexWriter]
          */
-        override fun rollback() {
+        override fun onRollback() {
             if (this.indexWriter.hasUncommittedChanges()) {
                 this.indexWriter.rollback()
             }

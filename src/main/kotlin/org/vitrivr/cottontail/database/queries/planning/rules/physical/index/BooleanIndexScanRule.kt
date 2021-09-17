@@ -34,7 +34,11 @@ object BooleanIndexScanRule : RewriteRule {
                 val fetch = parent.fetch.toMap()
                 val normalizedPredicate = this.normalize(node.predicate, fetch)
                 val indexes = parent.entity.listIndexes()
-                val candidate = indexes.find { it.canProcess(normalizedPredicate) }
+                val candidate = indexes.map {
+                    parent.entity.indexForName(it)
+                }.find {
+                    it.canProcess(normalizedPredicate)
+                }
                 if (candidate != null) {
                     val newFetch = parent.fetch.filter { candidate.produces.contains(it.second) }
                     val delta = parent.fetch.filter { !candidate.produces.contains(it.second) }

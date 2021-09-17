@@ -5,6 +5,8 @@ import jetbrains.exodus.env.Environments
 import jetbrains.exodus.env.forEach
 import org.vitrivr.cottontail.config.Config
 import org.vitrivr.cottontail.database.catalogue.entries.*
+import org.vitrivr.cottontail.database.entity.Entity
+import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.general.*
 import org.vitrivr.cottontail.database.schema.DefaultSchema
 import org.vitrivr.cottontail.database.schema.Schema
@@ -17,9 +19,13 @@ import org.vitrivr.cottontail.model.exceptions.TxException
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.file.Path
 import java.util.concurrent.locks.StampedLock
+import kotlin.concurrent.withLock
 
 /**
- * The default [Catalogue] implementation based on Map DB.
+ * The default [Catalogue] implementation based on JetBrains Xodus.
+ *
+ * @see Catalogue
+ * @see CatalogueTx
  *
  * @author Ralph Gasser
  * @version 3.0.0
@@ -29,9 +35,6 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
      * Companion object to [DefaultCatalogue]
      */
     companion object {
-        /** Name of the Cottontail DB catalogue store. */
-        internal const val CATALOGUE_STORE_NAME: String = "cdb_catalogue"
-
         /** Prefix used for actual column stores. */
         internal const val ENTITY_STORE_PREFIX: String = "ctt_ent_"
 
@@ -59,18 +62,18 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
     /** Any [DefaultCatalogue] belongs to itself. */
     override val catalogue: DefaultCatalogue = this
 
-    /** A lock used to mediate access to this [DefaultCatalogue]. */
-    private val closeLock = StampedLock()
-
-    /** The Xodus environment used for Cottontail DB. */
-    internal val environment: Environment = Environments.newInstance(this.config.root.resolve("xodus").toFile())
-
     /** The [FunctionRegistry] exposed by this [Catalogue]. */
     override val functions: FunctionRegistry = FunctionRegistry(this.config)
 
     /** Status indicating whether this [DefaultCatalogue] is open or closed. */
     override val closed: Boolean
         get() = !this.environment.isOpen
+
+    /** A lock used to mediate access to this [DefaultCatalogue]. This is an internal variable and not part of the official interface. */
+    internal val closeLock = StampedLock()
+
+    /** The Xodus environment used for Cottontail DB. This is an internal variable and not part of the official interface. */
+    internal val environment: Environment = Environments.newInstance(this.config.root.resolve("xodus").toFile())
 
     init {
         /* Check if catalogue has been initialized and initialize if needed. */
@@ -117,7 +120,11 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
         override val dbo: DefaultCatalogue
             get() = this@DefaultCatalogue
 
-        /** Obtains a global (non-exclusive) read-lock on [DefaultCatalogue]. Prevents enclosing [Schema] from being closed. */
+        /**
+         * Obtains a global (non-exclusive) read-lock on [DefaultCatalogue].
+         *
+         * Prevents [DefaultCatalogue] from being closed while transaction is ongoing.
+         */
         private val closeStamp = this@DefaultCatalogue.closeLock.readLock()
 
         /** Checks if DBO is still open. */
@@ -133,7 +140,7 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
          *
          * @return [List] of all [Name.SchemaName].
          */
-        override fun listSchemas(): List<Name.SchemaName> {
+        override fun listSchemas(): List<Name.SchemaName> = this.txLatch.withLock {
             val store = SchemaCatalogueEntry.store(this@DefaultCatalogue, this.context.xodusTx)
             val list = mutableListOf<Name.SchemaName>()
             store.openCursor(this.context.xodusTx).forEach {
@@ -148,7 +155,7 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
          *
          * @param name [Name.SchemaName] to obtain the [Schema] for.
          */
-        override fun schemaForName(name: Name.SchemaName): Schema {
+        override fun schemaForName(name: Name.SchemaName): Schema = this.txLatch.withLock {
             if (!SchemaCatalogueEntry.exists(name, this@DefaultCatalogue, this.context.xodusTx)) {
                 throw DatabaseException.SchemaDoesNotExistException(name)
             }
@@ -160,7 +167,7 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
          *
          * @param name The [Name.SchemaName] of the new [Schema].
          */
-        override fun createSchema(name: Name.SchemaName): Schema {
+        override fun createSchema(name: Name.SchemaName): Schema = this.txLatch.withLock {
             /* Check if schema exists! */
             if (SchemaCatalogueEntry.exists(name, this@DefaultCatalogue, this.context.xodusTx)) throw DatabaseException.SchemaAlreadyExistsException(name)
 
@@ -174,7 +181,7 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
          *
          * @param name The [Name.SchemaName] of the [Schema] to be dropped.
          */
-        override fun dropSchema(name: Name.SchemaName) {
+        override fun dropSchema(name: Name.SchemaName) = this.txLatch.withLock {
             /* Check if schema exists! */
             if (!SchemaCatalogueEntry.exists(name, this@DefaultCatalogue, this.context.xodusTx)) {
                 throw DatabaseException.SchemaDoesNotExistException(name)
@@ -186,6 +193,14 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
 
             /* Remove schema from catalogue. */
             SchemaCatalogueEntry.delete(name, this@DefaultCatalogue, this.context.xodusTx)
+            Unit
+        }
+
+        /**
+         * Called when a transaction finalizes. Releases the lock held on the [DefaultCatalogue].
+         */
+        override fun cleanup() {
+            this.dbo.catalogue.closeLock.unlockRead(this.closeStamp)
         }
     }
 }

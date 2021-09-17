@@ -28,6 +28,7 @@ import org.vitrivr.cottontail.model.values.pattern.LikePatternValue
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
 import java.util.*
+import kotlin.concurrent.withLock
 
 /**
  * Represents an [AbstractIndex] in the Cottontail DB data model, that uses a persistent [HashMap]
@@ -139,16 +140,9 @@ class NonUniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : Abstract
         }
 
         /**
-         * Returns the number of entries in this [NonUniqueHashIndex].
-         *
-         * @return Number of [TupleId]s in this [NonUniqueHashIndex]
-         */
-        override fun count(): Long = this.dataStore.count(this.context.xodusTx)
-
-        /**
          * (Re-)builds the [NonUniqueHashIndex].
          */
-        override fun rebuild() {
+        override fun rebuild() = this.txLatch.withLock {
             /* Obtain Tx for parent [Entity. */
             val entityTx = this.context.getTx(this.dbo.parent) as EntityTx
 
@@ -166,7 +160,7 @@ class NonUniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : Abstract
         /**
          * Clears the [NonUniqueHashIndex] underlying this [Tx] and removes all entries it contains.
          */
-        override fun clear() = this.withWriteLock {
+        override fun clear() = this.txLatch.withLock {
             this@NonUniqueHashIndex.parent.parent.parent.environment.truncateStore(this@NonUniqueHashIndex.name.storeName(), this.context.xodusTx)
             this.dataStore = this@NonUniqueHashIndex.parent.parent.parent.environment.openStore(
                 this@NonUniqueHashIndex.name.storeName(),
@@ -182,7 +176,7 @@ class NonUniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : Abstract
          *
          * @param event [Operation.DataManagementOperation] to process.
          */
-        override fun update(event: Operation.DataManagementOperation) = this.withWriteLock {
+        override fun update(event: Operation.DataManagementOperation) = this.txLatch.withLock {
             when (event) {
                 is Operation.DataManagementOperation.InsertOperation -> {
                     val value = event.inserts[this.dbo.columns[0].name]

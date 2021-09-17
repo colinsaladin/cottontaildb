@@ -171,7 +171,7 @@ class EntityV2(val path: Path, override val parent: SchemaV2) : Entity, AutoClos
          *
          * @throws DatabaseException If tuple with the desired ID doesn't exist OR is invalid.
          */
-        override fun read(tupleId: TupleId, columns: Array<ColumnDef<*>>): Record = this.withReadLock {
+        override fun read(tupleId: TupleId, columns: Array<ColumnDef<*>>): Record {
             /* Read values from underlying columns. */
             val values = columns.map {
                 val column = this@EntityV2.columns[it.name] ?: throw IllegalArgumentException("Column $it does not exist on entity ${this@EntityV2.name}.")
@@ -187,7 +187,7 @@ class EntityV2(val path: Path, override val parent: SchemaV2) : Entity, AutoClos
          *
          * @return The number of entries in this [EntityV2].
          */
-        override fun count(): Long = this.withReadLock {
+        override fun count(): Long {
             return this@EntityV2.numberOfRows
         }
 
@@ -196,7 +196,7 @@ class EntityV2(val path: Path, override val parent: SchemaV2) : Entity, AutoClos
          *
          * @return The maximum tuple ID occupied by entries in this [EntityV2].
          */
-        override fun maxTupleId(): TupleId = this.withReadLock {
+        override fun maxTupleId(): TupleId {
             return this@EntityV2.maxTupleId
         }
 
@@ -205,7 +205,7 @@ class EntityV2(val path: Path, override val parent: SchemaV2) : Entity, AutoClos
          *
          * @return List of all [Column]s.
          */
-        override fun listColumns(): List<ColumnDef<*>> = this.withReadLock {
+        override fun listColumns(): List<ColumnDef<*>> {
             return this@EntityV2.columns.values.map { it.columnDef }.toList()
         }
 
@@ -215,8 +215,8 @@ class EntityV2(val path: Path, override val parent: SchemaV2) : Entity, AutoClos
          * @param name The [Name.ColumnName] of the [Column].
          * @return [ColumnDef] of the [Column].
          */
-        override fun columnForName(name: Name.ColumnName): Column<*> = this.withReadLock {
-            this@EntityV2.columns[name] ?: throw DatabaseException.ColumnDoesNotExistException(name)
+        override fun columnForName(name: Name.ColumnName): Column<*> {
+            return this@EntityV2.columns[name] ?: throw DatabaseException.ColumnDoesNotExistException(name)
         }
 
         /**
@@ -224,8 +224,8 @@ class EntityV2(val path: Path, override val parent: SchemaV2) : Entity, AutoClos
          *
          * @return List of [Name.IndexName] managed by this [EntityTx]
          */
-        override fun listIndexes(): List<Index> = this.withReadLock {
-            emptyList()
+        override fun listIndexes(): List<Name.IndexName> {
+            return emptyList()
         }
 
         /**
@@ -233,7 +233,7 @@ class EntityV2(val path: Path, override val parent: SchemaV2) : Entity, AutoClos
          *
          * @return List of [Name.IndexName] managed by this [EntityTx]
          */
-        override fun indexForName(name: Name.IndexName): Index = this.withReadLock {
+        override fun indexForName(name: Name.IndexName): Index {
             throw DatabaseException.IndexDoesNotExistException(name)
         }
 
@@ -271,48 +271,45 @@ class EntityV2(val path: Path, override val parent: SchemaV2) : Entity, AutoClos
          *
          * @return [Iterator]
          */
-        override fun scan(columns: Array<ColumnDef<*>>, partitionIndex: Int, partitions: Int) = this@Tx.withReadLock {
-            object : Iterator<Record> {
+        override fun scan(columns: Array<ColumnDef<*>>, partitionIndex: Int, partitions: Int) = object : Iterator<Record> {
+            /** The [LongRange] to iterate over. */
+            private val range: LongRange
 
-                /** The [LongRange] to iterate over. */
-                private val range: LongRange
-
-                init {
-                    val maximum: Long = this@Tx.maxTupleId()
-                    val partitionSize: Long = Math.floorDiv(maximum, partitions.toLong()) + 1L
-                    val start: Long = partitionIndex * partitionSize
-                    val end = min(((partitionIndex + 1) * partitionSize), maximum)
-                    this.range = start..end
-                }
-
-                /** List of [ColumnTx]s used by  this [Iterator]. */
-                private val txs = columns.map {
-                    val column = this@EntityV2.columns[it.name] ?: throw IllegalArgumentException("Column $it does not exist on entity ${this@EntityV2.name}.")
-                    (this@Tx.context.getTx(column) as ColumnV2<*>.Tx)
-                }
-
-                /** The wrapped [Iterator] of the first column. */
-                private val wrapped = this.txs.first().scan(this.range)
-
-                /** Array of [Value]s emitted by this [EntityV2]. */
-                private val values = kotlin.arrayOfNulls<Value?>(columns.size)
-
-                /**
-                 * Returns the next element in the iteration.
-                 */
-                override fun next(): Record {
-                    val tupleId = this.wrapped.next()
-                    for ((i, tx) in this.txs.withIndex()) {
-                        this.values[i] = tx.get(tupleId)
-                    }
-                    return StandaloneRecord(tupleId, columns, this.values)
-                }
-
-                /**
-                 * Returns `true` if the iteration has more elements.
-                 */
-                override fun hasNext(): Boolean = this.wrapped.hasNext()
+            init {
+                val maximum: Long = this@Tx.maxTupleId()
+                val partitionSize: Long = Math.floorDiv(maximum, partitions.toLong()) + 1L
+                val start: Long = partitionIndex * partitionSize
+                val end = min(((partitionIndex + 1) * partitionSize), maximum)
+                this.range = start..end
             }
+
+            /** List of [ColumnTx]s used by  this [Iterator]. */
+            private val txs = columns.map {
+                val column = this@EntityV2.columns[it.name] ?: throw IllegalArgumentException("Column $it does not exist on entity ${this@EntityV2.name}.")
+                (this@Tx.context.getTx(column) as ColumnV2<*>.Tx)
+            }
+
+            /** The wrapped [Iterator] of the first column. */
+            private val wrapped = this.txs.first().scan(this.range)
+
+            /** Array of [Value]s emitted by this [EntityV2]. */
+            private val values = arrayOfNulls<Value?>(columns.size)
+
+            /**
+             * Returns the next element in the iteration.
+             */
+            override fun next(): Record {
+                val tupleId = this.wrapped.next()
+                for ((i, tx) in this.txs.withIndex()) {
+                    this.values[i] = tx.get(tupleId)
+                }
+                return StandaloneRecord(tupleId, columns, this.values)
+            }
+
+            /**
+             * Returns `true` if the iteration has more elements.
+             */
+            override fun hasNext(): Boolean = this.wrapped.hasNext()
         }
 
         override fun insert(record: Record): TupleId? {
@@ -330,7 +327,7 @@ class EntityV2(val path: Path, override val parent: SchemaV2) : Entity, AutoClos
         /**
          * Releases the [closeLock] on the [EntityV2].
          */
-        fun cleanup() {
+        override fun cleanup() {
             this@EntityV2.closeLock.unlockRead(this.closeStamp)
         }
     }

@@ -6,10 +6,10 @@ import jetbrains.exodus.env.Store
 import jetbrains.exodus.env.StoreConfig
 import jetbrains.exodus.env.Transaction
 import jetbrains.exodus.util.LightOutputStream
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.column.ColumnDef
-import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.statistics.columns.*
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Type
@@ -26,7 +26,7 @@ data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>
     /**
      * Creates a [StatisticsCatalogueEntry] from the provided [ColumnDef].
      *
-     * @param [ColumnDef] to convert.
+     * @param def The [ColumnDef] to convert.
      */
     constructor(def: ColumnDef<*>) : this(def.name, def.type, when(def.type){
         Type.Boolean -> BooleanValueStatistics()
@@ -82,8 +82,7 @@ data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>
          * @return [StatisticsCatalogueEntry]
          */
         internal fun read(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): StatisticsCatalogueEntry? {
-            val rawName = Name.ColumnName.objectToEntry(name)
-            val rawEntry = store(catalogue, transaction).get(transaction, rawName)
+            val rawEntry = store(catalogue, transaction).get(transaction, Name.ColumnName.objectToEntry(name))
             return if (rawEntry != null) {
                 StatisticsCatalogueEntry.entryToObject(rawEntry) as StatisticsCatalogueEntry
             } else {
@@ -100,7 +99,7 @@ data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>
          * @return True on success, false otherwise.
          */
         internal fun write(entry: StatisticsCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
-             store(catalogue, transaction).put(transaction,  Name.ColumnName.objectToEntry(entry.name), StatisticsCatalogueEntry.objectToEntry(entry))
+             store(catalogue, transaction).put(transaction, Name.ColumnName.objectToEntry(entry.name), StatisticsCatalogueEntry.objectToEntry(entry))
 
         /**
          * Deletes the [StatisticsCatalogueEntry] for the given [Name.ColumnName] from the given [DefaultCatalogue].

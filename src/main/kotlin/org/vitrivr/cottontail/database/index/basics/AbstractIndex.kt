@@ -11,12 +11,15 @@ import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.general.DBOVersion
 import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx
+import org.vitrivr.cottontail.database.index.hash.NonUniqueHashIndex
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
 import org.vitrivr.cottontail.database.schema.DefaultSchema
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
+import org.vitrivr.cottontail.model.exceptions.TxException
+import kotlin.concurrent.withLock
 
 /**
  * An abstract [Index] implementation that outlines the fundamental structure. Implementations of
@@ -81,7 +84,7 @@ abstract class AbstractIndex(final override val name: Name.IndexName, final over
             ?: throw DatabaseException.DataCorruptionException("Data store for index ${this@AbstractIndex.name} (${this@AbstractIndex.type}) is missing.")
 
         /** Reference to the [AbstractIndex] */
-        override val dbo: AbstractIndex
+        final override val dbo: AbstractIndex
             get() = this@AbstractIndex
 
         /** The order in which results of this [IndexTx] appear. Empty array that there is no particular order. */
@@ -93,20 +96,43 @@ abstract class AbstractIndex(final override val name: Name.IndexName, final over
             get() = this@AbstractIndex.type
 
         /** Flag indicating, if this [AbstractIndex] reflects all changes done to the [DefaultEntity]it belongs to. */
-        override val state: IndexState
-            get() = IndexCatalogueEntry.read(this@AbstractIndex.name, this@AbstractIndex.catalogue, this.context.xodusTx)?.state
-                ?: throw DatabaseException.DataCorruptionException("Failed to obtain state for index ${this@AbstractIndex.name}: Could not read catalogue entry for index.")
+        override var state: IndexState = IndexCatalogueEntry.read(this@AbstractIndex.name, this@AbstractIndex.catalogue, this.context.xodusTx)?.state
+            ?: throw DatabaseException.DataCorruptionException("Failed to obtain state for index ${this@AbstractIndex.name}: Could not read catalogue entry for index.")
 
-        protected val columns: Array<ColumnDef<*>>
-            get() = IndexCatalogueEntry.read(this@AbstractIndex.name, this@AbstractIndex.catalogue, this.context.xodusTx)?.columns?.map {
-                ColumnCatalogueEntry.read(it, this@AbstractIndex.catalogue, this.context.xodusTx)?.toColumnDef() ?: throw DatabaseException.DataCorruptionException("Failed to obtain columns for index ${this@AbstractIndex.name}: Could not read catalogue entry for column ${it}.")
-            }?.toTypedArray() ?: throw DatabaseException.DataCorruptionException("Failed to obtain columns for index ${this@AbstractIndex.name}: Could not read catalogue entry for index.")
+        /** The [ColumnDef] indexed by the [AbstractIndex] this [Tx] belongs to. */
+        protected val columns: Array<ColumnDef<*>> = IndexCatalogueEntry.read(this@AbstractIndex.name, this@AbstractIndex.catalogue, this.context.xodusTx)?.columns?.map {
+            ColumnCatalogueEntry.read(it, this@AbstractIndex.catalogue, this.context.xodusTx)?.toColumnDef() ?: throw DatabaseException.DataCorruptionException("Failed to obtain columns for index ${this@AbstractIndex.name}: Could not read catalogue entry for column ${it}.")
+        }?.toTypedArray() ?: throw DatabaseException.DataCorruptionException("Failed to obtain columns for index ${this@AbstractIndex.name}: Could not read catalogue entry for index.")
 
+
+        /**
+         * Obtains a global (non-exclusive) read-lock on [DefaultCatalogue].
+         *
+         * Prevents [DefaultCatalogue] from being closed while transaction is ongoing.
+         */
+        private val closeStamp = this.dbo.catalogue.closeLock.readLock()
+
+        init {
+            /** Checks if DBO is still open. */
+            if (this.dbo.closed) {
+                this.dbo.catalogue.closeLock.unlockRead(this.closeStamp)
+                throw TxException.TxDBOClosedException(this.context.txId, this.dbo)
+            }
+        }
+
+        /**
+         * Returns the number of entries in this [AbstractIndex].
+         *
+         * @return Number of entries in this [AbstractIndex]
+         */
+        override fun count(): Long  = this.txLatch.withLock {
+            this.dataStore.count(this.context.xodusTx)
+        }
 
         /**
          * Clears the [AbstractTx] underlying this [Tx] and removes all entries it contains.
          */
-        override fun clear() {
+        override fun clear() = this.txLatch.withLock {
             /* Truncate and replace store.*/
             this@AbstractIndex.catalogue.environment.truncateStore(this@AbstractIndex.name.storeName(), this.context.xodusTx)
             this.dataStore = this@AbstractIndex.catalogue.environment.openStore(this@AbstractIndex.name.storeName(),this@AbstractIndex.type.storeConfig(), this.context.xodusTx, false)
@@ -127,6 +153,7 @@ abstract class AbstractIndex(final override val name: Name.IndexName, final over
             if (!IndexCatalogueEntry.write(entry.copy(state = state), this@AbstractIndex.catalogue, this.context.xodusTx)) {
                 throw DatabaseException.DataCorruptionException("Failed to update state for index ${this@AbstractIndex.name}: Could not update catalogue entry for index.")
             }
+            this.state = state
         }
 
         /**
@@ -136,5 +163,12 @@ abstract class AbstractIndex(final override val name: Name.IndexName, final over
          * @return True if [Predicate] can be processed, false otherwise.
          */
         override fun canProcess(predicate: Predicate): Boolean = this@AbstractIndex.canProcess(predicate)
+
+        /**
+         * Called when a transaction finalizes. Releases the lock held on the [DefaultCatalogue].
+         */
+        override fun cleanup() {
+            this.dbo.catalogue.closeLock.unlockRead(this.closeStamp)
+        }
     }
 }

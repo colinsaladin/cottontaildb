@@ -10,12 +10,6 @@ import org.vitrivr.cottontail.model.values.types.VectorValue
 import java.nio.file.Path
 
 abstract class LSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(name, parent) {
-
-    /** Index-wide constants. */
-    companion object {
-        const val LSH_MAP_FIELD = "cdb_lsh_map"
-    }
-
     /** The [LSHIndex] implementation returns exactly the columns that is indexed. */
     final override val produces: Array<ColumnDef<*>> = emptyArray()
 

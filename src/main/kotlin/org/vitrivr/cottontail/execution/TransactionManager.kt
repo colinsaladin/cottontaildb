@@ -195,7 +195,7 @@ class TransactionManager(private val catalogue: DefaultCatalogue, private val tr
             try {
                 this@Transaction.txns.values.reversed().forEachIndexed { i, txn ->
                     try {
-                        txn.commit()
+                        txn.onCommit()
                     } catch (e: Throwable) {
                         LOGGER.error("An error occurred while committing Tx $i (${txn.dbo.name}) of transaction ${this@Transaction.txId}. This is serious!", e)
                     }
@@ -226,7 +226,7 @@ class TransactionManager(private val catalogue: DefaultCatalogue, private val tr
             try {
                 this@Transaction.txns.values.reversed().forEachIndexed { i, txn ->
                     try {
-                        txn.rollback()
+                        txn.onRollback()
                     } catch (e: Throwable) {
                         LOGGER.error("An error occurred while rolling back Tx $i (${txn.dbo.name}) of transaction ${this@Transaction.txId}. This is serious!", e)
                     }

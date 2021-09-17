@@ -3,7 +3,6 @@ package org.vitrivr.cottontail.database.index.hash
 import jetbrains.exodus.bindings.LongBinding
 import jetbrains.exodus.bindings.StringBinding
 import jetbrains.exodus.env.Cursor
-import jetbrains.exodus.env.Store
 import jetbrains.exodus.env.StoreConfig
 import org.vitrivr.cottontail.database.catalogue.storeName
 import org.vitrivr.cottontail.database.column.ColumnDef
@@ -28,6 +27,7 @@ import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
 
 import java.util.*
+import kotlin.concurrent.withLock
 
 /**
  * Represents an index in the Cottontail DB data model, that uses a persistent [HashMap] to map a
@@ -124,16 +124,9 @@ class UniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractInd
         }
 
         /**
-         * Returns the number of entries in this [UniqueHashIndex] which should correspond to the number of [TupleId]s it encodes.
-         *
-         * @return Number of [TupleId]s in this [UniqueHashIndex]
-         */
-        override fun count(): Long = this.dataStore.count(this.context.xodusTx)
-
-        /**
          * (Re-)builds the [UniqueHashIndex].
          */
-        override fun rebuild() {
+        override fun rebuild() = this.txLatch.withLock {
             /* Obtain Tx for parent [Entity. */
             val entityTx = this.context.getTx(this.dbo.parent) as EntityTx
 
@@ -150,7 +143,7 @@ class UniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractInd
         /**
          * Clears the [UniqueHashIndex] underlying this [Tx] and removes all entries it contains.
          */
-        override fun clear() {
+        override fun clear() = this.txLatch.withLock {
             this@UniqueHashIndex.parent.parent.parent.environment.truncateStore(this@UniqueHashIndex.name.storeName(), this.context.xodusTx)
             this.dataStore = this@UniqueHashIndex.parent.parent.parent.environment.openStore(
                 this@UniqueHashIndex.name.storeName(),
@@ -166,7 +159,7 @@ class UniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractInd
          *
          * @param event [Operation.DataManagementOperation]s to process.
          */
-        override fun update(event: Operation.DataManagementOperation) {
+        override fun update(event: Operation.DataManagementOperation) = this.txLatch.withLock {
             when (event) {
                 is Operation.DataManagementOperation.InsertOperation-> {
                     val value = event.inserts[this.dbo.columns[0].name]

@@ -31,6 +31,7 @@ import org.vitrivr.cottontail.model.values.types.VectorValue
 import org.vitrivr.cottontail.utilities.math.KnnUtilities
 import java.util.*
 import kotlin.collections.ArrayDeque
+import kotlin.concurrent.withLock
 
 /**
  * An index structure for nearest neighbour search (NNS) based on fast grouping algorithm proposed in [1].
@@ -102,15 +103,6 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
      * A [IndexTx] that affects this [AbstractIndex].
      */
     private inner class Tx(context: TransactionContext) : AbstractHDIndex.Tx(context) {
-        /**
-         * Returns the number of groups in this [GGIndex]
-         *
-         * @return The number of groups stored in this [GGIndex]
-         */
-        override fun count(): Long {
-            TODO()
-            //this@GGIndex.groupsStore.size.toLong()
-        }
 
         /**
          * Rebuilds the surrounding [PQIndex] from scratch using the following, greedy grouping algorithm:
@@ -123,7 +115,7 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
          *
          *  Takes around 6h for 5000 groups on 9M vectors
          */
-        override fun rebuild() = this.withWriteLock {
+        override fun rebuild() = this.txLatch.withLock {
 
             /* Obtain some learning data for training. */
             PQIndex.LOGGER.debug("Rebuilding GG index {}", this@GGIndex.name)
@@ -192,7 +184,7 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
         /**
          * Clears the [GGIndex] underlying this [Tx] and removes all entries it contains.
          */
-        override fun clear() = this.withWriteLock {
+        override fun clear() = this.txLatch.withLock {
             this.updateState(IndexState.STALE)
             //TODO: this@GGIndex.groupsStore.clear()
         }
@@ -223,7 +215,6 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
             private val resultsQueue: ArrayDeque<StandaloneRecord> by lazy { prepareResults() }
 
             init {
-                this@Tx.withReadLock { }
                 val value = this.predicate.query.value
                 check(value is VectorValue<*>) { "Bound value for query vector has wrong type (found = ${value?.type})." }
                 this.vector = value

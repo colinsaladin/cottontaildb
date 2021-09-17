@@ -30,6 +30,7 @@ import org.vitrivr.cottontail.model.values.types.VectorValue
 import org.vitrivr.cottontail.utilities.math.KnnUtilities
 import java.util.*
 import kotlin.collections.ArrayDeque
+import kotlin.concurrent.withLock
 
 /**
  * An [AbstractIndex] structure for nearest neighbor search (NNS) that uses a product quantization (PQ). Can
@@ -150,20 +151,12 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
 
         }
 
-
-        /**
-         * Returns the number of [PQIndexEntry]s in this [PQIndex]
-         *
-         * @return The number of [PQIndexEntry] stored in this [PQIndex]
-         */
-        override fun count(): Long = this.dataStore.count(this.context.xodusTx)
-
         /**
          * Rebuilds the surrounding [PQIndex] from scratch, thus re-creating the the [PQ] codebook
          * with a new, random sample and re-calculating all the signatures. This method can
          * take a while to complete!
          */
-        override fun rebuild() = this.withWriteLock {
+        override fun rebuild() = this.txLatch.withLock {
             /* Obtain some learning data for training. */
             LOGGER.debug("Rebuilding PQ index {}", this@PQIndex.name)
             val txn = this.context.getTx(this.dbo.parent) as EntityTx
@@ -194,7 +187,7 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
          *
          * @param event The [Operation.DataManagementOperation] to process.
          */
-        override fun update(event: Operation.DataManagementOperation) {
+        override fun update(event: Operation.DataManagementOperation) = this.txLatch.withLock {
             this.updateState(IndexState.STALE)
         }
 
@@ -245,7 +238,6 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
             private val range: IntRange = 0 until 1
 
             init {
-                this@Tx.withReadLock { }
                 val value = this.predicate.query.value
                 check(value is VectorValue<*>) { "Bound value for query vector has wrong type (found = ${value?.type})." }
                 //TODO: this.lookupTable = this.pq.getLookupTable(value, this.predicate.distance)
