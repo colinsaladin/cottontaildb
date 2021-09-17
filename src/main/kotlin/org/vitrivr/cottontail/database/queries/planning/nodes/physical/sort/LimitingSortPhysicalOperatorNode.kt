@@ -33,20 +33,15 @@ class LimitingSortPhysicalOperatorNode(input: Physical? = null, override val sor
     override val requires: List<ColumnDef<*>> = sortOn.map { it.first }
 
     /** The size of the output produced by this [SortPhysicalOperatorNode]. */
-    override val outputSize: Long = min((super.outputSize - this.skip), this.limit)
+    override val outputSize: Long
+        get() = min((super.outputSize - this.skip), this.limit)
 
     /** The [Cost] incurred by this [SortPhysicalOperatorNode]. */
     override val cost: Cost
         get() = Cost(
-            cpu = 2 * (this.input?.outputSize ?: 0) * this.sortOn.size * Cost.COST_MEMORY_ACCESS,
-            memory = (this.columns.sumOf {
-                if (it.type == Type.String) {
-                    this.statistics[it].avgWidth * Char.SIZE_BYTES
-                } else {
-                    it.type.physicalSize
-                }
-            } * this.outputSize).toFloat()
-        )
+            cpu = 2 * this.sortOn.size * Cost.COST_MEMORY_ACCESS,
+            memory = (this.columns.sumOf { this.statistics[it]?.avgWidth ?: it.type.logicalSize }).toFloat()
+        ) * this.outputSize
 
     init {
         if (this.sortOn.isEmpty()) throw QueryException.QuerySyntaxException("At least one column must be specified for sorting.")
@@ -77,8 +72,7 @@ class LimitingSortPhysicalOperatorNode(input: Physical? = null, override val sor
         val p = this.totalCost.parallelisation()
         val input = this.input ?: throw IllegalStateException("Cannot convert disconnected OperatorNode to Operator (node = $this)")
         return if (p > 1 && input.canBePartitioned) {
-            val partitions = input.partition(p).map { it.toOperator(ctx) }
-            MergeLimitingHeapSortOperator(partitions, this.sortOn, this.limit)
+            LimitingHeapSortOperator(input.toOperator(ctx), this.sortOn, this.limit, this.skip)
         } else {
             LimitingHeapSortOperator(input.toOperator(ctx), this.sortOn, this.limit, this.skip)
         }

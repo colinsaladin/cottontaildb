@@ -35,13 +35,7 @@ class SortPhysicalOperatorNode(input: Physical? = null, override val sortOn: Lis
     override val cost: Cost
         get() = Cost(
             cpu = 2 * this.sortOn.size * Cost.COST_MEMORY_ACCESS,
-            memory = this.columns.sumOf {
-                if (it.type == Type.String) {
-                    this.statistics[it].avgWidth * Char.SIZE_BYTES
-                } else {
-                    it.type.physicalSize
-                }
-            }.toFloat()
+            memory = this.columns.sumOf { this.statistics[it]?.avgWidth ?: it.type.logicalSize }.toFloat()
         ) * this.outputSize
 
     init {

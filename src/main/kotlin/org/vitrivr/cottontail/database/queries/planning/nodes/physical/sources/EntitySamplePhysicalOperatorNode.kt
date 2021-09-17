@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources
 
+import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
@@ -9,18 +10,15 @@ import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPhysicalOperatorNode
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
-import org.vitrivr.cottontail.database.statistics.entity.EntityStatistics
-import org.vitrivr.cottontail.database.statistics.entity.RecordStatistics
 import org.vitrivr.cottontail.execution.operators.sources.EntitySampleOperator
 import org.vitrivr.cottontail.model.basics.Name
-import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.Value
 
 /**
  * A [NullaryPhysicalOperatorNode] that formalizes the random sampling of a physical [Entity] in Cottontail DB.
  *
  * @author Ralph Gasser
- * @version 2.3.0
+ * @version 2.4.0
  */
 class EntitySamplePhysicalOperatorNode(override val groupId: Int, val entity: EntityTx, val fetch: List<Pair<Name.ColumnName,ColumnDef<*>>>, val p: Float, val seed: Long = System.currentTimeMillis()) : NullaryPhysicalOperatorNode() {
 
@@ -48,26 +46,19 @@ class EntitySamplePhysicalOperatorNode(override val groupId: Int, val entity: En
     /** [EntitySamplePhysicalOperatorNode] can always be partitioned. */
     override val canBePartitioned: Boolean = true
 
-    /** The [RecordStatistics] is taken from the underlying [Entity]. [RecordStatistics] are used by the query planning for [Cost] estimation. */
-    override val statistics: RecordStatistics
+    /** [ValueStatistics] are taken from the underlying [Entity]. The query planner uses statistics for [Cost] estimation. */
+    override val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
 
     /** The estimated [Cost] of sampling the [Entity]. */
     override val cost: Cost
+        get() = Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.columns.sumOf {
+            this.statistics[it]?.avgWidth ?: it.type.logicalSize
+        }
 
     init {
         /* Obtain statistics costs. */
-        this.statistics = EntityStatistics(this.entity.count(), this.entity.maxTupleId())
         this.entity.listColumns().forEach { columnDef ->
             this.statistics[columnDef] = (this.entity.context.getTx(this.entity.columnForName(columnDef.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
-        }
-
-        /* Calculate costs. */
-        this.cost = Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.columns.sumOf {
-            if (it.type == Type.String) {
-                this.statistics[it].avgWidth * Char.SIZE_BYTES
-            } else {
-                it.type.physicalSize
-            }
         }
     }
 

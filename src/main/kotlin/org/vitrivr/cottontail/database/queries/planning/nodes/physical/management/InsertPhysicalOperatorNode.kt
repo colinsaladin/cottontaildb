@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.physical.management
 
+import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
@@ -10,8 +11,6 @@ import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.management.InsertLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPhysicalOperatorNode
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
-import org.vitrivr.cottontail.database.statistics.entity.EntityStatistics
-import org.vitrivr.cottontail.database.statistics.entity.RecordStatistics
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.execution.operators.management.InsertOperator
 import org.vitrivr.cottontail.execution.operators.management.UpdateOperator
@@ -36,8 +35,8 @@ class InsertPhysicalOperatorNode(override val groupId: GroupId, val entity: Enti
     /** The [InsertPhysicalOperatorNode] produces the [ColumnDef]s defined in the [UpdateOperator]. */
     override val columns: List<ColumnDef<*>> = InsertOperator.COLUMNS
 
-    /** The [RecordStatistics] for this [InsertPhysicalOperatorNode]. */
-    override val statistics: RecordStatistics
+    /** The [ValueStatistics] for this [InsertPhysicalOperatorNode]. */
+    override val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
 
     /** The [InsertPhysicalOperatorNode] produces a single record. */
     override val outputSize: Long = 1L
@@ -53,7 +52,6 @@ class InsertPhysicalOperatorNode(override val groupId: GroupId, val entity: Enti
 
     init {
         /* Obtain statistics costs. */
-        this.statistics = EntityStatistics(this.entity.count(), this.entity.maxTupleId())
         this.entity.listColumns().forEach { columnDef ->
             this.statistics[columnDef] = (this.entity.context.getTx(this.entity.columnForName(columnDef.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
         }

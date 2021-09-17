@@ -1,27 +1,30 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources
 
+import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
+import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.queries.QueryContext
+import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
+import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
+import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
-import org.vitrivr.cottontail.database.statistics.entity.EntityStatistics
-import org.vitrivr.cottontail.database.statistics.entity.RecordStatistics
+import org.vitrivr.cottontail.database.statistics.selectivity.NaiveSelectivityCalculator
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.execution.operators.sources.IndexScanOperator
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.values.types.Value
-import java.lang.Math.floorDiv
 
 /**
  * A [NullaryPhysicalOperatorNode] that formalizes a scan of a physical [Index] in Cottontail DB on a given range.
  *
  * @author Ralph Gasser
- * @version 2.3.0
+ * @version 2.4.0
  */
 class RangedIndexScanPhysicalOperatorNode(override val groupId: Int, val index: IndexTx, val predicate: Predicate, val fetch: List<Pair<Name.ColumnName,ColumnDef<*>>>, val partitionIndex: Int, val partitions: Int) : NullaryPhysicalOperatorNode() {
     companion object {
@@ -32,16 +35,32 @@ class RangedIndexScanPhysicalOperatorNode(override val groupId: Int, val index: 
     override val name: String
         get() = NODE_NAME
 
+    /** [ValueStatistics] are taken from the underlying [Entity]. The query planner uses statistics for [Cost] estimation. */
+    override val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
 
+    /** The number of rows returned by this [IndexScanPhysicalOperatorNode]. This is usually an estimate! */
     override val outputSize: Long
-    override val statistics: RecordStatistics
+        get() = when (this.predicate) {
+            is BooleanPredicate -> NaiveSelectivityCalculator.estimate(this.predicate, this.statistics)(this.index.dbo.parent.numberOfRows)
+            is KnnPredicate -> this.predicate.k.toLong()
+            else -> this.index.dbo.parent.numberOfRows
+        }
+
+    /** The [ColumnDef]s produced by this [IndexScanPhysicalOperatorNode] depends on the [ColumnDef]s produced by the [Index]. */
     override val columns: List<ColumnDef<*>> = this.fetch.map {
         require(this.index.dbo.produces.contains(it.second)) { "The given column $it is not produec by the selected index ${this.index.dbo}. This is a programmer's error!"}
         it.second.copy(name = it.first)
     }
+
+    /** [RangedIndexScanPhysicalOperatorNode] are always executable. */
     override val executable: Boolean = true
+
+    /** [RangedIndexScanPhysicalOperatorNode] cannot be partitioned any further. */
     override val canBePartitioned: Boolean = false
-    override val cost = this.index.dbo.cost(this.predicate)
+
+    /** Cost estimation for [IndexScanPhysicalOperatorNode]s is delegated to the [Index]. */
+    override val cost
+        get() = this.index.dbo.cost(this.predicate)
 
     init {
         require(this.partitionIndex >= 0) { "The partitionIndex of a ranged index scan must be greater than zero." }
@@ -49,11 +68,9 @@ class RangedIndexScanPhysicalOperatorNode(override val groupId: Int, val index: 
 
         /* Obtain statistics. */
         val entityTx = this.index.context.getTx(this.index.dbo.parent) as EntityTx
-        this.statistics = EntityStatistics(entityTx.count(), entityTx.maxTupleId())
         entityTx.listColumns().forEach { columnDef ->
             this.statistics[columnDef] = (this.index.context.getTx(entityTx.columnForName(columnDef.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
         }
-        this.outputSize = floorDiv(this.statistics.count, this.partitions)
     }
 
     /**

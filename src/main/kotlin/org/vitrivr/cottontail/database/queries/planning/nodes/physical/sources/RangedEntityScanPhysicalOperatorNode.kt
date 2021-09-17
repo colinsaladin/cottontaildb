@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources
 
+import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
@@ -9,11 +10,8 @@ import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPhysicalOperatorNode
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
-import org.vitrivr.cottontail.database.statistics.entity.EntityStatistics
-import org.vitrivr.cottontail.database.statistics.entity.RecordStatistics
 import org.vitrivr.cottontail.execution.operators.sources.EntityScanOperator
 import org.vitrivr.cottontail.model.basics.Name
-import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.Value
 import java.lang.Math.floorDiv
 
@@ -21,7 +19,7 @@ import java.lang.Math.floorDiv
  * A [NullaryPhysicalOperatorNode] that formalizes a scan of a physical [Entity] in Cottontail DB on a given range.
  *
  * @author Ralph Gasser
- * @version 2.3.0
+ * @version 2.4.0
  */
 class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity: EntityTx, val fetch: List<Pair<Name.ColumnName,ColumnDef<*>>>, val partitionIndex: Int, val partitions: Int) : NullaryPhysicalOperatorNode() {
 
@@ -38,7 +36,10 @@ class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity
 
 
     override val outputSize: Long = floorDiv(this.entity.count(), this.partitions.toLong())
-    override val statistics: RecordStatistics
+
+    /** [ValueStatistics] are taken from the underlying [Entity]. The query planner uses statistics for [Cost] estimation. */
+    override val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
+
     override val executable: Boolean = true
     override val canBePartitioned: Boolean = false
     override val cost: Cost
@@ -48,18 +49,13 @@ class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity
         require(this.partitionIndex < this.partitions) { "The partition index must be smaller than the overall number of partitions." }
 
         /* Obtain statistics costs. */
-        this.statistics = EntityStatistics(this.entity.count(), this.entity.maxTupleId())
         this.entity.listColumns().forEach { columnDef ->
             this.statistics[columnDef] = (this.entity.context.getTx(this.entity.columnForName(columnDef.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
         }
 
         /* Calculate costs. */
         this.cost = Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.columns.sumOf {
-            if (it.type == Type.String) {
-                this.statistics[it].avgWidth * Char.SIZE_BYTES
-            } else {
-                it.type.physicalSize
-            }
+            this.statistics[it]?.avgWidth ?: it.type.logicalSize
         }
     }
 

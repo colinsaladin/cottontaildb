@@ -6,14 +6,14 @@ import org.vitrivr.cottontail.database.queries.GroupId
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
-import org.vitrivr.cottontail.database.statistics.entity.RecordStatistics
+import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import java.io.PrintStream
 
 /**
  * An abstract [OperatorNode.Physical] implementation that has exactly two [OperatorNode.Physical]s as input.
  *
  * @author Ralph Gasser
- * @version 2.1.2
+ * @version 2.2.0
  */
 abstract class BinaryPhysicalOperatorNode(left: Physical? = null, right: Physical? = null) : OperatorNode.Physical() {
 
@@ -85,9 +85,9 @@ abstract class BinaryPhysicalOperatorNode(left: Physical? = null, right: Physica
     override val requires: List<ColumnDef<*>>
         get() = emptyList()
 
-    /** By default, a [BinaryPhysicalOperatorNode]'s [RecordStatistics] is retained from its left inpu. */
-    override val statistics: RecordStatistics
-        get() = this.left?.statistics ?: RecordStatistics.EMPTY
+    /** By default, a [BinaryPhysicalOperatorNode]'s statistics are retained from its left input. */
+    override val statistics: Map<ColumnDef<*>, ValueStatistics<*>>
+        get() = this.left?.statistics ?: emptyMap()
 
     init {
         this.left = left

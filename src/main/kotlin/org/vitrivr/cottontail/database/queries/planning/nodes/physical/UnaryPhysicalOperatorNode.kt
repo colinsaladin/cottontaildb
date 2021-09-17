@@ -7,7 +7,7 @@ import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.UnaryLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
-import org.vitrivr.cottontail.database.statistics.entity.RecordStatistics
+import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import java.io.PrintStream
 
 /**
@@ -70,9 +70,9 @@ abstract class UnaryPhysicalOperatorNode(input: Physical? = null) : OperatorNode
     override val sortOn: List<Pair<ColumnDef<*>, SortOrder>>
         get() = this.input?.sortOn ?: emptyList()
 
-    /** By default, a [UnaryPhysicalOperatorNode]'s [RecordStatistics] is the same as its input's [RecordStatistics].*/
-    override val statistics: RecordStatistics
-        get() = this.input?.statistics ?: RecordStatistics.EMPTY
+    /** By default, a [UnaryPhysicalOperatorNode]'s are retained from its input.*/
+    override val statistics: Map<ColumnDef<*>,ValueStatistics<*>>
+        get() = this.input?.statistics ?: emptyMap()
 
     init {
         this.input = input

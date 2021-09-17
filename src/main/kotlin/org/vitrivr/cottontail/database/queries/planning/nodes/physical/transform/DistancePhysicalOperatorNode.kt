@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.physical.transform
 
+import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
@@ -8,10 +9,8 @@ import org.vitrivr.cottontail.database.queries.planning.nodes.physical.UnaryPhys
 import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
 import org.vitrivr.cottontail.database.statistics.columns.DoubleValueStatistics
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
-import org.vitrivr.cottontail.database.statistics.entity.RecordStatistics
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.execution.operators.projection.DistanceProjectionOperator
-import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.utilities.math.KnnUtilities
 
 /**
@@ -42,16 +41,16 @@ class DistancePhysicalOperatorNode(input: Physical? = null, val predicate: KnnPr
         get() = Cost(cpu = this.outputSize * this.predicate.atomicCpuCost)
 
     /** The [RecordStatistics] for this [DistanceProjectionOperator]. Contains an empty [DoubleValueStatistics] for the distance column. */
-    override val statistics: RecordStatistics
-        get() {
-            val copy = this.input?.statistics?.copy() ?: RecordStatistics()
-            copy[this.predicate.produces] = DoubleValueStatistics() as ValueStatistics<Value>
-            return copy
-        }
+    override val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
 
     /** Whether the [DistanceProjectionOperator] can be partitioned is determined by the [KnnPredicateHint]. */
     override val canBePartitioned: Boolean
         get() = super.canBePartitioned
+
+    init {
+        this.statistics.putAll(this.input?.statistics ?: emptyMap())
+        this.statistics[this.predicate.produces] = DoubleValueStatistics()
+    }
 
     /**
      * Creates and returns a copy of this [DistancePhysicalOperatorNode] without any children or parents.

@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources
 
+import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
@@ -16,8 +17,6 @@ import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
-import org.vitrivr.cottontail.database.statistics.entity.EntityStatistics
-import org.vitrivr.cottontail.database.statistics.entity.RecordStatistics
 import org.vitrivr.cottontail.database.statistics.selectivity.NaiveSelectivityCalculator
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.execution.operators.sort.MergeLimitingHeapSortOperator
@@ -29,7 +28,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * A [IndexScanPhysicalOperatorNode] that represents a predicated lookup using an [AbstractIndex].
  *
  * @author Ralph Gasser
- * @version 2.2.0
+ * @version 2.4.0
  */
 class IndexScanPhysicalOperatorNode(override val groupId: Int, val index: IndexTx, val predicate: Predicate, val fetch: List<Pair<Name.ColumnName,ColumnDef<*>>>) : NullaryPhysicalOperatorNode() {
     companion object {
@@ -52,27 +51,27 @@ class IndexScanPhysicalOperatorNode(override val groupId: Int, val index: IndexT
     /** Whether an [IndexScanPhysicalOperatorNode] can be partitioned depends on the [Index]. */
     override val canBePartitioned: Boolean = this.index.dbo.supportsPartitioning
 
-    /** The [RecordStatistics] is taken from the underlying [Entity]. [RecordStatistics] are used by the query planning for [Cost] estimation. */
-    override val statistics: RecordStatistics
+    /** [ValueStatistics] are taken from the underlying [Entity]. The query planner uses statistics for [Cost] estimation. */
+    override val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
+
+    /** The number of rows returned by this [IndexScanPhysicalOperatorNode]. This is usually an estimate! */
+    override val outputSize: Long
+        get() = when (this.predicate) {
+            is BooleanPredicate -> NaiveSelectivityCalculator.estimate(this.predicate, this.statistics)(this.index.dbo.parent.numberOfRows)
+            is KnnPredicate -> this.predicate.k.toLong()
+            else -> this.index.dbo.parent.numberOfRows
+        }
 
     /** Cost estimation for [IndexScanPhysicalOperatorNode]s is delegated to the [Index]. */
-    override val cost: Cost = this.index.dbo.cost(this.predicate)
-
+    override val cost: Cost
+        get() = this.index.dbo.cost(this.predicate)
 
     init {
         /* Obtain statistics. */
         val entityTx = this.index.context.getTx(this.index.dbo.parent) as EntityTx
-        this.statistics = EntityStatistics(entityTx.count(), entityTx.maxTupleId())
         entityTx.listColumns().forEach { columnDef ->
             this.statistics[columnDef] = (this.index.context.getTx(entityTx.columnForName(columnDef.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
         }
-    }
-
-    /** */
-    override val outputSize: Long = when (this.predicate) {
-        is BooleanPredicate -> NaiveSelectivityCalculator.estimate(this.predicate, this.statistics)(this.index.dbo.parent.numberOfRows)
-        is KnnPredicate -> this.predicate.k.toLong()
-        else -> this.index.dbo.parent.numberOfRows
     }
 
     /**
