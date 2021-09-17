@@ -89,6 +89,7 @@ class DefaultSchema(override val name: Name.SchemaName, override val parent: Def
                     list.add(name)
                 } while (cursor.next)
             }
+            cursor.close()
             list
         }
 
