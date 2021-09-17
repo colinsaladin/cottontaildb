@@ -43,8 +43,8 @@ class MigrationCommand : AbstractCottontailCommand(
     private val batchSize: Int by option(
         "-b",
         "--batch",
-        help = "How many entries should be batched before issuing a commit when migrating entities. Defaults to 1'000'000 entries."
-    ).int().default(1_000_000)
+        help = "How many entries should be batched before issuing a commit when migrating entities. Defaults to 100'000 entries."
+    ).int().default(100_000)
 
 
     /**
