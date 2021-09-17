@@ -1,12 +1,11 @@
 package org.vitrivr.cottontail.database.catalogue
 
 import jetbrains.exodus.env.Environment
+import jetbrains.exodus.env.EnvironmentConfig
 import jetbrains.exodus.env.Environments
 import jetbrains.exodus.env.forEach
 import org.vitrivr.cottontail.config.Config
 import org.vitrivr.cottontail.database.catalogue.entries.*
-import org.vitrivr.cottontail.database.entity.Entity
-import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.general.*
 import org.vitrivr.cottontail.database.schema.DefaultSchema
 import org.vitrivr.cottontail.database.schema.Schema
@@ -73,7 +72,12 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
     internal val closeLock = StampedLock()
 
     /** The Xodus environment used for Cottontail DB. This is an internal variable and not part of the official interface. */
-    internal val environment: Environment = Environments.newInstance(this.config.root.resolve("xodus").toFile())
+    internal val environment: Environment = Environments.newInstance(
+        this.config.root.resolve("xodus").toFile(),
+        EnvironmentConfig().setLogCacheUseNio(true)
+            .setLogCacheReadAheadMultiple(100)
+            .setEnvStoreGetCacheSize(200)
+    )
 
     init {
         /* Check if catalogue has been initialized and initialize if needed. */

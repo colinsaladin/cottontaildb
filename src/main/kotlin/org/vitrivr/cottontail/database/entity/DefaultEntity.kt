@@ -98,7 +98,12 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
             get() = this@DefaultEntity
 
         /** Internal reference to [Store] required for accessing entity metadata. */
-        private val entityStore: Store = this@DefaultEntity.parent.parent.environment.openStore(this@DefaultEntity.name.storeName(), StoreConfig.WITHOUT_DUPLICATES, this.context.xodusTx)
+        private val entityStore: Store = this@DefaultEntity.catalogue.environment.openStore(
+            this@DefaultEntity.name.storeName(),
+            StoreConfig.USE_EXISTING,
+            this.context.xodusTx,
+            false
+        ) ?: throw DatabaseException.DataCorruptionException("Data store for entity ${this@DefaultEntity.name} is missing.")
 
         /** Map of [Name.ColumnName] to [Column]. */
         private val columns: Map<Name.ColumnName,ColumnTx<*>>
@@ -304,7 +309,10 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          */
         override fun cursor(columns: Array<ColumnDef<*>>, partitionIndex: Int, partitions: Int) = object : Cursor<Record> {
 
-            /** The maximum [TupleId] to iterate over. */
+            /** Array of [Value]s emitted by this [Iterator]. */
+            private val values = arrayOfNulls<Value?>(columns.size)
+
+            /** The current [TupleId] this [Cursor] is pointin to. */
             private var current: TupleId
 
             /** The maximum [TupleId] to iterate over. */
@@ -315,19 +323,21 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
 
             init {
                 val maximum: Long = this@Tx.maxTupleId()
-                val partitionSize: Long = Math.floorDiv(maximum, partitions.toLong()) + 1L
-                this.cursor.getSearchKeyRange(LongBinding.longToCompressedEntry(partitionIndex * partitionSize)) /* Set start of cursor. */
-                this.current = LongBinding.compressedEntryToLong(this.cursor.key)
-                this.end = min(((partitionIndex + 1) * partitionSize), maximum)
+                if (partitions > 1) {
+                    val partitionSize: Long = Math.floorDiv(maximum, partitions.toLong()) + 1L
+                    this.cursor.getSearchKeyRange(LongBinding.longToCompressedEntry(partitionIndex * partitionSize)) /* Set start of cursor. */
+                    this.end = min(((partitionIndex + 1) * partitionSize), maximum)
+                    this.current = LongBinding.compressedEntryToLong(this.cursor.key)
+                } else {
+                    this.end = maximum
+                    this.current = -1L
+                }
             }
 
             /** The wrapped cursor to iterate over the entity. */
-            private val columnCursors = this@Tx.columns.values.map {
-                it.cursor(LongBinding.compressedEntryToLong(cursor.key))
+            private val columnCursors = columns.map {
+                this@Tx.columns[it.name]?.cursor(this.current) ?: throw IllegalStateException("Column $it missing in transaction.")
             }
-
-            /** Array of [Value]s emitted by this [Iterator]. */
-            private val values = arrayOfNulls<Value?>(columns.size)
 
             /**
              * Returns the [TupleId] this [Cursor] is currently pointing to.
@@ -339,6 +349,7 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
              */
             override fun value(): Record {
                 for ((i, c) in this.columnCursors.withIndex()) {
+                    if (c.key() < this.current) c.moveNext()
                     if (c.key() == this.current) {
                         this.values[i] = c.value()
                     } else {
@@ -352,21 +363,18 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
              * Tries to move this [Cursor]. Returns true on success and false otherwise.
              */
             override fun moveNext(): Boolean {
-                var ret = false
                 if (this.current < this.end && this.cursor.next) {
                     this.current = LongBinding.compressedEntryToLong(this.cursor.key)
-                    if (this.current < this.end) {
-                        this.columnCursors.forEach { if (it.key() < this.current) it.moveNext() }
-                        ret = true
-                    }
+                    return this.current < this.end
                 }
-                return ret
+                return false
             }
 
             /**
              * Closes this [Cursor].
              */
             override fun close() {
+                this.columnCursors.forEach { it.close() }
                 this.cursor.close()
             }
         }

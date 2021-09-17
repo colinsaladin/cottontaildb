@@ -2,8 +2,10 @@ package org.vitrivr.cottontail.database.column
 
 import jetbrains.exodus.bindings.LongBinding
 import jetbrains.exodus.env.Cursor
+import jetbrains.exodus.env.Environments
 import jetbrains.exodus.env.Store
 import jetbrains.exodus.env.StoreConfig
+import jetbrains.exodus.log.Log
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.catalogue.entries.StatisticsCatalogueEntry
 import org.vitrivr.cottontail.database.catalogue.storeName
@@ -15,6 +17,7 @@ import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
+import org.vitrivr.cottontail.model.basics.toKey
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.TxException
 import org.vitrivr.cottontail.model.values.types.Value
@@ -62,9 +65,9 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
     inner class Tx constructor(context: TransactionContext) : AbstractTx(context), ColumnTx<T> {
 
         /** Internal data [Store] reference. */
-        private var dataStore: Store = this@DefaultColumn.parent.parent.parent.environment.openStore(
+        private var dataStore: Store = this@DefaultColumn.catalogue.environment.openStore(
             this@DefaultColumn.name.storeName(),
-            StoreConfig.WITHOUT_DUPLICATES,
+            StoreConfig.USE_EXISTING,
             this.context.xodusTx,
             false
         ) ?: throw DatabaseException.DataCorruptionException("Data store for column ${this@DefaultColumn.name} is missing.")
@@ -116,7 +119,7 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          * @throws DatabaseException If the tuple with the desired ID is invalid.
          */
         override fun get(tupleId: TupleId): T? = this.txLatch.withLock {
-            val ret = this.dataStore.get(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId)) ?: return null
+            val ret = this.dataStore.get(this.context.xodusTx, tupleId.toKey()) ?: return null
             return this.binding.entryToValue(ret)
         }
 
@@ -129,17 +132,17 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          */
         override fun put(tupleId: TupleId, value: T): T? = this.txLatch.withLock {
             /* Read existing value. */
-            val existing = this.dataStore.get(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))?.let { this.binding.entryToValue(it) }
+            val existing = this.dataStore.get(this.context.xodusTx, tupleId.toKey())?.let { this.binding.entryToValue(it) }
 
             /* Perform PUT and update statistics. */
             if (existing == null) {
-                if (!this.dataStore.add(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId), this.binding.objectToEntry(value))) {
+                if (!this.dataStore.add(this.context.xodusTx, tupleId.toKey(), this.binding.objectToEntry(value))) {
                     throw DatabaseException.DataCorruptionException("Failed to ADD tuple $tupleId to column ${this@DefaultColumn.name}.")
                 }
                 this.dirty = true
                 this.statistics.insert(value)
             } else {
-                if (!this.dataStore.put(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId), this.binding.objectToEntry(value))) {
+                if (!this.dataStore.put(this.context.xodusTx, tupleId.toKey(), this.binding.objectToEntry(value))) {
                     throw DatabaseException.DataCorruptionException("Failed to PUT tuple $tupleId to column ${this@DefaultColumn.name}.")
                 }
                 this.dirty = true
@@ -158,7 +161,7 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          * @param expected The [Value] expected to be there.
          */
         override fun compareAndPut(tupleId: TupleId, value: T, expected: T?): Boolean = this.txLatch.withLock {
-            val existing = this.dataStore.get(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))?.let { this.binding.entryToValue(it) }
+            val existing = this.dataStore.get(this.context.xodusTx, tupleId.toKey())?.let { this.binding.entryToValue(it) }
             return if (existing == expected) {
                 this.put(tupleId, value)
                 true
@@ -175,11 +178,11 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          */
         override fun delete(tupleId: TupleId): T? = this.txLatch.withLock {
             /* Read existing value. */
-            val existing = this.dataStore.get(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))?.let { this.binding.entryToValue(it) }
+            val existing = this.dataStore.get(this.context.xodusTx, tupleId.toKey())?.let { this.binding.entryToValue(it) }
 
             /* Delete entry and update statistics. */
             if (existing != null) {
-                if (!this.dataStore.delete(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))) {
+                if (!this.dataStore.delete(this.context.xodusTx, tupleId.toKey())) {
                     throw DatabaseException.DataCorruptionException("Failed to DELETE tuple $tupleId to column ${this@DefaultColumn.name}.")
                 }
                 this.dirty = true
@@ -196,16 +199,34 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          * @param start The [TupleId] to start the [Cursor] at.
          * @return [Cursor]
          */
-        override fun cursor(start: TupleId): org.vitrivr.cottontail.database.general.Cursor<T> = object : org.vitrivr.cottontail.database.general.Cursor<T> {
-            /** Internal [Cursor] used for iteration. */
-            private val cursor: Cursor = this@Tx.dataStore.openCursor(this@Tx.context.xodusTx)
-            init {
-                this.cursor.getSearchKeyRange(LongBinding.longToCompressedEntry(start))
+        override fun cursor(start: TupleId): org.vitrivr.cottontail.database.general.Cursor<T> = this.txLatch.withLock {
+                object : org.vitrivr.cottontail.database.general.Cursor<T> {
+                /** The maximum [TupleId] to iterate over. */
+                private var current: TupleId
+
+                /** Internal [Cursor] used for iteration. */
+                private val cursor: Cursor = this@Tx.dataStore.openCursor(this@Tx.context.xodusTx)
+
+                init {
+                    if (start > -1L) {
+                        this.cursor.getSearchKeyRange(start.toKey())
+                        this.current = LongBinding.compressedEntryToLong(this.cursor.key)
+                    } else {
+                        this.current = start
+                    }
+                }
+
+                override fun moveNext(): Boolean {
+                    if (this.cursor.next) {
+                        this.current = LongBinding.compressedEntryToLong(this.cursor.key)
+                        return true
+                    }
+                    return false
+                }
+                override fun key(): TupleId = this.current
+                override fun value(): T = this@Tx.binding.entryToValue(this.cursor.value)
+                override fun close() = this.cursor.close()
             }
-            override fun moveNext(): Boolean = this.cursor.next
-            override fun key(): TupleId = LongBinding.compressedEntryToLong(this.cursor.key)
-            override fun value(): T = this@Tx.binding.entryToValue(this.cursor.value)
-            override fun close() = this.cursor.close()
         }
 
         /**
