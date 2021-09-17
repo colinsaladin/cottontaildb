@@ -31,13 +31,15 @@ class EntityScanOperator(groupId: GroupId, entity: EntityTx, fetch: List<Pair<Na
         val columns = this.columns.toTypedArray()
         val values = arrayOfNulls<Value?>(this.columns.size)
         return flow {
-            for (record in this@EntityScanOperator.entity.cursor(fetch, this@EntityScanOperator.partitionIndex, this@EntityScanOperator.partitions)) {
+            val cursor = this@EntityScanOperator.entity.cursor(fetch, this@EntityScanOperator.partitionIndex, this@EntityScanOperator.partitions)
+            for (record in cursor) {
                 var i = 0
                 record.forEach { _, v -> values[i++] = v }
                 val r = StandaloneRecord(record.tupleId, columns, values)
                 context.bindings.bindRecord(r) /* Important: Make new record available to binding context. */
                 emit(r)
             }
+            cursor.close()
         }
     }
 }
