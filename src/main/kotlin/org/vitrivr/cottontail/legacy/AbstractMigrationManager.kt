@@ -192,16 +192,18 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
                 /* Start migrating column data. */
                 if (count > 0) {
                     var i = 0L
-                    val p = Math.floorDiv(maxTupleId, this.batchSize).toInt()
+                    val p = Math.floorDiv(maxTupleId, this.batchSize).toInt() + 1
                     for (j in 0 until p) {
                         val destinationContext = MigrationContext(destination.environment.beginExclusiveTransaction())
                         val destCatalogueTx = destinationContext.getTx(destination) as CatalogueTx
                         val destSchemaTx = destinationContext.getTx(destCatalogueTx.schemaForName(srcSchemaName)) as SchemaTx
                         val destEntityTx = destinationContext.getTx(destSchemaTx.entityForName(srcEntityName)) as EntityTx
-                        srcEntityTx.cursor(columns, j, p).forEach { r ->
+                        val cursor = srcEntityTx.cursor(columns, j, p)
+                        cursor.forEach { r ->
                             this.logStdout("-- Migrating data for ${srcEntityName}... (${++i} / $count)\r")
                             destEntityTx.insert(r)
                         }
+                        cursor.close()
                         this.log("-- Migrating data for $srcEntityName; committing... (${i} / $count)\r")
                         destinationContext.commit()
                     }
@@ -213,7 +215,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
         }
 
         /* Commit after all DBOs have been rebuilt. */
-        sourceContext.commit()
+        sourceContext.rollback()
     }
 
     /**
@@ -221,7 +223,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
      *
      * @param message The message to log.
      */
-    protected fun logStdout(message: String) {
+    private fun logStdout(message: String) {
         print(message)
     }
 
