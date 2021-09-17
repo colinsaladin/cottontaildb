@@ -14,6 +14,7 @@ import java.util.*
  * @author Ralph Gasser
  * @version 1.1.0
  */
+@Deprecated("No longer in use as of Cottontail DB version 3.0. Retained to maintain compatibility with legacy format.")
 open class RecordStatistics {
 
     companion object {

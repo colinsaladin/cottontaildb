@@ -13,6 +13,7 @@ import kotlin.math.max
  * @author Ralph Gasser
  * @version 1.1.0
  */
+@Deprecated("No longer in use as of Cottontail DB version 3.0. Retained to maintain compatibility with legacy format.")
 class EntityStatistics(var count: Long = 0L, var maximumTupleId: TupleId = -1) : RecordStatistics() {
 
     /**
