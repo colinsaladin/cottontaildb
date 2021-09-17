@@ -140,7 +140,7 @@ open class ValueStatistics<T : Value>(val type: Type<T>) {
     }
 
     /**
-     * Resets this [ValueStatistics] and sets all its values to to the default value.
+     * Resets this [ValueStatistics] and sets all its values to the default value.
      */
     open fun reset() {
         this.fresh = true

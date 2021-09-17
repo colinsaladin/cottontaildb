@@ -167,7 +167,7 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
 
             /* Clear and re-generate signatures. */
             this.clear()
-            txn.scan(this.dbo.columns).forEach { rec ->
+            txn.cursor(this.dbo.columns).forEach { rec ->
                 val value = rec[this@PQIndex.columns[0]]
                 if (value is VectorValue<*>) {
                     //TODO: val sig = pq.getSignature(value)
@@ -309,7 +309,7 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
             val learningData = LinkedList<VectorValue<*>>()
             val rng = SplittableRandom(this@PQIndex.config.seed)
             val learningDataFraction = this@PQIndex.config.sampleSize.toDouble() / txn.count()
-            txn.scan(this.dbo.columns).forEach {
+            txn.cursor(this.dbo.columns).forEach {
                 if (rng.nextDouble() <= learningDataFraction) {
                     val value = it[this@PQIndex.columns[0]]
                     if (value is VectorValue<*>) {

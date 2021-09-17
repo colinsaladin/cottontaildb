@@ -148,7 +148,7 @@ class NonUniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : Abstract
 
             /* Truncate and reopen old store. */
             this.clear()
-            entityTx.scan(this.dbo.columns).forEach { record ->
+            entityTx.cursor(this.dbo.columns).forEach { record ->
                 val value = record[this.dbo.columns[0]] ?: throw TxException.TxValidationException(
                     this.context.txId,
                     "A value cannot be null for instances of NonUniqueHashIndex ${this@NonUniqueHashIndex.name} but given value is (value = null, tupleId = ${record.tupleId})."

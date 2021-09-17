@@ -259,19 +259,19 @@ class EntityV2(val path: Path, override val parent: SchemaV2) : Entity, AutoClos
          *
          * @return [Iterator]
          */
-        override fun scan(columns: Array<ColumnDef<*>>): Iterator<Record> = scan(columns, 0, 1)
+        override fun cursor(columns: Array<ColumnDef<*>>): Cursor<Record> = cursor(columns, 0, 1)
 
         /**
          * Creates and returns a new [Iterator] for this [EntityV2.Tx] that returns all [TupleId]s
          * contained within the surrounding [EntityV2] and a certain range.
          *
          * @param columns The [ColumnDef]s that should be scanned.
-         * @param partitionIndex The [partitionIndex] for this [scan] call.
-         * @param partitions The total number of partitions for this [scan] call.
+         * @param partitionIndex The [partitionIndex] for this [cursor] call.
+         * @param partitions The total number of partitions for this [cursor] call.
          *
          * @return [Iterator]
          */
-        override fun scan(columns: Array<ColumnDef<*>>, partitionIndex: Int, partitions: Int) = object : Iterator<Record> {
+        override fun cursor(columns: Array<ColumnDef<*>>, partitionIndex: Int, partitions: Int) = object : Cursor<Record> {
             /** The [LongRange] to iterate over. */
             private val range: LongRange
 
@@ -295,21 +295,18 @@ class EntityV2(val path: Path, override val parent: SchemaV2) : Entity, AutoClos
             /** Array of [Value]s emitted by this [EntityV2]. */
             private val values = arrayOfNulls<Value?>(columns.size)
 
-            /**
-             * Returns the next element in the iteration.
-             */
-            override fun next(): Record {
+            override fun value(): Record {
                 val tupleId = this.wrapped.next()
                 for ((i, tx) in this.txs.withIndex()) {
                     this.values[i] = tx.get(tupleId)
                 }
                 return StandaloneRecord(tupleId, columns, this.values)
             }
-
-            /**
-             * Returns `true` if the iteration has more elements.
-             */
-            override fun hasNext(): Boolean = this.wrapped.hasNext()
+            override fun key(): TupleId = this.wrapped.next()
+            override fun moveNext(): Boolean {
+                return this.wrapped.hasNext()
+            }
+            override fun close() { /* No op. */ }
         }
 
         override fun insert(record: Record): TupleId? {

@@ -123,7 +123,7 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
             /* Load all tuple ids into a set. */
             val txn = this.context.getTx(this.dbo.parent) as EntityTx
             val remainingTids = mutableSetOf<Long>()
-            txn.scan(emptyArray()).forEach { remainingTids.add(it.tupleId) }
+            txn.cursor(emptyArray()).forEach { remainingTids.add(it.tupleId) }
 
             /* Prepare necessary data structures. */
             val groupSize =

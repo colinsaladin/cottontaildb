@@ -1,15 +1,9 @@
 package org.vitrivr.cottontail.database.index.lsh.superbit
 
-import jetbrains.exodus.bindings.ComparableSet
-import jetbrains.exodus.bindings.ComparableSetBinding
 import jetbrains.exodus.bindings.IntegerBinding
 import jetbrains.exodus.bindings.LongBinding
-import jetbrains.exodus.env.Store
-import jetbrains.exodus.env.StoreConfig
 import org.slf4j.LoggerFactory
-import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
-import org.vitrivr.cottontail.database.catalogue.storeName
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
@@ -17,9 +11,7 @@ import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.basics.IndexState
 import org.vitrivr.cottontail.database.index.basics.IndexType
-import org.vitrivr.cottontail.database.index.gg.GGIndexConfig
 import org.vitrivr.cottontail.database.index.lsh.LSHIndex
-import org.vitrivr.cottontail.database.index.va.signature.VAFSignature
 import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
@@ -164,7 +156,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
             }
 
             /* for every record get bucket-signature, then iterate over stages and add tid to the list of that bucket of that stage */
-            tx.scan(this@SuperBitLSHIndex.columns).forEach {
+            tx.cursor(this@SuperBitLSHIndex.columns).forEach {
                 val value = it[this.dbo.columns[0]] ?: throw DatabaseException("Could not find column for entry in index $this") // todo: what if more columns? This should never happen -> need to change type and sort this out on index creation
                 if (value is VectorValue<*>) {
                     val buckets = lsh.hash(value)

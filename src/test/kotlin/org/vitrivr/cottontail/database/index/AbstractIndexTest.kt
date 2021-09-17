@@ -74,6 +74,7 @@ abstract class AbstractIndexTest {
 
     /** The [TransactionManager] used for this [CatalogueTest] instance. */
     protected val manager = TransactionManager(
+        this.catalogue,
         this.config.execution.transactionTableSize,
         this.config.execution.transactionHistorySize
     )
@@ -126,7 +127,7 @@ abstract class AbstractIndexTest {
         val catalogueTx = txn.getTx(this.catalogue) as CatalogueTx
         val schema = catalogueTx.schemaForName(this.schemaName)
         val schemaTx = txn.getTx(schema) as SchemaTx
-        schemaTx.createEntity(this.entityName, *this.columns.map { it to ColumnEngine.MAPDB }.toTypedArray())
+        schemaTx.createEntity(this.entityName, *this.columns.map { it }.toTypedArray())
         txn.commit()
     }
 
@@ -141,7 +142,7 @@ abstract class AbstractIndexTest {
         val schemaTx = txn.getTx(schema) as SchemaTx
         val entity = schemaTx.entityForName(this.entityName)
         val entityTx = txn.getTx(entity) as EntityTx
-        entityTx.createIndex(this.indexName, this.indexType, arrayOf(this.indexColumn), this.indexParams)
+        entityTx.createIndex(this.indexName, this.indexType, arrayOf(this.indexColumn.name), this.indexParams)
         txn.commit()
     }
 
@@ -212,7 +213,7 @@ abstract class AbstractIndexTest {
         if (postCount != preCount) {
             fail("optimizing caused elements to disappear")
         }
-        countTx.commit()
+        countTx.onCommit()
     }
 
     /**

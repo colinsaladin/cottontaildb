@@ -198,7 +198,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
                         val destCatalogueTx = destinationContext.getTx(destination) as CatalogueTx
                         val destSchemaTx = destinationContext.getTx(destCatalogueTx.schemaForName(srcSchemaName)) as SchemaTx
                         val destEntityTx = destinationContext.getTx(destSchemaTx.entityForName(srcEntityName)) as EntityTx
-                        srcEntityTx.scan(columns, j, p).forEach { r ->
+                        srcEntityTx.cursor(columns, j, p).forEach { r ->
                             this.logStdout("-- Migrating data for ${srcEntityName}... (${++i} / $count)\r")
                             destEntityTx.insert(r)
                         }

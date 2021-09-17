@@ -132,7 +132,7 @@ class UniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractInd
 
             /* Truncate, reopen and repopulate store. */
             this.clear()
-            entityTx.scan(this@UniqueHashIndex.columns).forEach { record ->
+            entityTx.cursor(this@UniqueHashIndex.columns).forEach { record ->
                 val value = record[this.dbo.columns[0]] ?: throw TxException.TxValidationException(this.context.txId, "Value cannot be null for UniqueHashIndex ${this@UniqueHashIndex.name} given value is (value = null, tupleId = ${record.tupleId}).")
                 if (!this.addMapping(value, record.tupleId)) {
                     throw TxException.TxValidationException(this.context.txId, "Value must be unique for UniqueHashIndex ${this@UniqueHashIndex.name} but is not (value = $value, tupleId = ${record.tupleId}).")

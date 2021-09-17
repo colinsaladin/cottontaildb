@@ -3,10 +3,8 @@ package org.vitrivr.cottontail.database.entity
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap
 import jetbrains.exodus.bindings.ByteBinding
 import jetbrains.exodus.bindings.LongBinding
-import jetbrains.exodus.env.Cursor
 import jetbrains.exodus.env.Store
 import jetbrains.exodus.env.StoreConfig
-import org.vitrivr.cottontail.database.catalogue.Catalogue
 
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.catalogue.entries.ColumnCatalogueEntry
@@ -22,6 +20,7 @@ import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.schema.DefaultSchema
+import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Record
@@ -264,7 +263,21 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          * Optimizes the [DefaultEntity] underlying this [Tx]. Optimization involves rebuilding of [Index]es and statistics.
          */
         override fun optimize() = this.txLatch.withLock {
-            TODO()
+            val statistics = this.columns.values.map { /* Reset column statistics. */
+                val stat = it.statistics() as ValueStatistics<Value>
+                stat.reset()
+                stat
+            }
+
+            /* Iterate over all entries and update indexes and statistics. */
+            val cursor = this.cursor(this.columns.values.map { it.columnDef }.toTypedArray())
+            while (cursor.moveNext()) {
+                var i = 0
+                cursor.value().forEach { _, v -> statistics[i++].insert(v) }
+            }
+
+            /* Close all the opened cursors. */
+            cursor.close()
         }
 
         /**
@@ -275,67 +288,86 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          *
          * @param columns The [ColumnDef]s that should be scanned.
          *
-         * @return [Iterator]
+         * @return [Cursor]
          */
-        override fun scan(columns: Array<ColumnDef<*>>): Iterator<Record> = scan(columns, 0, 1)
+        override fun cursor(columns: Array<ColumnDef<*>>): Cursor<Record> = cursor(columns, 0, 1)
 
         /**
          * Creates and returns a new [Iterator] for this [DefaultEntity.Tx] that returns all [TupleId]s
          * contained within the surrounding [DefaultEntity] and a certain range.
          *
          * @param columns The [ColumnDef]s that should be scanned.
-         * @param partitionIndex The [partitionIndex] for this [scan] call.
-         * @param partitions The total number of partitions for this [scan] call.
+         * @param partitionIndex The [partitionIndex] for this [cursor] call.
+         * @param partitions The total number of partitions for this [cursor] call.
          *
-         * @return [Iterator]
+         * @return [Cursor]
          */
-        override fun scan(columns: Array<ColumnDef<*>>, partitionIndex: Int, partitions: Int) = object : Iterator<Record> {
+        override fun cursor(columns: Array<ColumnDef<*>>, partitionIndex: Int, partitions: Int) = object : Cursor<Record> {
 
             /** The maximum [TupleId] to iterate over. */
-            private var now: TupleId
+            private var current: TupleId
 
             /** The maximum [TupleId] to iterate over. */
             private val end: TupleId
 
-            /** List of [ColumnTx]s used by  this [Iterator]. */
-            private val txs = columns.map {
-                this@Tx.columns[it.name] ?: throw IllegalArgumentException("Column $it does not exist on entity ${this@DefaultEntity.name}.")
-            }
-
-            /** The wrapped [Iterator] of the first column. */
-            private val cursor: Cursor = this@Tx.entityStore.openCursor(this@Tx.context.xodusTx)
-
-            /** Array of [Value]s emitted by this [Iterator]. */
-            private val values = arrayOfNulls<Value?>(columns.size)
+            /** The wrapped cursor to iterate over the entity. */
+            private val cursor = this@Tx.entityStore.openCursor(this@Tx.context.xodusTx)
 
             init {
                 val maximum: Long = this@Tx.maxTupleId()
                 val partitionSize: Long = Math.floorDiv(maximum, partitions.toLong()) + 1L
                 this.cursor.getSearchKeyRange(LongBinding.longToCompressedEntry(partitionIndex * partitionSize)) /* Set start of cursor. */
-                this.now = LongBinding.compressedEntryToLong(this.cursor.key)
+                this.current = LongBinding.compressedEntryToLong(this.cursor.key)
                 this.end = min(((partitionIndex + 1) * partitionSize), maximum)
             }
 
+            /** The wrapped cursor to iterate over the entity. */
+            private val columnCursors = this@Tx.columns.values.map {
+                it.cursor(LongBinding.compressedEntryToLong(cursor.key))
+            }
+
+            /** Array of [Value]s emitted by this [Iterator]. */
+            private val values = arrayOfNulls<Value?>(columns.size)
+
             /**
-             * Returns the next element in the iteration.
+             * Returns the [TupleId] this [Cursor] is currently pointing to.
              */
-            override fun next(): Record {
-                for ((i, tx) in this.txs.withIndex()) {
-                    this.values[i] = tx.get(this.now)
+            override fun key(): TupleId = this.current
+
+            /**
+             * Returns the [Record] this [Cursor] is currently pointing to.
+             */
+            override fun value(): Record {
+                for ((i, c) in this.columnCursors.withIndex()) {
+                    if (c.key() == this.current) {
+                        this.values[i] = c.value()
+                    } else {
+                        this.values[i] = null
+                    }
                 }
-                return StandaloneRecord(this.now, columns, this.values)
+                return StandaloneRecord(this.current, columns, this.values)
             }
 
             /**
-             * Returns `true` if the iteration has more elements.
+             * Tries to move this [Cursor]. Returns true on success and false otherwise.
              */
-            override fun hasNext(): Boolean {
-                return if (this.cursor.next) {
-                    this.now = LongBinding.compressedEntryToLong(this.cursor.key)
-                    return this.now < this.end
-                } else {
-                    false
+            override fun moveNext(): Boolean {
+                var ret = false
+                if (this.current < this.end && this.cursor.next) {
+                    this.current = LongBinding.compressedEntryToLong(this.cursor.key)
+                    if (this.current < this.end) {
+                        this.columnCursors.forEach { if (it.key() < this.current) it.moveNext() }
+                        ret = true
+                    }
                 }
+                return ret
+            }
+
+            /**
+             * Closes this [Cursor].
+             */
+            override fun close() {
+                this.cursor.close()
             }
         }
 

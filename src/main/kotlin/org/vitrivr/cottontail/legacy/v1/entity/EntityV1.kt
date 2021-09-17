@@ -13,6 +13,7 @@ import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.general.AbstractTx
+import org.vitrivr.cottontail.database.general.Cursor
 import org.vitrivr.cottontail.database.general.DBOVersion
 import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx
@@ -244,9 +245,9 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
-        override fun scan(columns: Array<ColumnDef<*>>): Iterator<Record> = scan(columns, 0, 1)
+        override fun cursor(columns: Array<ColumnDef<*>>): Cursor<Record> = cursor(columns, 0, 1)
 
-        override fun scan(columns: Array<ColumnDef<*>>, partitionIndex: Int, partitions: Int): Iterator<Record> = object : Iterator<Record> {
+        override fun cursor(columns: Array<ColumnDef<*>>, partitionIndex: Int, partitions: Int): Cursor<Record> = object : Cursor<Record> {
 
             /** The [LongRange] to iterate over. */
             private val range: LongRange
@@ -262,10 +263,7 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
             /** The wrapped [Iterator] of the first (primary) column. */
             private val wrapped = (this@Tx.context.getTx(this@EntityV1.columns.values.first()) as ColumnV1<*>.Tx).scan(range)
 
-            /**
-             * Returns the next element in the iteration.
-             */
-            override fun next(): Record {
+            override fun value(): Record {
                 /* Read values from underlying columns. */
                 val tupleId = this.wrapped.next()
                 val values = columns.map {
@@ -277,13 +275,11 @@ class EntityV1(override val name: Name.EntityName, override val parent: SchemaV1
                 /* Return value of all the desired columns. */
                 return StandaloneRecord(tupleId, columns, values)
             }
-
-            /**
-             * Returns `true` if the iteration has more elements.
-             */
-            override fun hasNext(): Boolean {
+            override fun key(): TupleId = this.wrapped.next()
+            override fun moveNext(): Boolean {
                 return this.wrapped.hasNext()
             }
+            override fun close() { /* No op. */ }
         }
 
         override fun count(): Long {

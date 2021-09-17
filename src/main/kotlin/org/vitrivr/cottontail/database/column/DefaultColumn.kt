@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.column
 
 import jetbrains.exodus.bindings.LongBinding
+import jetbrains.exodus.env.Cursor
 import jetbrains.exodus.env.Store
 import jetbrains.exodus.env.StoreConfig
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
@@ -158,6 +159,24 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
             } else {
                 false
             }
+        }
+
+        /**
+         * Opens a new [Cursor] for this [DefaultColumn.Tx].
+         *
+         * @param start The [TupleId] to start the [Cursor] at.
+         * @return [Cursor]
+         */
+        override fun cursor(start: TupleId): org.vitrivr.cottontail.database.general.Cursor<T> = object : org.vitrivr.cottontail.database.general.Cursor<T> {
+            /** Internal [Cursor] used for iteration. */
+            private val cursor: Cursor = this@Tx.dataStore.openCursor(this@Tx.context.xodusTx)
+            init {
+                this.cursor.getSearchKeyRange(LongBinding.longToCompressedEntry(start))
+            }
+            override fun moveNext(): Boolean = this.cursor.next
+            override fun key(): TupleId = LongBinding.compressedEntryToLong(this.cursor.key)
+            override fun value(): T = this@Tx.binding.entryToValue(this.cursor.value)
+            override fun close() = this.cursor.close()
         }
 
         /**

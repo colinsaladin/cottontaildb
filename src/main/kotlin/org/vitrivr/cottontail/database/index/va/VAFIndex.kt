@@ -174,7 +174,7 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
                 }
                 else -> {
                     /* Brute force :-( This may take a while. */
-                    entityTx.scan(this@VAFIndex.columns).forEach { r ->
+                    entityTx.cursor(this@VAFIndex.columns).forEach { r ->
                         val value = r[this@VAFIndex.columns[0]] as VectorValue<*>
                         for (i in 0 until value.logicalSize) {
                             min[i] = min(min[i], value[i].asDouble().value)
@@ -190,7 +190,7 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
 
             /* Calculate and update signatures. */
             this.clear()
-            entityTx.scan(this@VAFIndex.columns).forEach { r ->
+            entityTx.cursor(this@VAFIndex.columns).forEach { r ->
                 val value = r[this@VAFIndex.columns[0]]
                 if (value is RealVectorValue<*>) {
                     this.dataStore.put(this.context.xodusTx, r.tupleId.toKey(), VAFSignature.objectToEntry(this.marks.getSignature(value)))

@@ -3,12 +3,10 @@ package org.vitrivr.cottontail.legacy.v1.column
 import org.mapdb.CottontailStoreWAL
 import org.mapdb.DBException
 import org.vitrivr.cottontail.database.catalogue.Catalogue
-import org.vitrivr.cottontail.database.column.Column
-import org.vitrivr.cottontail.database.column.ColumnDef
-import org.vitrivr.cottontail.database.column.ColumnEngine
-import org.vitrivr.cottontail.database.column.ColumnTx
+import org.vitrivr.cottontail.database.column.*
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.AbstractTx
+import org.vitrivr.cottontail.database.general.Cursor
 import org.vitrivr.cottontail.database.general.DBOVersion
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import org.vitrivr.cottontail.execution.TransactionContext
@@ -133,8 +131,8 @@ class ColumnV1<T : Value>(override val name: Name.ColumnName, override val paren
         /** Obtains a global (non-exclusive) read-lock on [ColumnV1]. Prevents enclosing [ColumnV1] from being closed while this [ColumnV1.Tx] is still in use. */
         private val closeStamp = this@ColumnV1.closeLock.readLock()
 
-        /** Tries to acquire a global read-lock on the [ColumnV1]. */
         init {
+            /* Tries to acquire a global read-lock on the column. */
             if (this@ColumnV1.closed) {
                 this@ColumnV1.closeLock.unlockRead(this.closeStamp)
                 throw TxException.TxDBOClosedException(this.context.txId, this@ColumnV1)
@@ -215,6 +213,10 @@ class ColumnV1<T : Value>(override val name: Name.ColumnName, override val paren
 
         override fun cleanup() {
             this@ColumnV1.closeLock.unlockRead(this.closeStamp)
+        }
+
+        override fun cursor(start: TupleId): Cursor<T> {
+            TODO("Not yet implemented")
         }
     }
 }

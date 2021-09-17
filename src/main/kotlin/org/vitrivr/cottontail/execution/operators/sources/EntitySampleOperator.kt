@@ -32,7 +32,7 @@ class EntitySampleOperator(groupId: GroupId, entity: EntityTx, fetch: List<Pair<
         val values = arrayOfNulls<Value?>(this.columns.size)
         return flow {
             val random = SplittableRandom(this@EntitySampleOperator.seed)
-            for (record in this@EntitySampleOperator.entity.scan(fetch)) {
+            for (record in this@EntitySampleOperator.entity.cursor(fetch)) {
                 if (random.nextDouble(0.0, 1.0) <= this@EntitySampleOperator.p) {
                     var i = 0
                     record.forEach { _, v -> values[i++] = v }

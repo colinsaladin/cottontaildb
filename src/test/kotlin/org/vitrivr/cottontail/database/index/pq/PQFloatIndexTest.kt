@@ -96,7 +96,7 @@ class PQFloatIndexTest : AbstractIndexTest() {
         /* Fetch results through full table scan. */
         val bruteForceResults = MinHeapSelection<ComparablePair<TupleId, DoubleValue>>(k)
         val bruteForceDuration = measureTime {
-            entityTx.scan(arrayOf(this.indexColumn)).forEach {
+            entityTx.cursor(arrayOf(this.indexColumn)).forEach {
                 val vector = it[this.indexColumn]
                 if (vector is FloatVectorValue) {
                     bruteForceResults.offer(ComparablePair(it.tupleId, function(query, vector)))

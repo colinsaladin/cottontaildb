@@ -20,7 +20,7 @@ import kotlin.math.min
  * @author Ralph Gasser
  * @version 2.2.0
  */
-class LimitingSortPhysicalOperatorNode(input: Physical? = null, sortOn: List<Pair<ColumnDef<*>, SortOrder>>, val limit: Long, val skip: Long) : UnaryPhysicalOperatorNode(input) {
+class LimitingSortPhysicalOperatorNode(input: Physical? = null, override val sortOn: List<Pair<ColumnDef<*>, SortOrder>>, val limit: Long, val skip: Long) : UnaryPhysicalOperatorNode(input) {
     companion object {
         private const val NODE_NAME = "OrderAndLimit"
     }
@@ -47,9 +47,6 @@ class LimitingSortPhysicalOperatorNode(input: Physical? = null, sortOn: List<Pai
                 }
             } * this.outputSize).toFloat()
         )
-
-    /** A [SortPhysicalOperatorNode] orders the input in by the specified [ColumnDef]s. */
-    override val sortOn = sortOn
 
     init {
         if (this.sortOn.isEmpty()) throw QueryException.QuerySyntaxException("At least one column must be specified for sorting.")
@@ -79,7 +76,7 @@ class LimitingSortPhysicalOperatorNode(input: Physical? = null, sortOn: List<Pai
     override fun toOperator(ctx: QueryContext): Operator {
         val p = this.totalCost.parallelisation()
         val input = this.input ?: throw IllegalStateException("Cannot convert disconnected OperatorNode to Operator (node = $this)")
-        return if (p > 1) {
+        return if (p > 1 && input.canBePartitioned) {
             val partitions = input.partition(p).map { it.toOperator(ctx) }
             MergeLimitingHeapSortOperator(partitions, this.sortOn, this.limit)
         } else {

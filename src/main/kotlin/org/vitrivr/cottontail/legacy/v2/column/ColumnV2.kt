@@ -213,5 +213,9 @@ class ColumnV2<T : Value>(val path: Path, override val parent: Entity) : Column<
         override fun cleanup() {
             this@ColumnV2.closeLock.unlockRead(this.closeStamp)
         }
+
+        override fun cursor(start: TupleId): Cursor<T> {
+            TODO("Not yet implemented")
+        }
     }
 }

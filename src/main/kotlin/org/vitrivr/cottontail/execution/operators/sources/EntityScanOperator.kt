@@ -31,7 +31,7 @@ class EntityScanOperator(groupId: GroupId, entity: EntityTx, fetch: List<Pair<Na
         val columns = this.columns.toTypedArray()
         val values = arrayOfNulls<Value?>(this.columns.size)
         return flow {
-            for (record in this@EntityScanOperator.entity.scan(fetch, this@EntityScanOperator.partitionIndex, this@EntityScanOperator.partitions)) {
+            for (record in this@EntityScanOperator.entity.cursor(fetch, this@EntityScanOperator.partitionIndex, this@EntityScanOperator.partitions)) {
                 var i = 0
                 record.forEach { _, v -> values[i++] = v }
                 val r = StandaloneRecord(record.tupleId, columns, values)

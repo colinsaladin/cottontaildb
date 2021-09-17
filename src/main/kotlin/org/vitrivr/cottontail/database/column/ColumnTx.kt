@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.database.column
 
+import org.vitrivr.cottontail.database.general.Cursor
 import org.vitrivr.cottontail.database.general.Tx
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import org.vitrivr.cottontail.model.basics.TupleId
@@ -31,6 +32,14 @@ interface ColumnTx<T : Value> : Tx {
      * @return [ValueStatistics].
      */
     fun statistics(): ValueStatistics<T>
+
+    /**
+     * Opens a new [Cursor] for this [ColumnTx].
+     *
+     * @param start The [TupleId] to start the [Cursor] at.
+     * @return [Cursor]
+     */
+    fun cursor(start: TupleId): Cursor<T>
 
     /**
      * Gets and returns an entry from this [Column].
