@@ -24,7 +24,7 @@ class StringValueStatistics : ValueStatistics<StringValue>(Type.String) {
         fun read(stream: ByteArrayInputStream): StringValueStatistics {
             val stat = StringValueStatistics()
             stat.minWidth = IntegerBinding.readCompressed(stream)
-            stat.minWidth = IntegerBinding.readCompressed(stream)
+            stat.maxWidth = IntegerBinding.readCompressed(stream)
             return stat
         }
 
