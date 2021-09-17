@@ -13,7 +13,6 @@ import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.general.DBO
 import org.vitrivr.cottontail.database.general.Tx
-import org.vitrivr.cottontail.database.general.TxStatus
 import org.vitrivr.cottontail.database.locking.Lock
 import org.vitrivr.cottontail.database.locking.LockHolder
 import org.vitrivr.cottontail.database.locking.LockManager
@@ -190,16 +189,23 @@ class TransactionManager(private val catalogue: DefaultCatalogue, private val tr
          */
         private fun commitInternal() {
             check(this@Transaction.state === TransactionStatus.READY) { "Cannot commit transaction ${this@Transaction.txId} because it is in wrong state (s = ${this@Transaction.state})." }
-            check(this@Transaction.txns.values.none { it.status == TxStatus.ERROR }) { "Cannot commit transaction ${this@Transaction.txId} because some of the participating Tx are in an error state." }
             this@Transaction.state = TransactionStatus.FINALIZING
             try {
                 this@Transaction.txns.values.reversed().forEachIndexed { i, txn ->
                     try {
-                        txn.onCommit()
+                        txn.beforeCommit()
                     } catch (e: Throwable) {
-                        LOGGER.error("An error occurred while committing Tx $i (${txn.dbo.name}) of transaction ${this@Transaction.txId}. This is serious!", e)
+                        LOGGER.error("An error occurred while preparing commit for Tx $i (${txn.dbo.name}) of transaction ${this@Transaction.txId}.", e)
+
+                        /* Abort transaction. */
+                        this.xodusTx.abort()
+                        this@Transaction.finalize(false)
+                        return
                     }
                 }
+
+                /* Make commits to global transaction. */
+                this.xodusTx.commit()
             } finally {
                 this@Transaction.finalize(true)
             }
@@ -226,11 +232,15 @@ class TransactionManager(private val catalogue: DefaultCatalogue, private val tr
             try {
                 this@Transaction.txns.values.reversed().forEachIndexed { i, txn ->
                     try {
-                        txn.onRollback()
+                        txn.beforeRollback()
                     } catch (e: Throwable) {
-                        LOGGER.error("An error occurred while rolling back Tx $i (${txn.dbo.name}) of transaction ${this@Transaction.txId}. This is serious!", e)
+                        LOGGER.error("An error occurred while preparing rollback for Tx $i (${txn.dbo.name}) of transaction ${this@Transaction.txId}.", e)
+                        return@forEachIndexed
                     }
                 }
+
+                /* Make commits to global transaction. */
+                this.xodusTx.abort()
             } finally {
                 this@Transaction.finalize(false)
             }

@@ -40,18 +40,14 @@ interface Column<T: Value> : DBO {
 
     /**
      * Size of the content of this [Column]. The size is -1 (undefined) for most type of [Column]s.
-     * However, some column types like those holding arrays may have a defined size property
      *
-     * @return size of this [Column].
+     * However, some column types like those holding arrays may have a defined size property
      */
     val size: Int
         get() = this.columnDef.type.logicalSize
 
     /**
-     * Whether or not this [Column] is nullable. Columns that are not nullable, cannot hold any
-     * null values.
-     *
-     * @return Nullability property of this [Column].
+     * Flag indicating whether this [Column] is nullable. Columns that are not nullable, cannot hold any null values.
      */
     val nullable: Boolean
         get() = this.columnDef.nullable

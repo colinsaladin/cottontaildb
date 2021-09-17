@@ -1,10 +1,6 @@
 package org.vitrivr.cottontail.database.index
 
-import junit.framework.Assert.fail
-import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.BeforeAll
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
+import org.junit.jupiter.api.*
 import org.slf4j.LoggerFactory
 import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.config.Config
@@ -12,7 +8,6 @@ import org.vitrivr.cottontail.database.catalogue.CatalogueTest
 import org.vitrivr.cottontail.database.catalogue.CatalogueTx
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.column.ColumnDef
-import org.vitrivr.cottontail.database.column.ColumnEngine
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.basics.IndexType
@@ -211,9 +206,9 @@ abstract class AbstractIndexTest {
         val countTx = tx2.getTx(entity) as EntityTx
         val postCount = countTx.count()
         if (postCount != preCount) {
-            fail("optimizing caused elements to disappear")
+            Assertions.fail<Any>("Optimization caused elements to disappear")
         }
-        countTx.onCommit()
+        countTx.beforeCommit()
     }
 
     /**

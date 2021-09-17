@@ -363,7 +363,7 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
         /**
          * Commits changes made through the [IndexWriter]
          */
-        override fun onCommit() {
+        override fun beforeCommit() {
             if (this.indexWriter.hasUncommittedChanges()) {
                 this.indexWriter.commit()
             }
@@ -376,7 +376,7 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
         /**
          * Rolls back changes made through the [IndexWriter]
          */
-        override fun onRollback() {
+        override fun beforeRollback() {
             if (this.indexWriter.hasUncommittedChanges()) {
                 this.indexWriter.rollback()
             }

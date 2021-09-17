@@ -24,18 +24,17 @@ interface Tx {
     /** [TransactionContext] this [Tx] takes place in. */
     val context: TransactionContext
 
-    /** [TxStatus] of this [Tx]. */
-    val status: TxStatus
+    /**
+     * Called before the global transaction is committed.
+     *
+     * Can be used by this [Tx] to finalize its portion of the transaction.
+     */
+    fun beforeCommit()
 
     /**
-     * Called when the global transaction is committed. Can be used by this [Tx] to finalize its portion
-     * of the transaction and perform necessary clean-up.
+     * Called when the global transaction is rolled back.
+     *
+     * Can be used by this [Tx] to finalize its portion of the transaction.
      */
-    fun onCommit()
-
-    /**
-     * Called when the global transaction is rolled back. Can be used by this [Tx] to finalize its portion
-     * of the transaction and perform necessary clean-up.
-     */
-    fun onRollback()
+    fun beforeRollback()
 }
