@@ -262,6 +262,9 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
         /** The [TransactionType] of a [MigrationManager] is always [TransactionType.SYSTEM]. */
         override val type: TransactionType = TransactionType.SYSTEM
 
+        /** [LegacyMigrationContext] are always [readonly]. */
+        override val readonly: Boolean = true
+
         /** The [TransactionStatus] of this [MigrationContext]. */
         @Volatile
         override var state: TransactionStatus = TransactionStatus.READY
@@ -331,6 +334,9 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
         @Volatile
         override var state: TransactionStatus = TransactionStatus.READY
             private set
+
+        /** [MigrationContext]s are never readonly. */
+        override val readonly: Boolean = false
 
         /** Map of all [Tx] that have been created as part of this [MigrationManager]. Used for final COMMIT or ROLLBACK. */
         protected val txns: MutableMap<DBO, Tx> = Object2ObjectMaps.synchronize(Object2ObjectLinkedOpenHashMap())
