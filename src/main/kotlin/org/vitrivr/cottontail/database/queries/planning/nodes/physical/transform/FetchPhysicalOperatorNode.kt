@@ -37,11 +37,7 @@ class FetchPhysicalOperatorNode(input: Physical? = null, val entity: EntityTx, v
     /** The [Cost] of a [FetchPhysicalOperatorNode]. */
     override val cost: Cost
         get() = Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.columns.sumOf {
-            if (it.type == Type.String) {
-                this.statistics[it].avgWidth * Char.SIZE_BYTES
-            } else {
-                it.type.physicalSize
-            }
+            this.statistics[it]?.avgWidth ?: it.type.logicalSize
         }
 
     /**
