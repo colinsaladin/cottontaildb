@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicLong
  * create and execute queries within different [Transaction]s.
  *
  * @author Ralph Gasser
- * @version 2.0.0
+ * @version 3.0.0
  */
 class TransactionManager(private val catalogue: DefaultCatalogue, private val transactionHistorySize: Int, transactionTableSize: Int) {
     /** Logger used for logging the output. */
@@ -67,7 +67,7 @@ class TransactionManager(private val catalogue: DefaultCatalogue, private val tr
      * @author Ralph Gasser
      * @version 1.3.0
      */
-    inner class Transaction(override val type: TransactionType) : LockHolder<DBO>(this@TransactionManager.tidCounter.getAndIncrement()), TransactionContext {
+    inner class Transaction(override val type: TransactionType, override val readonly: Boolean = false) : LockHolder<DBO>(this@TransactionManager.tidCounter.getAndIncrement()), TransactionContext {
 
         /** The [TransactionStatus] of this [Transaction]. */
         @Volatile
@@ -75,8 +75,11 @@ class TransactionManager(private val catalogue: DefaultCatalogue, private val tr
             private set
 
         /** The [jetbrains.exodus.env.Transaction] used by this [Transaction]. */
-        override val xodusTx: jetbrains.exodus.env.Transaction
-            get() = this@TransactionManager.catalogue.environment.beginTransaction()
+        override val xodusTx: jetbrains.exodus.env.Transaction = if (this.readonly) {
+            this@TransactionManager.catalogue.environment.beginReadonlyTransaction()
+        } else {
+            this@TransactionManager.catalogue.environment.beginTransaction()
+        }
 
         /** Map of all [Tx] that have been created as part of this [Transaction]. */
         private val txns: MutableMap<DBO, Tx> = Object2ObjectMaps.synchronize(Object2ObjectLinkedOpenHashMap())
@@ -191,21 +194,23 @@ class TransactionManager(private val catalogue: DefaultCatalogue, private val tr
             check(this@Transaction.state === TransactionStatus.READY) { "Cannot commit transaction ${this@Transaction.txId} because it is in wrong state (s = ${this@Transaction.state})." }
             this@Transaction.state = TransactionStatus.FINALIZING
             try {
-                this@Transaction.txns.values.reversed().forEachIndexed { i, txn ->
-                    try {
-                        txn.beforeCommit()
-                    } catch (e: Throwable) {
-                        LOGGER.error("An error occurred while preparing commit for Tx $i (${txn.dbo.name}) of transaction ${this@Transaction.txId}.", e)
+                if (!this.readonly) {
+                    this@Transaction.txns.values.reversed().forEachIndexed { i, txn ->
+                        try {
+                            txn.beforeCommit()
+                        } catch (e: Throwable) {
+                            LOGGER.error("An error occurred while preparing commit for Tx $i (${txn.dbo.name}) of transaction ${this@Transaction.txId}.", e)
 
-                        /* Abort transaction. */
-                        this.xodusTx.abort()
-                        this@Transaction.finalize(false)
-                        return
+                            /* Abort transaction. */
+                            this.xodusTx.abort()
+                            this@Transaction.finalize(false)
+                            return
+                        }
                     }
-                }
 
-                /* Make commits to global transaction. */
-                this.xodusTx.commit()
+                    /* Make commits to global transaction. */
+                    this.xodusTx.commit()
+                }
             } finally {
                 this@Transaction.finalize(true)
             }
@@ -230,17 +235,19 @@ class TransactionManager(private val catalogue: DefaultCatalogue, private val tr
             check(this@Transaction.state === TransactionStatus.READY || this@Transaction.state === TransactionStatus.ERROR || this@Transaction.state === TransactionStatus.KILLED) { "Cannot rollback transaction ${this@Transaction.txId} because it is in wrong state (s = ${this@Transaction.state})." }
             this@Transaction.state = TransactionStatus.FINALIZING
             try {
-                this@Transaction.txns.values.reversed().forEachIndexed { i, txn ->
-                    try {
-                        txn.beforeRollback()
-                    } catch (e: Throwable) {
-                        LOGGER.error("An error occurred while preparing rollback for Tx $i (${txn.dbo.name}) of transaction ${this@Transaction.txId}.", e)
-                        return@forEachIndexed
+                if (!this.readonly) {
+                    this@Transaction.txns.values.reversed().forEachIndexed { i, txn ->
+                        try {
+                            txn.beforeRollback()
+                        } catch (e: Throwable) {
+                            LOGGER.error("An error occurred while preparing rollback for Tx $i (${txn.dbo.name}) of transaction ${this@Transaction.txId}.", e)
+                            return@forEachIndexed
+                        }
                     }
-                }
 
-                /* Make commits to global transaction. */
-                this.xodusTx.abort()
+                    /* Make commits to global transaction. */
+                    this.xodusTx.abort()
+                }
             } finally {
                 this@Transaction.finalize(false)
             }

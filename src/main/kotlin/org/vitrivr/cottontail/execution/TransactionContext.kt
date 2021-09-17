@@ -14,7 +14,7 @@ import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.basics.TransactionId
 
 /**
- * A [TransactionContext] used by operators and their [Txn]s to execute and obtain necessary locks
+ * A [TransactionContext] used by operators to execute and obtain necessary resources and maintain a global state.
  *
  * @author Ralph Gasser
  * @version 3.0.0
@@ -30,8 +30,11 @@ interface TransactionContext {
     /** The [TransactionType] of this [TransactionContext]. */
     val type: TransactionType
 
-    /** The [TransactionContext] of this [TransactionContext]. */
+    /** The [TransactionStatus] of this [TransactionContext]. */
     val state: TransactionStatus
+
+    /** Flag indicating if this [TransactionContext] is readonly. */
+    val readonly: Boolean
 
     /**
      * Obtains a [Tx] for the given [DBO]. This method should make sure, that only one [Tx] per [DBO] is created.
