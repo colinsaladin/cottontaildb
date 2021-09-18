@@ -6,6 +6,7 @@ import jetbrains.exodus.env.Environments
 import jetbrains.exodus.env.forEach
 import org.vitrivr.cottontail.config.Config
 import org.vitrivr.cottontail.database.catalogue.entries.*
+import org.vitrivr.cottontail.database.catalogue.entries.MetadataEntry.Companion.METADATA_ENTRY_DB_VERSION
 import org.vitrivr.cottontail.database.general.*
 import org.vitrivr.cottontail.database.schema.DefaultSchema
 import org.vitrivr.cottontail.database.schema.Schema
@@ -35,13 +36,13 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
      */
     companion object {
         /** Prefix used for actual column stores. */
-        internal const val ENTITY_STORE_PREFIX: String = "ctt_ent_"
+        internal const val ENTITY_STORE_PREFIX: String = "ctt_ent"
 
         /** Prefix used for actual column stores. */
-        internal const val COLUMN_STORE_PREFIX: String = "ctt_col_"
+        internal const val COLUMN_STORE_PREFIX: String = "ctt_col"
 
         /** Prefix used for actual index stores. */
-        internal const val INDEX_STORE_PREFIX: String = "ctt_idx_"
+        internal const val INDEX_STORE_PREFIX: String = "ctt_idx"
     }
 
     /** Root to Cottontail DB root folder. */
@@ -75,14 +76,24 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
     internal val environment: Environment = Environments.newInstance(
         this.config.root.resolve("xodus").toFile(),
         EnvironmentConfig().setLogCacheUseNio(true)
-            .setLogCacheReadAheadMultiple(100)
-            .setEnvStoreGetCacheSize(200)
+            .setLogCachePageSize(64 * 1024)
+            .setTreeMaxPageSize(1024)
+            .setTreeDupMaxPageSize(128)
+            .setLogFileSize(32768)
+            .setLogCacheUseNio(true)
+            .setLogCacheReadAheadMultiple(25)
+            .setEnvStoreGetCacheSize(100)
     )
 
     init {
         /* Check if catalogue has been initialized and initialize if needed. */
         this.environment.executeInExclusiveTransaction { tx ->
             if (this.environment.getAllStoreNames(tx).size == 0) {
+                /* Initialize database metadata. */
+                MetadataEntry.init(this, tx)
+                MetadataEntry.write(MetadataEntry(METADATA_ENTRY_DB_VERSION, this.version.toString()), this, tx)
+
+                /* Initialize necessary stores. */
                 SchemaCatalogueEntry.init(this, tx)
                 EntityCatalogueEntry.init(this, tx)
                 SequenceCatalogueEntries.init(this, tx)
@@ -90,6 +101,12 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
                 StatisticsCatalogueEntry.init(this, tx)
                 IndexCatalogueEntry.init(this, tx)
                 IndexStructCatalogueEntry.init(this, tx)
+            }
+
+            /* Check database version. */
+            val version = MetadataEntry.read(METADATA_ENTRY_DB_VERSION, this, tx)?.let { it -> DBOVersion.valueOf(it.value) } ?: DBOVersion.UNDEFINED
+            if (version != this.version) {
+                throw DatabaseException.VersionMismatchException(this.version, version)
             }
         }
 
