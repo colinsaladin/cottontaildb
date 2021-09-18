@@ -1,31 +1,39 @@
 package org.vitrivr.cottontail.storage.serializers.xodus
 
-import jetbrains.exodus.bindings.ComparableBinding
-import jetbrains.exodus.bindings.DoubleBinding
+import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.util.LightOutputStream
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.DoubleVectorValue
-import java.io.ByteArrayInputStream
+import java.nio.ByteBuffer
 
 /**
- * A [ComparableBinding] for Xodus based [DoubleVectorValue] serialization and deserialization.
+ * A [XodusBinding] for [DoubleVectorValue] serialization and deserialization.
  *
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class DoubleVectorValueXodusBinding(val size: Int): XodusBinding<DoubleVectorValue>() {
+class DoubleVectorValueXodusBinding(val size: Int): XodusBinding<DoubleVectorValue> {
     init {
         require(this.size > 0) { "Cannot initialize vector value binding with size value of $size." }
     }
 
-    override fun readObject(stream: ByteArrayInputStream) = DoubleVectorValue(DoubleArray(this.size) {
-        DoubleBinding.BINDING.readObject(stream)
-    })
+    override val type: Type<DoubleVectorValue> = Type.DoubleVector(this.size)
 
-    override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
-        require(`object` is DoubleVectorValue) { "Cannot serialize value of type $`object` to DoubleVectorValue." }
-        require(`object`.logicalSize == this.size) { "Dimension ${`object`.logicalSize} of $`object` does not match size ${this.size} of this binding." }
-        for (d in `object`.data) {
-            DoubleBinding.BINDING.writeObject(output, d)
-        }
+    private val buffer = ByteBuffer.allocate(this.type.physicalSize)
+
+    private val array = DoubleArray(this.size)
+
+    override fun entryToValue(entry: ByteIterable): DoubleVectorValue {
+        this.buffer.clear()
+        this.buffer.put(entry.bytesUnsafe)
+        this.buffer.flip()
+        repeat(this.size) { this.array[it] = this.buffer.double }
+        return DoubleVectorValue(this.array)
+    }
+
+    override fun valueToEntry(value: DoubleVectorValue): ByteIterable {
+        this.buffer.clear()
+        for (v in value.data) this.buffer.putDouble(v)
+        return LightOutputStream(this.buffer.array()).asArrayByteIterable()
     }
 }
