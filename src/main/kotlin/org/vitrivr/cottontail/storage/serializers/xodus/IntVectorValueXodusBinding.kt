@@ -1,32 +1,34 @@
 package org.vitrivr.cottontail.storage.serializers.xodus
 
-import jetbrains.exodus.bindings.ComparableBinding
-import jetbrains.exodus.bindings.IntegerBinding
+import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.util.LightOutputStream
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.IntVectorValue
-import org.vitrivr.cottontail.model.values.StringValue
-import java.io.ByteArrayInputStream
+import java.nio.ByteBuffer
 
 /**
- * A [ComparableBinding] for Xodus based [IntVectorValue] serialization and deserialization.
+ * A [XodusBinding] for [IntVectorValue] serialization and deserialization.
  *
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class IntVectorValueXodusBinding(val size: Int): XodusBinding<IntVectorValue>() {
+class IntVectorValueXodusBinding(val size: Int): XodusBinding<IntVectorValue> {
     init {
         require(this.size > 0) { "Cannot initialize vector value binding with size value of $size." }
     }
 
-    override fun readObject(stream: ByteArrayInputStream) = IntVectorValue(IntArray(this.size) {
-        IntegerBinding.BINDING.readObject(stream)
-    })
+    override val type: Type<IntVectorValue> = Type.IntVector(this.size)
+    private val buffer = ByteBuffer.allocate(this.type.physicalSize)
+    override fun entryToValue(entry: ByteIterable): IntVectorValue {
+        this.buffer.clear()
+        this.buffer.put(entry.bytesUnsafe)
+        this.buffer.flip()
+        return IntVectorValue(IntArray(this.size) { this.buffer.int })
+    }
 
-    override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
-        require(`object` is IntVectorValue) { "Cannot serialize value of type $`object` to IntVectorValue." }
-        require(`object`.logicalSize == this.size) { "Dimension ${`object`.logicalSize} of $`object` does not match size ${this.size} of this binding." }
-        for (d in `object`.data) {
-            IntegerBinding.BINDING.writeObject(output, d)
-        }
+    override fun valueToEntry(value: IntVectorValue): ByteIterable {
+        this.buffer.clear()
+        for (v in value.data) this.buffer.putInt(v)
+        return LightOutputStream(this.buffer.array()).asArrayByteIterable()
     }
 }

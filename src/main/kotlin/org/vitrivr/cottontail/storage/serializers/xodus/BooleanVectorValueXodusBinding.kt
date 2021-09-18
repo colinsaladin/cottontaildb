@@ -1,10 +1,9 @@
 package org.vitrivr.cottontail.storage.serializers.xodus
 
-import jetbrains.exodus.bindings.BooleanBinding
+import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.bindings.ComparableBinding
-import jetbrains.exodus.util.LightOutputStream
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.BooleanVectorValue
-import java.io.ByteArrayInputStream
 
 /**
  * A [ComparableBinding] for Xodus based [BooleanVectorValue] serialization and deserialization.
@@ -12,20 +11,19 @@ import java.io.ByteArrayInputStream
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class BooleanVectorValueXodusBinding(val size: Int): XodusBinding<BooleanVectorValue>() {
+class BooleanVectorValueXodusBinding(val size: Int): XodusBinding<BooleanVectorValue> {
     init {
         require(this.size > 0) { "Cannot initialize vector value binding with size value of $size." }
     }
 
-    override fun readObject(stream: ByteArrayInputStream) = BooleanVectorValue(BooleanArray(this.size) {
-        BooleanBinding.BINDING.readObject(stream)
-    })
+    override val type: Type<BooleanVectorValue>
+        get() = TODO("Not yet implemented")
 
-    override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
-        require(`object` is BooleanVectorValue) { "Cannot serialize value of type $`object` to BooleanVectorValue." }
-        require(`object`.logicalSize == this.size) { "Dimension ${`object`.logicalSize} of $`object` does not match size ${this.size} of this binding." }
-        for (d in `object`.data) {
-            BooleanBinding.BINDING.writeObject(output, d)
-        }
+    override fun entryToValue(entry: ByteIterable): BooleanVectorValue {
+        TODO("Not yet implemented")
+    }
+
+    override fun valueToEntry(value: BooleanVectorValue): ByteIterable {
+        TODO("Not yet implemented")
     }
 }

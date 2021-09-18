@@ -1,22 +1,18 @@
 package org.vitrivr.cottontail.storage.serializers.xodus
 
-import jetbrains.exodus.bindings.ComparableBinding
+import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.bindings.ShortBinding
-import jetbrains.exodus.util.LightOutputStream
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.ShortValue
-import org.vitrivr.cottontail.model.values.StringValue
-import java.io.ByteArrayInputStream
 
 /**
- * A [ComparableBinding] for Xodus based [ShortValue] serialization and deserialization.
+ * A [XodusBinding] for [ShortValue] serialization and deserialization.
  *
  * @author Ralph Gasser
  * @version 1.0.0
  */
-object ShortValueXodusBinding: XodusBinding<ShortValue>(){
-    override fun readObject(stream: ByteArrayInputStream) = ShortValue(ShortBinding.BINDING.readObject(stream))
-    override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
-        require(`object` is StringValue) { "Cannot serialize value of type $`object` to ShortValue." }
-        ShortBinding.BINDING.writeObject(output, `object`.value)
-    }
+object ShortValueXodusBinding: XodusBinding<ShortValue>{
+    override val type = Type.Short
+    override fun entryToValue(entry: ByteIterable): ShortValue = ShortValue(ShortBinding.BINDING.entryToObject(entry) as Short)
+    override fun valueToEntry(value: ShortValue): ByteIterable = ShortBinding.BINDING.objectToEntry(value.value)
 }

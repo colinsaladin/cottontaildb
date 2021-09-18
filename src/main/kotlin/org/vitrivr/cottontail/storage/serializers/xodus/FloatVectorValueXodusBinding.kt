@@ -1,33 +1,40 @@
 package org.vitrivr.cottontail.storage.serializers.xodus
 
-import jetbrains.exodus.bindings.ComparableBinding
+import it.unimi.dsi.fastutil.io.FastByteArrayInputStream
+import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.bindings.FloatBinding
+import jetbrains.exodus.bindings.IntegerBinding
+import jetbrains.exodus.util.ByteIterableUtil
 import jetbrains.exodus.util.LightOutputStream
-import org.vitrivr.cottontail.model.values.DoubleVectorValue
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.FloatVectorValue
-import org.vitrivr.cottontail.model.values.StringValue
 import java.io.ByteArrayInputStream
 
 /**
- * A [ComparableBinding] for Xodus based [FloatVectorValue] serialization and deserialization.
+ * A [XodusBinding] for [FloatVectorValue] serialization and deserialization.
  *
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class FloatVectorValueXodusBinding(val size: Int): XodusBinding<FloatVectorValue>() {
+class FloatVectorValueXodusBinding(val size: Int): XodusBinding<FloatVectorValue> {
     init {
         require(this.size > 0) { "Cannot initialize vector value binding with size value of $size." }
     }
 
-    override fun readObject(stream: ByteArrayInputStream) = FloatVectorValue(FloatArray(this.size) {
-        FloatBinding.BINDING.readObject(stream)
-    })
+    override val type: Type<FloatVectorValue> = Type.FloatVector(this.size)
+    private val array = FloatArray(this.size)
 
-    override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
-        require(`object` is FloatVectorValue) { "Cannot serialize value of type $`object` to FloatVectorValue." }
-        require(`object`.logicalSize == this.size) { "Dimension ${`object`.logicalSize} of $`object` does not match size ${this.size} of this binding." }
-        for (d in `object`.data) {
-            FloatBinding.BINDING.writeObject(output, d)
+    override fun entryToValue(entry: ByteIterable): FloatVectorValue {
+        val stream = ByteArrayInputStream(entry.bytesUnsafe)
+        repeat(this.size) { this.array[it] = FloatBinding.BINDING.readObject(stream) }
+        return FloatVectorValue(this.array)
+    }
+
+    override fun valueToEntry(value: FloatVectorValue): ByteIterable {
+        val output = LightOutputStream(this.type.physicalSize)
+        for (v in value.data) {
+            FloatBinding.BINDING.writeObject(output, v)
         }
+        return output.asArrayByteIterable()
     }
 }

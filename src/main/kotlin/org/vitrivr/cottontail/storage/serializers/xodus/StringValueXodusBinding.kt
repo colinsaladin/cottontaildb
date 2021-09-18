@@ -1,10 +1,10 @@
 package org.vitrivr.cottontail.storage.serializers.xodus
 
+import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.bindings.ComparableBinding
 import jetbrains.exodus.bindings.StringBinding
-import jetbrains.exodus.util.LightOutputStream
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.StringValue
-import java.io.ByteArrayInputStream
 
 /**
  * A [ComparableBinding] for Xodus based [StringBinding] serialization and deserialization.
@@ -12,10 +12,8 @@ import java.io.ByteArrayInputStream
  * @author Ralph Gasser
  * @version 1.0.0
  */
-object StringValueXodusBinding: XodusBinding<StringValue>() {
-    override fun readObject(stream: ByteArrayInputStream) = StringValue(StringBinding.BINDING.readObject(stream))
-    override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
-        require(`object` is StringValue) { "Cannot serialize value of type $`object` to StringValue." }
-        StringBinding.BINDING.writeObject(output, `object`.value)
-    }
+object StringValueXodusBinding: XodusBinding<StringValue> {
+    override val type = Type.String
+    override fun entryToValue(entry: ByteIterable): StringValue = StringValue(StringBinding.BINDING.entryToObject(entry) as String)
+    override fun valueToEntry(value: StringValue): ByteIterable = StringBinding.BINDING.objectToEntry(value.value)
 }

@@ -1,8 +1,10 @@
 package org.vitrivr.cottontail.storage.serializers.xodus
 
+import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.bindings.ComparableBinding
 import jetbrains.exodus.bindings.DoubleBinding
 import jetbrains.exodus.util.LightOutputStream
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.Complex64VectorValue
 import java.io.ByteArrayInputStream
 
@@ -12,20 +14,19 @@ import java.io.ByteArrayInputStream
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class Complex64VectorValueXodusBinding(val size: Int): XodusBinding<Complex64VectorValue>() {
+class Complex64VectorValueXodusBinding(val size: Int): XodusBinding<Complex64VectorValue> {
     init {
         require(this.size > 0) { "Cannot initialize vector value binding with size value of $size." }
     }
 
-    override fun readObject(stream: ByteArrayInputStream) = Complex64VectorValue(DoubleArray(2 * this.size) {
-        DoubleBinding.BINDING.readObject(stream)
-    })
+    override val type: Type<Complex64VectorValue>
+        get() = TODO("Not yet implemented")
 
-    override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
-        require(`object` is Complex64VectorValue) { "Cannot serialize value of type $`object` to Complex64VectorValue." }
-        require(`object`.logicalSize == this.size) { "Dimension ${`object`.logicalSize} of $`object` does not match size ${this.size} of this binding." }
-        for (d in `object`.data) {
-            DoubleBinding.BINDING.writeObject(output, d)
-        }
+    override fun entryToValue(entry: ByteIterable): Complex64VectorValue {
+        TODO("Not yet implemented")
+    }
+
+    override fun valueToEntry(value: Complex64VectorValue): ByteIterable {
+        TODO("Not yet implemented")
     }
 }

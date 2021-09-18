@@ -4,6 +4,7 @@ import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.bindings.ComparableBinding
 import jetbrains.exodus.util.ByteArraySizedInputStream
 import org.mapdb.Serializer
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.Value
 import java.io.ByteArrayInputStream
 
@@ -13,7 +14,24 @@ import java.io.ByteArrayInputStream
  * @author Ralph Gasser
  * @version 1.0.0
  */
-abstract class XodusBinding<T: Value> : ComparableBinding() {
-    abstract override fun readObject(stream: ByteArrayInputStream): T
-    fun entryToValue(entry: ByteIterable): T = readObject(ByteArraySizedInputStream(entry.bytesUnsafe, 0, entry.length))
+interface XodusBinding<T: Value> {
+
+    /** The [Type] converted by this [XodusBinding]. */
+    val type: Type<T>
+
+    /**
+     * Converts a [ByteIterable] to a [Value].
+     *
+     * @param entry The [ByteIterable] to convert.
+     * @return The resulting [Value].
+     */
+    fun entryToValue(entry: ByteIterable): T
+
+    /**
+     * Converts a [Value] to a [ByteIterable].
+     *
+     * @param value The [Value] to convert.
+     * @return The resulting [ByteIterable].
+     */
+    fun valueToEntry(value: T): ByteIterable
 }

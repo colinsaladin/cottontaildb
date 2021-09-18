@@ -1,22 +1,18 @@
 package org.vitrivr.cottontail.storage.serializers.xodus
 
+import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.bindings.BooleanBinding
-import jetbrains.exodus.bindings.ComparableBinding
-import jetbrains.exodus.util.LightOutputStream
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.BooleanValue
-import org.vitrivr.cottontail.model.values.BooleanVectorValue
-import java.io.ByteArrayInputStream
 
 /**
- * A [ComparableBinding] for Xodus based [BooleanValue] serialization and deserialization.
+ * A [XodusBinding] for [BooleanValue] serialization and deserialization.
  *
  * @author Ralph Gasser
  * @version 1.0.0
  */
-object BooleanValueXodusBinding: XodusBinding<BooleanValue>(){
-    override fun readObject(stream: ByteArrayInputStream) = BooleanValue(BooleanBinding.BINDING.readObject(stream))
-    override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
-        require(`object` is BooleanValue) { "Cannot serialize value of type $`object` to BooleanValue." }
-        BooleanBinding.BINDING.writeObject(output, `object`.value)
-    }
+object BooleanValueXodusBinding: XodusBinding<BooleanValue>{
+    override val type = Type.Boolean
+    override fun entryToValue(entry: ByteIterable): BooleanValue = BooleanValue(BooleanBinding.BINDING.entryToObject(entry) as Boolean)
+    override fun valueToEntry(value: BooleanValue): ByteIterable = BooleanBinding.BINDING.objectToEntry(value.value)
 }

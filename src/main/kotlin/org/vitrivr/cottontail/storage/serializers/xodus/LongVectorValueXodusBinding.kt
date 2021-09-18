@@ -1,32 +1,34 @@
 package org.vitrivr.cottontail.storage.serializers.xodus
 
-import jetbrains.exodus.bindings.ComparableBinding
-import jetbrains.exodus.bindings.LongBinding
+import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.util.LightOutputStream
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.LongVectorValue
-import org.vitrivr.cottontail.model.values.StringValue
-import java.io.ByteArrayInputStream
+import java.nio.ByteBuffer
 
 /**
- * A [ComparableBinding] for Xodus based [LongVectorValue] serialization and deserialization.
+ * A [XodusBinding] for [LongVectorValue] serialization and deserialization.
  *
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class LongVectorValueXodusBinding(val size: Int): XodusBinding<LongVectorValue>() {
+class LongVectorValueXodusBinding(val size: Int): XodusBinding<LongVectorValue> {
     init {
         require(this.size > 0) { "Cannot initialize vector value binding with size value of $size." }
     }
 
-    override fun readObject(stream: ByteArrayInputStream) = LongVectorValue(LongArray(this.size) {
-        LongBinding.BINDING.readObject(stream)
-    })
+    override val type: Type<LongVectorValue> = Type.LongVector(this.size)
+    private val buffer = ByteBuffer.allocate(this.type.physicalSize)
+    override fun entryToValue(entry: ByteIterable): LongVectorValue {
+        this.buffer.clear()
+        this.buffer.put(entry.bytesUnsafe)
+        this.buffer.flip()
+        return LongVectorValue(LongArray(this.size) { this.buffer.long })
+    }
 
-    override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
-        require(`object` is LongVectorValue) { "Cannot serialize value of type $`object` to LongVectorValue." }
-        require(`object`.logicalSize == this.size) { "Dimension ${`object`.logicalSize} of $`object` does not match size ${this.size} of this binding." }
-        for (d in `object`.data) {
-            LongBinding.BINDING.writeObject(output, d)
-        }
+    override fun valueToEntry(value: LongVectorValue): ByteIterable {
+        this.buffer.clear()
+        for (v in value.data) this.buffer.putLong(v)
+        return LightOutputStream(this.buffer.array()).asArrayByteIterable()
     }
 }
