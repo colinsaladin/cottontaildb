@@ -102,7 +102,7 @@ class UniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractInd
          * This is an internal function and can be used safely with values o
          */
         private fun addMapping(key: Value, tupleId: TupleId): Boolean {
-            val keyRaw = this.binding.objectToEntry(key)
+            val keyRaw = (this.binding as XodusBinding<Value>).valueToEntry(key)
             val tupleIdRaw = LongBinding.longToCompressedEntry(tupleId)
             return if (this.dataStore.get(this.context.xodusTx, keyRaw) != null) {
                 this.dataStore.put(this.context.xodusTx, keyRaw, tupleIdRaw)
@@ -119,7 +119,7 @@ class UniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractInd
          * This is an internal function and can be used safely with values o
          */
         private fun removeMapping(key: Value): Boolean {
-            val keyRaw = this.binding.objectToEntry(key)
+            val keyRaw = (this.binding as XodusBinding<Value>).valueToEntry(key)
             return this.dataStore.delete(this.context.xodusTx, keyRaw)
         }
 

@@ -112,7 +112,7 @@ class NonUniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : Abstract
          * This is an internal function and can be used safely with values o
          */
         private fun addMapping(key: Value, tupleId: TupleId): Boolean {
-            val keyRaw = this.binding.objectToEntry(key)
+            val keyRaw = (this.binding as XodusBinding<Value>).valueToEntry(key)
             val tupleIdRaw = LongBinding.longToCompressedEntry(tupleId)
             return if (this.dataStore.exists(this.context.xodusTx, keyRaw, tupleIdRaw)) {
                 this.dataStore.put(this.context.xodusTx, keyRaw, tupleIdRaw)
@@ -129,7 +129,7 @@ class NonUniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : Abstract
          * This is an internal function and can be used safely with values o
          */
         private fun removeMapping(key: Value, tupleId: TupleId): Boolean {
-            val keyRaw = this.binding.objectToEntry(key)
+            val keyRaw = (this.binding as XodusBinding<Value>).valueToEntry(key)
             val valueRaw = LongBinding.longToCompressedEntry(tupleId)
             val cursor = this.dataStore.openCursor(this.context.xodusTx)
             if (cursor.getSearchBoth(keyRaw, valueRaw)) {
