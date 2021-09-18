@@ -71,7 +71,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
     override fun migrate(config: Config) {
         /** Opens old catalogue. */
         val duration = measureTime {
-            this.log("Starting catalogue migration from V${this.from} for ${config.root}.\n")
+            this.log("Starting catalogue migration from ${this.from} for ${config.root}.\n")
             val srcCatalogue: Catalogue? = this.openSourceCatalogue(config)
             if (srcCatalogue == null) {
                 this.log("Failed to open source catalogue.\n")
