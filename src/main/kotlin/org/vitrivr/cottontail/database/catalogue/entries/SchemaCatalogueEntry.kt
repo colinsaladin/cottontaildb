@@ -51,10 +51,10 @@ data class SchemaCatalogueEntry(val name: Name.SchemaName): Comparable<SchemaCat
         /**
          * Reads the [SchemaCatalogueEntry] for the given [Name.SchemaName] from the given [DefaultCatalogue].
          *
-         * @param name [Name.EntityName] to retrieve the [EntityCatalogueEntry] for.
-         * @param catalogue [DefaultCatalogue] to retrieve [EntityCatalogueEntry] from.
+         * @param name [Name.SchemaName] to retrieve the [SchemaCatalogueEntry] for.
+         * @param catalogue [DefaultCatalogue] to retrieve [SchemaCatalogueEntry] from.
          * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
-         * @return [EntityCatalogueEntry]
+         * @return [SchemaCatalogueEntry]
          */
         internal fun read(name: Name.SchemaName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): SchemaCatalogueEntry? {
             val rawEntry = store(catalogue, transaction).get(transaction, Name.SchemaName.objectToEntry(name))
@@ -68,10 +68,10 @@ data class SchemaCatalogueEntry(val name: Name.SchemaName): Comparable<SchemaCat
         /**
          * Reads the [SchemaCatalogueEntry] for the given [Name.SchemaName] from the given [DefaultCatalogue].
          *
-         * @param name [Name.EntityName] to retrieve the [EntityCatalogueEntry] for.
-         * @param catalogue [DefaultCatalogue] to retrieve [EntityCatalogueEntry] from.
+         * @param name [Name.SchemaName] to retrieve the [SchemaCatalogueEntry] for.
+         * @param catalogue [DefaultCatalogue] to retrieve [SchemaCatalogueEntry] from.
          * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
-         * @return [EntityCatalogueEntry]
+         * @return [SchemaCatalogueEntry]
          */
         internal fun exists(name: Name.SchemaName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
             store(catalogue, transaction).get(transaction, Name.SchemaName.objectToEntry(name)) != null
@@ -79,8 +79,8 @@ data class SchemaCatalogueEntry(val name: Name.SchemaName): Comparable<SchemaCat
         /**
          * Writes the given [SchemaCatalogueEntry] to the given [DefaultCatalogue].
          *
-         * @param entry [EntityCatalogueEntry] to write
-         * @param catalogue [DefaultCatalogue] to write [EntityCatalogueEntry] to.
+         * @param entry [SchemaCatalogueEntry] to write
+         * @param catalogue [DefaultCatalogue] to write [SchemaCatalogueEntry] to.
          * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
          * @return True on success, false otherwise.
          */

@@ -92,7 +92,7 @@ data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, va
          * @return True on success, false otherwise.
          */
         internal fun delete(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
-            IndexCatalogueEntry.store(catalogue, transaction).delete(transaction, Name.ColumnName.objectToEntry(name))
+            store(catalogue, transaction).delete(transaction, Name.ColumnName.objectToEntry(name))
 
         override fun readObject(stream: ByteArrayInputStream): ColumnCatalogueEntry = ColumnCatalogueEntry(
             Name.ColumnName.readObject(stream),
