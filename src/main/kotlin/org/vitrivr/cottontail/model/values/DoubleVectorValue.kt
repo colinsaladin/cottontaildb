@@ -11,7 +11,7 @@ import kotlin.math.pow
  * This is an abstraction over a [DoubleArray] and it represents a vector of [Double]s.
  *
  * @author Ralph Gasser
- * @version 1.6.0
+ * @version 1.6.1
  */
 @JvmInline
 value class DoubleVectorValue(val data: DoubleArray) : RealVectorValue<Double> {
@@ -59,6 +59,17 @@ value class DoubleVectorValue(val data: DoubleArray) : RealVectorValue<Double> {
      * @return True if equal, false otherwise.
      */
     override fun isEqual(other: Value): Boolean = (other is DoubleVectorValue) && (this.data.contentEquals(other.data))
+
+    /**
+     * Compares this [DoubleVectorValue] to another [DoubleVectorValue]. Throws an error, if the other [Value] is not a [DoubleVectorValue].
+     *
+     * @param other [DoubleVectorValue] to compare to.
+     * @return True if equal, false otherwise.
+     */
+    override fun compareTo(other: Value): Int {
+        require(other is DoubleVectorValue) { "Cannot compare DoubleVectorValue to other type of Value." }
+        return Arrays.compare(this.data, other.data)
+    }
 
     /**
      * Returns the indices of this [DoubleVectorValue].

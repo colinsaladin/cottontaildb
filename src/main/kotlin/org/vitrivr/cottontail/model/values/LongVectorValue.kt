@@ -12,7 +12,7 @@ import kotlin.math.pow
  * This is an abstraction over a [FloatArray] and it represents a vector of [Float]s.
  *
  * @author Ralph Gasser
- * @version 1.6.0
+ * @version 1.6.1
  */
 @JvmInline
 value class LongVectorValue(val data: LongArray) : RealVectorValue<Long> {
@@ -60,6 +60,17 @@ value class LongVectorValue(val data: LongArray) : RealVectorValue<Long> {
      * @return True if equal, false otherwise.
      */
     override fun isEqual(other: Value): Boolean = (other is LongVectorValue) && (this.data.contentEquals(other.data))
+
+    /**
+     * Compares this [LongVectorValue] to another [LongVectorValue]. Throws an error, if the other [Value] is not a [LongVectorValue].
+     *
+     * @param other [LongVectorValue] to compare to.
+     * @return True if equal, false otherwise.
+     */
+    override fun compareTo(other: Value): Int {
+        require(other is LongVectorValue) { "Cannot compare LongVectorValue to other type of Value." }
+        return Arrays.compare(this.data, other.data)
+    }
 
     /**
      * Returns the indices of this [LongVectorValue].

@@ -12,7 +12,7 @@ import kotlin.math.pow
  * This is an abstraction over an [IntArray] and it represents a vector of [Int]s.
  *
  * @author Ralph Gasser
- * @version 1.6.0
+ * @version 1.6.1
  */
 @JvmInline
 value class IntVectorValue(val data: IntArray) : RealVectorValue<Int> {
@@ -60,6 +60,17 @@ value class IntVectorValue(val data: IntArray) : RealVectorValue<Int> {
      * @return True if equal, false otherwise.
      */
     override fun isEqual(other: Value): Boolean = (other is IntVectorValue) && (this.data.contentEquals(other.data))
+
+    /**
+     * Compares this [IntVectorValue] to another [IntVectorValue]. Throws an error, if the other [Value] is not a [IntVectorValue].
+     *
+     * @param other [IntVectorValue] to compare to.
+     * @return True if equal, false otherwise.
+     */
+    override fun compareTo(other: Value): Int {
+        require(other is IntVectorValue) { "Cannot compare IntVectorValue to other type of Value." }
+        return Arrays.compare(this.data, other.data)
+    }
 
     /**
      * Returns the indices of this [IntVectorValue].

@@ -5,6 +5,7 @@ import org.vitrivr.cottontail.model.values.types.NumericValue
 import org.vitrivr.cottontail.model.values.types.RealVectorValue
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.model.values.types.VectorValue
+import org.vitrivr.cottontail.utilities.extensions.toDouble
 import org.vitrivr.cottontail.utilities.extensions.toInt
 import java.util.*
 
@@ -12,7 +13,7 @@ import java.util.*
  * This is an abstraction over a [BooleanArray] and it represents a vector of [Boolean]s.
  *
  * @author Ralph Gasser
- * @version 1.6.0
+ * @version 1.6.1
  */
 @JvmInline
 value class BooleanVectorValue(val data: BooleanArray) : RealVectorValue<Int> {
@@ -62,6 +63,17 @@ value class BooleanVectorValue(val data: BooleanArray) : RealVectorValue<Int> {
      * @return True if equal, false otherwise.
      */
     override fun isEqual(other: Value): Boolean = (other is BooleanVectorValue) && (this.data.contentEquals(other.data))
+
+    /**
+     * Compares this [BooleanVectorValue] to another [BooleanVectorValue]. Throws an error, if the other [Value] is not a [BooleanVectorValue].
+     *
+     * @param other [BooleanVectorValue] to compare to.
+     * @return True if equal, false otherwise.
+     */
+    override fun compareTo(other: Value): Int {
+        require(other is BooleanVectorValue) { "Cannot compare BooleanVectorValue to other type of Value." }
+        return Arrays.compare(this.data, other.data)
+    }
 
     /**
      * Returns the indices of this [BooleanVectorValue].
@@ -212,12 +224,8 @@ value class BooleanVectorValue(val data: BooleanArray) : RealVectorValue<Int> {
 
     override fun abs(): RealVectorValue<Int> = this.copy()
 
-    override fun sum(): DoubleValue = DoubleValue(this.data.sumByDouble {
-        if (it) {
-            1.0
-        } else {
-            0.0
-        }
+    override fun sum(): DoubleValue = DoubleValue(this.data.sumOf {
+        it.toDouble()
     })
 
     override fun norm2(): DoubleValue {
