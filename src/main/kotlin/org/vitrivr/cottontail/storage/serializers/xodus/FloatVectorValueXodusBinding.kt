@@ -1,14 +1,13 @@
 package org.vitrivr.cottontail.storage.serializers.xodus
 
-import it.unimi.dsi.fastutil.io.FastByteArrayInputStream
 import jetbrains.exodus.ByteIterable
+import jetbrains.exodus.bindings.BindingUtils
 import jetbrains.exodus.bindings.FloatBinding
-import jetbrains.exodus.bindings.IntegerBinding
-import jetbrains.exodus.util.ByteIterableUtil
 import jetbrains.exodus.util.LightOutputStream
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.FloatVectorValue
 import java.io.ByteArrayInputStream
+import java.nio.ByteBuffer
 
 /**
  * A [XodusBinding] for [FloatVectorValue] serialization and deserialization.
@@ -23,10 +22,17 @@ class FloatVectorValueXodusBinding(val size: Int): XodusBinding<FloatVectorValue
 
     override val type: Type<FloatVectorValue> = Type.FloatVector(this.size)
     private val array = FloatArray(this.size)
-
+    private val buffer = ByteBuffer.allocate(8)
     override fun entryToValue(entry: ByteIterable): FloatVectorValue {
-        val stream = ByteArrayInputStream(entry.bytesUnsafe)
-        repeat(this.size) { this.array[it] = FloatBinding.BINDING.readObject(stream) }
+        val iterator = entry.bytesUnsafe
+        var i = 0
+        while (iterator.hasNext()) {
+            this.buffer.clear()
+            this.buffer.putLong(iterator.nextLong(8))
+            this.buffer.flip()
+            this.array[i++] = buffer.float
+            this.array[i++] = buffer.float
+        }
         return FloatVectorValue(this.array)
     }
 

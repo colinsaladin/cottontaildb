@@ -347,17 +347,7 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
             /**
              * Returns the [Record] this [Cursor] is currently pointing to.
              */
-            override fun value(): Record {
-                for ((i, c) in this.columnCursors.withIndex()) {
-                    if (c.key() < this.current) c.moveNext()
-                    if (c.key() == this.current) {
-                        this.values[i] = c.value()
-                    } else {
-                        this.values[i] = null
-                    }
-                }
-                return StandaloneRecord(this.current, columns, this.values)
-            }
+            override fun value(): Record = StandaloneRecord(this.current, columns, this.values)
 
             /**
              * Tries to move this [Cursor]. Returns true on success and false otherwise.
@@ -365,6 +355,14 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
             override fun moveNext(): Boolean {
                 if (this.current < this.end && this.cursor.next) {
                     this.current = LongBinding.compressedEntryToLong(this.cursor.key)
+                    for ((i, c) in this.columnCursors.withIndex()) {
+                        if (c.key() < this.current) c.moveNext()
+                        if (c.key() == this.current) {
+                            this.values[i] = c.value()
+                        } else {
+                            this.values[i] = null
+                        }
+                    }
                     return this.current < this.end
                 }
                 return false

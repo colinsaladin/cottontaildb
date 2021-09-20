@@ -5,7 +5,8 @@ import jetbrains.exodus.env.Cursor
 import jetbrains.exodus.env.Environments
 import jetbrains.exodus.env.Store
 import jetbrains.exodus.env.StoreConfig
-import jetbrains.exodus.log.Log
+import jetbrains.exodus.log.LogConfig
+import jetbrains.exodus.log.Loggable
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.catalogue.entries.StatisticsCatalogueEntry
 import org.vitrivr.cottontail.database.catalogue.storeName
@@ -100,6 +101,8 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
                 this.dbo.catalogue.closeLock.unlockRead(this.closeStamp)
                 throw TxException.TxDBOClosedException(this.context.txId, this.dbo)
             }
+
+           this@DefaultColumn.catalogue.environment.statistics
         }
 
         /**
@@ -132,24 +135,24 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          */
         override fun put(tupleId: TupleId, value: T): T? = this.txLatch.withLock {
             /* Read existing value. */
-            val existing = this.dataStore.get(this.context.xodusTx, tupleId.toKey())?.let { this.binding.entryToValue(it) }
+            val rawTuple = tupleId.toKey()
+            val existing = this.dataStore.get(this.context.xodusTx, rawTuple)?.let { this.binding.entryToValue(it) }
 
             /* Perform PUT and update statistics. */
             if (existing == null) {
-                if (!this.dataStore.add(this.context.xodusTx, tupleId.toKey(), this.binding.objectToEntry(value))) {
+                if (!this.dataStore.add(this.context.xodusTx, rawTuple, this.binding.valueToEntry(value))) {
                     throw DatabaseException.DataCorruptionException("Failed to ADD tuple $tupleId to column ${this@DefaultColumn.name}.")
                 }
-                this.dirty = true
                 this.statistics.insert(value)
             } else {
-                if (!this.dataStore.put(this.context.xodusTx, tupleId.toKey(), this.binding.objectToEntry(value))) {
+                if (!this.dataStore.put(this.context.xodusTx, rawTuple, this.binding.valueToEntry(value))) {
                     throw DatabaseException.DataCorruptionException("Failed to PUT tuple $tupleId to column ${this@DefaultColumn.name}.")
                 }
-                this.dirty = true
                 this.statistics.update(existing, value)
             }
 
-            /* Update value. */
+            /* Return updated value. */
+            this.dirty = true
             return existing
         }
 
@@ -200,31 +203,36 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          * @return [Cursor]
          */
         override fun cursor(start: TupleId): org.vitrivr.cottontail.database.general.Cursor<T> = this.txLatch.withLock {
-                object : org.vitrivr.cottontail.database.general.Cursor<T> {
-                /** The maximum [TupleId] to iterate over. */
-                private var current: TupleId
-
+            object : org.vitrivr.cottontail.database.general.Cursor<T> {
                 /** Internal [Cursor] used for iteration. */
                 private val cursor: Cursor = this@Tx.dataStore.openCursor(this@Tx.context.xodusTx)
+
+                /** The [TupleId] this [Cursor] currently points to. */
+                private var tid: TupleId
+
+                /** The [Value] this [Cursor] currently points to. */
+                private var value: T? = null
 
                 init {
                     if (start > -1L) {
                         this.cursor.getSearchKeyRange(start.toKey())
-                        this.current = LongBinding.compressedEntryToLong(this.cursor.key)
+                        this.tid = LongBinding.compressedEntryToLong(this.cursor.key)
+                        this.value = this@Tx.binding.entryToValue(this.cursor.value)
                     } else {
-                        this.current = start
+                        this.tid = -1L
                     }
                 }
 
                 override fun moveNext(): Boolean {
                     if (this.cursor.next) {
-                        this.current = LongBinding.compressedEntryToLong(this.cursor.key)
+                        this.tid = LongBinding.compressedEntryToLong(this.cursor.key)
+                        this.value = this@Tx.binding.entryToValue(this.cursor.value)
                         return true
                     }
                     return false
                 }
-                override fun key(): TupleId = this.current
-                override fun value(): T = this@Tx.binding.entryToValue(this.cursor.value)
+                override fun key(): TupleId = this.tid
+                override fun value(): T = this.value ?: throw DatabaseException.DataCorruptionException("")
                 override fun close() = this.cursor.close()
             }
         }
@@ -234,13 +242,9 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          */
         override fun beforeCommit() {
             /* Update statistics if there have been changes. */
-            if (this.dirty) {
-                val entry = StatisticsCatalogueEntry.read(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)
-                    ?: throw DatabaseException.DataCorruptionException("Failed to DELETE value from ${this@DefaultColumn.name}: Reading column statistics failed.")
-                if (!StatisticsCatalogueEntry.write(entry.copy(statistics = this.statistics), this@DefaultColumn.catalogue, this.context.xodusTx)) {
-                    throw DatabaseException.DataCorruptionException("Failed to PUT value from ${this@DefaultColumn.name}: Update of column statistics failed.")
-                }
-            }
+            val entry = StatisticsCatalogueEntry.read(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)
+                ?: throw DatabaseException.DataCorruptionException("Failed to DELETE value from ${this@DefaultColumn.name}: Reading column statistics failed.")
+            StatisticsCatalogueEntry.write(entry.copy(statistics = this.statistics), this@DefaultColumn.catalogue, this.context.xodusTx)
             super.beforeCommit()
         }
 
