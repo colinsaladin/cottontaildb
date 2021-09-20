@@ -6,6 +6,7 @@ import jetbrains.exodus.env.Store
 import jetbrains.exodus.env.StoreConfig
 import jetbrains.exodus.env.Transaction
 import jetbrains.exodus.util.LightOutputStream
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.model.basics.Name
@@ -26,18 +27,6 @@ data class SchemaCatalogueEntry(val name: Name.SchemaName): Comparable<SchemaCat
         private const val CATALOGUE_SCHEMA_STORE_NAME: String = "ctt_cat_schemas"
 
         /**
-         * Returns the [Store] for [SchemaCatalogueEntry] entries.
-         *
-         * @param catalogue [DefaultCatalogue] to access [Store] for.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
-         * @return [Store]
-         */
-        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Store {
-            return catalogue.environment.openStore(CATALOGUE_SCHEMA_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
-                ?: throw DatabaseException.DataCorruptionException("Failed to open store for schema catalogue.")
-        }
-
-        /**
          * Initializes the store used to store [SchemaCatalogueEntry] in Cottontail DB.
          *
          * @param catalogue The [DefaultCatalogue] to initialize.
@@ -46,6 +35,18 @@ data class SchemaCatalogueEntry(val name: Name.SchemaName): Comparable<SchemaCat
         internal fun init(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()) {
             catalogue.environment.openStore(CATALOGUE_SCHEMA_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, true)
                 ?: throw DatabaseException.DataCorruptionException("Failed to create schema catalogue store.")
+        }
+
+        /**
+         * Returns the [Store] for [SchemaCatalogueEntry] entries.
+         *
+         * @param catalogue [DefaultCatalogue] to access [Store] for.
+         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @return [Store]
+         */
+        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Store {
+            return catalogue.environment.openStore(CATALOGUE_SCHEMA_STORE_NAME, StoreConfig.USE_EXISTING, transaction, false)
+                ?: throw DatabaseException.DataCorruptionException("Failed to open store for schema catalogue.")
         }
 
         /**
@@ -59,7 +60,7 @@ data class SchemaCatalogueEntry(val name: Name.SchemaName): Comparable<SchemaCat
         internal fun read(name: Name.SchemaName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): SchemaCatalogueEntry? {
             val rawEntry = store(catalogue, transaction).get(transaction, Name.SchemaName.objectToEntry(name))
             return if (rawEntry != null) {
-                SchemaCatalogueEntry.entryToObject(rawEntry) as SchemaCatalogueEntry
+                entryToObject(rawEntry) as SchemaCatalogueEntry
             } else {
                 null
             }
@@ -85,7 +86,7 @@ data class SchemaCatalogueEntry(val name: Name.SchemaName): Comparable<SchemaCat
          * @return True on success, false otherwise.
          */
         internal fun write(entry: SchemaCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
-            store(catalogue, transaction).put(transaction, Name.SchemaName.objectToEntry(entry.name), SchemaCatalogueEntry.objectToEntry(entry))
+            store(catalogue, transaction).put(transaction, Name.SchemaName.objectToEntry(entry.name), objectToEntry(entry))
 
         /**
          * Deletes the [SchemaCatalogueEntry] for the given [Name.SchemaName] from the given [DefaultCatalogue].

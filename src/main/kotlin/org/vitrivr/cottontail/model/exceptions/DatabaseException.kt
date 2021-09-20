@@ -1,6 +1,8 @@
 package org.vitrivr.cottontail.model.exceptions
 
+import org.vitrivr.cottontail.database.general.DBO
 import org.vitrivr.cottontail.database.general.DBOVersion
+import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.model.basics.Name
 
 open class DatabaseException(message: String, cause: Throwable? = null) : Throwable(message, cause) {
@@ -46,36 +48,36 @@ open class DatabaseException(message: String, cause: Throwable? = null) : Throwa
     class EntityDoesNotExistException(val entity: Name.EntityName) : DatabaseException("Entity '$entity' does not exist!")
 
     /**
-     * Thrown whenever trying to create an [Index][org.vitrivr.cottontail.database.index.AbstractIndex]
+     * Thrown whenever trying to create an [Index]
      * that does already exist.
      *
-     * @param index The [Name] of the [Index][org.vitrivr.cottontail.database.index.AbstractIndex]
+     * @param index The [Name] of the [Index]
      */
     class IndexAlreadyExistsException(val index: Name.IndexName) : DatabaseException("Index '$index' does already exist!")
 
     /**
-     * Thrown whenever trying to access an [Index][org.vitrivr.cottontail.database.index.AbstractIndex]
+     * Thrown whenever trying to access an [Index]
      * that does not exist.
      *
-     * @param index The [Name] of the [Index][org.vitrivr.cottontail.database.index.AbstractIndex]
+     * @param index The [Name] of the [Index]
      */
     class IndexDoesNotExistException(val index: Name) : DatabaseException("Index '$index' does not exist!")
 
     /**
-     * Thrown whenever trying to create an [Index][[org.vitrivr.cottontail.database.index.AbstractIndex] that is not supported (yet). *
+     * Thrown whenever trying to create an [Index][ that is not supported (yet). *
      *
-     * @param index The [Name] of the [Index][org.vitrivr.cottontail.database.index.AbstractIndex]
+     * @param index The [Name] of the [Index]
      */
-    class IndexNotSupportedException(val index: Name.IndexName, val reason: String) : DatabaseException("Index '$index' could not be created: $reason")
+    class IndexNotSupportedException(val index: Name.IndexName, reason: String) : DatabaseException("Index '$index' could not be created: $reason")
 
     /**
      * Thrown upon creation of an [Entity][org.vitrivr.cottontail.database.entity.DefaultEntity]
      * if the definition contains duplicate column names.
      *
      * @param entity [Name] of the affected [Entity][org.vitrivr.cottontail.database.entity.DefaultEntity]
-     * @param columns [Name] of the [Column][org.vitrivr.cottontail.database.column.Column]s in the definition.
+     * @param column [Name] of the [Column][org.vitrivr.cottontail.database.column.Column]s in the definition.
      */
-    class DuplicateColumnException(entity: Name.EntityName, columns: Collection<Name>) : DatabaseException("Entity '$entity' could not be created because it contains duplicate column names (c=[${columns.joinToString(",")}])!")
+    class DuplicateColumnException(entity: Name.EntityName, column: Name.ColumnName) : DatabaseException("Column $column could not be created because it already exists on entity $entity!")
 
     /**
      * Thrown whenever trying to access a [Column][org.vitrivr.cottontail.database.column.Column]

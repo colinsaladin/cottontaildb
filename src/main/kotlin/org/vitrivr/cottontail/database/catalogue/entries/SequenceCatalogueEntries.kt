@@ -34,7 +34,7 @@ object SequenceCatalogueEntries {
      * @return [EntityCatalogueEntry]
      */
     internal fun store(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Store {
-        return catalogue.environment.openStore(CATALOGUE_SEQUENCE_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
+        return catalogue.environment.openStore(CATALOGUE_SEQUENCE_STORE_NAME, StoreConfig.USE_EXISTING, transaction, false)
             ?: throw DatabaseException.DataCorruptionException("Failed to open store for sequence catalogue.")
     }
 

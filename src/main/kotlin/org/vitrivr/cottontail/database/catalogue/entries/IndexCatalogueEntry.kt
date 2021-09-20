@@ -29,17 +29,6 @@ data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, va
         private const val CATALOGUE_INDEX_STORE_NAME: String = "ctt_cat_indexes"
 
         /**
-         * Returns the [Store] for [IndexCatalogueEntry] entries.
-         *
-         * @param catalogue [DefaultCatalogue] to retrieve [IndexCatalogueEntry] from.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
-         * @return [Store]
-         */
-        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Store =
-            catalogue.environment.openStore(CATALOGUE_INDEX_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
-                ?: throw DatabaseException.DataCorruptionException("Failed to open store for index catalogue.")
-
-        /**
          * Initializes the store used to store [IndexCatalogueEntry] in Cottontail DB.
          *
          * @param catalogue The [DefaultCatalogue] to initialize.
@@ -51,6 +40,17 @@ data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, va
         }
 
         /**
+         * Returns the [Store] for [IndexCatalogueEntry] entries.
+         *
+         * @param catalogue [DefaultCatalogue] to retrieve [IndexCatalogueEntry] from.
+         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @return [Store]
+         */
+        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Store =
+            catalogue.environment.openStore(CATALOGUE_INDEX_STORE_NAME, StoreConfig.USE_EXISTING, transaction, false)
+                ?: throw DatabaseException.DataCorruptionException("Failed to open store for index catalogue.")
+
+        /**
          * Reads the [IndexCatalogueEntry] for the given [Name.IndexName] from the given [DefaultCatalogue].
          *
          * @param name [Name.IndexName] to retrieve the [IndexCatalogueEntry] for.
@@ -60,7 +60,7 @@ data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, va
         internal fun read(name: Name.IndexName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): IndexCatalogueEntry? {
             val rawEntry = store(catalogue, transaction).get(transaction, Name.IndexName.objectToEntry(name))
             return if (rawEntry != null) {
-                IndexCatalogueEntry.entryToObject(rawEntry) as IndexCatalogueEntry
+                entryToObject(rawEntry) as IndexCatalogueEntry
             } else {
                 null
             }
@@ -85,7 +85,7 @@ data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, va
          * @return True on success, false otherwise.
          */
         internal fun write(entry: IndexCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
-            store(catalogue, transaction).put(transaction, Name.IndexName.objectToEntry(entry.name), IndexCatalogueEntry.objectToEntry(entry))
+            store(catalogue, transaction).put(transaction, Name.IndexName.objectToEntry(entry.name), objectToEntry(entry))
 
         /**
          * Deletes the [IndexCatalogueEntry] for the given [Name.IndexName] from the given [DefaultCatalogue].

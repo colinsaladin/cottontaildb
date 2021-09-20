@@ -27,11 +27,18 @@ interface ColumnTx<T : Value> : Tx {
         get() = this.dbo.columnDef
 
     /**
-     * Gets and returns [ValueStatistics] for this [ColumnTx]
+     * Gets and returns [ValueStatistics] for the [Column] backing this [ColumnTx]
      *
      * @return [ValueStatistics].
      */
     fun statistics(): ValueStatistics<T>
+
+    /**
+     * Returns the number of entries in the [Column] backing this [ColumnTx].
+     *
+     * @return Number of entries in [Column].
+     */
+    fun count(): Long
 
     /**
      * Opens a new [Cursor] for this [ColumnTx].
@@ -39,7 +46,7 @@ interface ColumnTx<T : Value> : Tx {
      * @param start The [TupleId] to start the [Cursor] at.
      * @return [Cursor]
      */
-    fun cursor(start: TupleId): Cursor<T>
+    fun cursor(start: TupleId): Cursor<T?>
 
     /**
      * Gets and returns an entry from this [Column].
@@ -57,16 +64,16 @@ interface ColumnTx<T : Value> : Tx {
      * @param value The new [Value]
      * @return The old [Value]
      */
-    fun put(tupleId: TupleId, value: T): T?
+    fun add(tupleId: TupleId, value: T?): Boolean
 
     /**
-     * Updates the entry with the specified [TupleId] and sets it to the new [Value] if, and only if, it currently holds the expected [Value].
+     * Updates the entry with the specified [TupleId] and sets it to the new [Value].
      *
-     * @param tupleId The ID of the record that should be updated
-     * @param value The new [Value].
-     * @param expected The [Value] expected to be there.
+     * @param tupleId The [TupleId] of the entry that should be updated.
+     * @param value The new [Value]
+     * @return The old [Value]
      */
-    fun compareAndPut(tupleId: TupleId, value: T, expected: T?): Boolean
+    fun update(tupleId: TupleId, value: T?): T?
 
     /**
      * Deletes the entry with the specified [TupleId] and sets it to the new value.

@@ -84,7 +84,7 @@ data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>
         internal fun read(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): StatisticsCatalogueEntry? {
             val rawEntry = store(catalogue, transaction).get(transaction, Name.ColumnName.objectToEntry(name))
             return if (rawEntry != null) {
-                StatisticsCatalogueEntry.entryToObject(rawEntry) as StatisticsCatalogueEntry
+                entryToObject(rawEntry) as StatisticsCatalogueEntry
             } else {
                 null
             }
@@ -99,7 +99,7 @@ data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>
          * @return True on success, false otherwise.
          */
         internal fun write(entry: StatisticsCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
-             store(catalogue, transaction).put(transaction, Name.ColumnName.objectToEntry(entry.name), StatisticsCatalogueEntry.objectToEntry(entry))
+             store(catalogue, transaction).put(transaction, Name.ColumnName.objectToEntry(entry.name), objectToEntry(entry))
 
         /**
          * Deletes the [StatisticsCatalogueEntry] for the given [Name.ColumnName] from the given [DefaultCatalogue].

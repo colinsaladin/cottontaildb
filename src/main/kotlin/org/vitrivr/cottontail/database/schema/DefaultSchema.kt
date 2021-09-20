@@ -3,12 +3,16 @@ package org.vitrivr.cottontail.database.schema
 import jetbrains.exodus.env.StoreConfig
 import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
-import org.vitrivr.cottontail.database.catalogue.entries.*
+import org.vitrivr.cottontail.database.catalogue.entries.ColumnCatalogueEntry
+import org.vitrivr.cottontail.database.catalogue.entries.EntityCatalogueEntry
+import org.vitrivr.cottontail.database.catalogue.entries.SequenceCatalogueEntries
+import org.vitrivr.cottontail.database.catalogue.entries.StatisticsCatalogueEntry
+import org.vitrivr.cottontail.database.catalogue.storeName
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.Entity
-import org.vitrivr.cottontail.database.catalogue.storeName
-import org.vitrivr.cottontail.database.general.*
+import org.vitrivr.cottontail.database.general.AbstractTx
+import org.vitrivr.cottontail.database.general.DBOVersion
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
@@ -121,8 +125,11 @@ class DefaultSchema(override val name: Name.SchemaName, override val parent: Def
             /* Check if column names are distinct. */
             val distinctSize = columns.map { it.name }.distinct().size
             if (distinctSize != columns.size) {
-                val cols = columns.map { it.name }
-                throw DatabaseException.DuplicateColumnException(name, cols)
+                columns.forEach { it1 ->
+                    if (columns.any { it2 -> it1.name == it2.name && it1 !== it2 }) {
+                        throw DatabaseException.DuplicateColumnException(name, it1.name)
+                    }
+                }
             }
 
             /* Write entity catalogue entry. */
@@ -135,10 +142,6 @@ class DefaultSchema(override val name: Name.SchemaName, override val parent: Def
                 throw DatabaseException.DataCorruptionException("CREATE entity $name failed: Failed to create sequence entry for tuple ID.")
             }
 
-            /* Store that holds entity entries. */
-            if (this@DefaultSchema.parent.environment.openStore(name.storeName(), StoreConfig.WITHOUT_DUPLICATES, this.context.xodusTx, true) == null)
-                throw DatabaseException.DataCorruptionException("CREATE entity $name failed: Failed to create store for entity.")
-
             /* Add catalogue entries and stores at column level. */
             columns.forEach {
                 if (!ColumnCatalogueEntry.write(ColumnCatalogueEntry(it), this@DefaultSchema.catalogue, this.context.xodusTx)) {
@@ -149,7 +152,7 @@ class DefaultSchema(override val name: Name.SchemaName, override val parent: Def
                     throw DatabaseException.DataCorruptionException("CREATE entity $name failed: Failed to create statistics entry for column $it.")
                 }
 
-                if (this@DefaultSchema.parent.environment.openStore(it.name.storeName(), StoreConfig.WITHOUT_DUPLICATES, this.context.xodusTx, true) == null) {
+                if (this@DefaultSchema.catalogue.environment.openStore(it.name.storeName(), StoreConfig.WITHOUT_DUPLICATES, this.context.xodusTx, true) == null) {
                     throw DatabaseException.DataCorruptionException("CREATE entity $name failed: Failed to create store for column $it.")
                 }
             }
@@ -189,9 +192,6 @@ class DefaultSchema(override val name: Name.SchemaName, override val parent: Def
             if (!SequenceCatalogueEntries.delete(name.tid(), this@DefaultSchema.catalogue, this.context.xodusTx)) {
                 throw DatabaseException.DataCorruptionException("DROP entity $name failed: Failed to delete tuple ID sequence entry.")
             }
-
-            /* Remove store for entity data. */
-            this@DefaultSchema.parent.environment.removeStore(name.storeName(), this.context.xodusTx)
         }
 
         /**

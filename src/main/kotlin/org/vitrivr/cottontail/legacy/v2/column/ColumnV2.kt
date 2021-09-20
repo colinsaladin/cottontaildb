@@ -1,20 +1,27 @@
 package org.vitrivr.cottontail.legacy.v2.column
 
-import org.mapdb.*
+import org.mapdb.CottontailStoreWAL
+import org.mapdb.DBException
+import org.mapdb.Serializer
+import org.mapdb.Store
 import org.vitrivr.cottontail.config.MapDBConfig
 import org.vitrivr.cottontail.database.catalogue.Catalogue
-import org.vitrivr.cottontail.database.column.*
+import org.vitrivr.cottontail.database.column.Column
+import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnEngine
+import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.Entity
-import org.vitrivr.cottontail.database.general.*
+import org.vitrivr.cottontail.database.general.AbstractTx
+import org.vitrivr.cottontail.database.general.Cursor
+import org.vitrivr.cottontail.database.general.DBOVersion
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import org.vitrivr.cottontail.execution.TransactionContext
-
-import org.vitrivr.cottontail.model.basics.*
+import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.TxException
 import org.vitrivr.cottontail.model.values.types.Value
-
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.concurrent.locks.StampedLock
@@ -166,7 +173,7 @@ class ColumnV2<T : Value>(val path: Path, override val parent: Entity) : Column<
          *
          * @return The number of entries in this [ColumnV2].
          */
-        fun count(): Long {
+        override fun count(): Long {
             return this@ColumnV2.header.count
         }
 
@@ -191,11 +198,11 @@ class ColumnV2<T : Value>(val path: Path, override val parent: Entity) : Column<
             override fun next(): TupleId = this.wrapped.next() - RECORD_ID_TUPLE_ID_SHIFT
         }
 
-        override fun put(tupleId: Long, value: T): T? {
+        override fun add(tupleId: TupleId, value: T?): Boolean {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
-        override fun compareAndPut(tupleId: Long, value: T, expected: T?): Boolean {
+        override fun update(tupleId: Long, value: T?): T? {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
@@ -214,8 +221,8 @@ class ColumnV2<T : Value>(val path: Path, override val parent: Entity) : Column<
             this@ColumnV2.closeLock.unlockRead(this.closeStamp)
         }
 
-        override fun cursor(start: TupleId): Cursor<T> {
-            TODO("Not yet implemented")
+        override fun cursor(start: TupleId): Cursor<T?> {
+            throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
     }
 }

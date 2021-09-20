@@ -1,13 +1,14 @@
 package org.vitrivr.cottontail.database.catalogue.entries
 
-import jetbrains.exodus.bindings.*
+import jetbrains.exodus.bindings.ComparableBinding
+import jetbrains.exodus.bindings.IntegerBinding
+import jetbrains.exodus.bindings.LongBinding
 import jetbrains.exodus.env.Store
 import jetbrains.exodus.env.StoreConfig
 import jetbrains.exodus.env.Transaction
 import jetbrains.exodus.util.LightOutputStream
 import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
-import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
@@ -20,7 +21,6 @@ import java.io.ByteArrayInputStream
  * @version 1.0.0
  */
 data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, val columns: List<Name.ColumnName>, val indexes: List<Name.IndexName>): Comparable<EntityCatalogueEntry> {
-
 
     companion object: ComparableBinding() {
 
@@ -61,7 +61,7 @@ data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, va
         internal fun read(name: Name.EntityName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): EntityCatalogueEntry? {
             val rawEntry = store(catalogue, transaction).get(transaction, Name.EntityName.objectToEntry(name))
             return if (rawEntry != null) {
-                EntityCatalogueEntry.entryToObject(rawEntry) as EntityCatalogueEntry
+                entryToObject(rawEntry) as EntityCatalogueEntry
             } else {
                 null
             }
@@ -87,7 +87,7 @@ data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, va
          * @return True on success, false otherwise.
          */
         internal fun write(entry: EntityCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
-            store(catalogue, transaction).put(transaction, Name.EntityName.objectToEntry(entry.name), EntityCatalogueEntry.objectToEntry(entry))
+            store(catalogue, transaction).put(transaction, Name.EntityName.objectToEntry(entry.name), objectToEntry(entry))
 
         /**
          * Deletes the [EntityCatalogueEntry] for the given [Name.SchemaName] from the given [DefaultCatalogue].
@@ -97,8 +97,8 @@ data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, va
          * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
          * @return True on success, false otherwise.
          */
-        internal fun delete(name: Name.EntityName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean
-                = store(catalogue, transaction).delete(transaction, Name.EntityName.objectToEntry(name))
+        internal fun delete(name: Name.EntityName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+            store(catalogue, transaction).delete(transaction, Name.EntityName.objectToEntry(name))
 
         override fun readObject(stream: ByteArrayInputStream): Comparable<Nothing> {
             val entityName = Name.EntityName.readObject(stream)

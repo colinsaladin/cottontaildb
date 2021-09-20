@@ -25,7 +25,10 @@ import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.basics.TransactionId
 import org.vitrivr.cottontail.utilities.io.TxFileUtilities
 import java.io.BufferedWriter
-import java.nio.file.*
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
+import java.nio.file.StandardOpenOption
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
@@ -371,6 +374,14 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
             check(this.state === TransactionStatus.READY) { "Cannot commit transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
             this.state = TransactionStatus.FINALIZING
             try {
+                this.txns.values.reversed().forEachIndexed { i, txn ->
+                    try {
+                        txn.beforeCommit()
+                    } catch (e: Throwable) {
+                        this.xodusTx.abort()
+                        throw e
+                    }
+                }
                 this.xodusTx.commit()
             } finally {
                 this.txns.clear()
@@ -385,10 +396,18 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
             check(this.state === TransactionStatus.READY || this.state === TransactionStatus.ERROR) { "Cannot rollback transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
             this.state = TransactionStatus.FINALIZING
             try {
+                this.txns.values.reversed().forEachIndexed { i, txn ->
+                    try {
+                        txn.beforeRollback()
+                    } catch (e: Throwable) {
+                        this.xodusTx.abort()
+                        throw e
+                    }
+                }
                 this.xodusTx.abort()
             } finally {
                 this.txns.clear()
-                this.state = TransactionStatus.COMMIT
+                this.state = TransactionStatus.ROLLBACK
             }
         }
     }

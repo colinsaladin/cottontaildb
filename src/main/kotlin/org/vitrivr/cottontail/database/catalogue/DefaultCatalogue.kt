@@ -75,11 +75,11 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
     /** The Xodus environment used for Cottontail DB. This is an internal variable and not part of the official interface. */
     internal val environment: Environment = Environments.newInstance(
         this.config.root.resolve("xodus").toFile(),
-        EnvironmentConfig().setLogCacheUseNio(true)
+        EnvironmentConfig()
             .setLogCachePageSize(64 * 1024)
             .setTreeMaxPageSize(1024)
             .setTreeDupMaxPageSize(128)
-            .setLogFileSize(32768)
+            .setLogFileSize(65536)
             .setLogCacheUseNio(true)
             .setLogCacheReadAheadMultiple(25)
             .setEnvStoreGetCacheSize(100)

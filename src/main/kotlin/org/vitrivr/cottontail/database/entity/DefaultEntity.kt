@@ -1,22 +1,23 @@
 package org.vitrivr.cottontail.database.entity
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap
-import jetbrains.exodus.bindings.ByteBinding
-import jetbrains.exodus.bindings.LongBinding
-import jetbrains.exodus.env.Store
 import jetbrains.exodus.env.StoreConfig
-
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.catalogue.entries.ColumnCatalogueEntry
 import org.vitrivr.cottontail.database.catalogue.entries.EntityCatalogueEntry
 import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
 import org.vitrivr.cottontail.database.catalogue.entries.SequenceCatalogueEntries
 import org.vitrivr.cottontail.database.catalogue.storeName
-import org.vitrivr.cottontail.database.column.*
-import org.vitrivr.cottontail.database.general.*
+import org.vitrivr.cottontail.database.column.Column
+import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnTx
+import org.vitrivr.cottontail.database.column.DefaultColumn
+import org.vitrivr.cottontail.database.general.AbstractTx
+import org.vitrivr.cottontail.database.general.Cursor
+import org.vitrivr.cottontail.database.general.DBOVersion
 import org.vitrivr.cottontail.database.index.Index
-import org.vitrivr.cottontail.database.index.basics.IndexState
 import org.vitrivr.cottontail.database.index.IndexTx
+import org.vitrivr.cottontail.database.index.basics.IndexState
 import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.logging.operations.Operation
 import org.vitrivr.cottontail.database.schema.DefaultSchema
@@ -97,14 +98,6 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
         override val dbo: DefaultEntity
             get() = this@DefaultEntity
 
-        /** Internal reference to [Store] required for accessing entity metadata. */
-        private val entityStore: Store = this@DefaultEntity.catalogue.environment.openStore(
-            this@DefaultEntity.name.storeName(),
-            StoreConfig.USE_EXISTING,
-            this.context.xodusTx,
-            false
-        ) ?: throw DatabaseException.DataCorruptionException("Data store for entity ${this@DefaultEntity.name} is missing.")
-
         /** Map of [Name.ColumnName] to [Column]. */
         private val columns: Map<Name.ColumnName,ColumnTx<*>>
 
@@ -169,7 +162,9 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          *
          * @return The number of entries in this [DefaultEntity].
          */
-        override fun count(): Long = this.txLatch.withLock { this.entityStore.count(this.context.xodusTx) }
+        override fun count(): Long = this.txLatch.withLock {
+            this.columns.values.first().count()
+        }
 
         /**
          * Returns the maximum tuple ID occupied by entries in this [DefaultEntity].
@@ -178,7 +173,7 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          */
         override fun maxTupleId(): TupleId = this.txLatch.withLock {
             SequenceCatalogueEntries.read(this@DefaultEntity.sequenceName, this@DefaultEntity.catalogue, this.context.xodusTx)
-            ?: throw DatabaseException.DataCorruptionException("Sequence entry for entity ${this@DefaultEntity.name} is missing.")
+                ?: throw DatabaseException.DataCorruptionException("Sequence entry for entity ${this@DefaultEntity.name} is missing.")
         }
 
         /**
@@ -318,62 +313,58 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
             /** The maximum [TupleId] to iterate over. */
             private val end: TupleId
 
-            /** The wrapped cursor to iterate over the entity. */
-            private val cursor = this@Tx.entityStore.openCursor(this@Tx.context.xodusTx)
+            /** The wrapped [Cursor] to iterate over columns. */
+            private val cursors: List<Cursor<out Value?>>
+
+            /** Flag indicating that this [Cursor] has been moved recently but the underlying data has not been fetched yet. */
+            @Volatile
+            private var dataInvalid: Boolean = true
 
             init {
                 val maximum: Long = this@Tx.maxTupleId()
-                if (partitions > 1) {
-                    val partitionSize: Long = Math.floorDiv(maximum, partitions.toLong()) + 1L
-                    this.cursor.getSearchKeyRange(LongBinding.longToCompressedEntry(partitionIndex * partitionSize)) /* Set start of cursor. */
-                    this.end = min(((partitionIndex + 1) * partitionSize), maximum)
-                    this.current = LongBinding.compressedEntryToLong(this.cursor.key)
-                } else {
-                    this.end = maximum
-                    this.current = -1L
+                val partitionSize: Long = Math.floorDiv(maximum, partitions.toLong()) + 1L
+                this.end = min(((partitionIndex + 1) * partitionSize), maximum)
+                this.cursors = columns.map {
+                    this@Tx.columns[it.name]?.cursor(partitionIndex * partitionSize) ?: throw IllegalStateException("Column $it missing in transaction.")
                 }
-            }
-
-            /** The wrapped cursor to iterate over the entity. */
-            private val columnCursors = columns.map {
-                this@Tx.columns[it.name]?.cursor(this.current) ?: throw IllegalStateException("Column $it missing in transaction.")
+                this.current = this.cursors.first().key()
             }
 
             /**
              * Returns the [TupleId] this [Cursor] is currently pointing to.
              */
+            @Synchronized
             override fun key(): TupleId = this.current
 
             /**
              * Returns the [Record] this [Cursor] is currently pointing to.
              */
-            override fun value(): Record = StandaloneRecord(this.current, columns, this.values)
+            @Synchronized
+            override fun value(): Record {
+                if (this.dataInvalid) {
+                    this.cursors.forEachIndexed { index, cursor -> this.values[index] = cursor.value() }
+                    this.dataInvalid = false
+                }
+                return StandaloneRecord(this.current, columns, this.values)
+            }
 
             /**
              * Tries to move this [Cursor]. Returns true on success and false otherwise.
              */
+            @Synchronized
             override fun moveNext(): Boolean {
-                if (this.current < this.end && this.cursor.next) {
-                    this.current = LongBinding.compressedEntryToLong(this.cursor.key)
-                    for ((i, c) in this.columnCursors.withIndex()) {
-                        if (c.key() < this.current) c.moveNext()
-                        if (c.key() == this.current) {
-                            this.values[i] = c.value()
-                        } else {
-                            this.values[i] = null
-                        }
-                    }
-                    return this.current < this.end
-                }
-                return false
+                if (this.current >= this.end) return false
+                this.dataInvalid = true
+                return this.cursors.all { it.moveNext() }
             }
 
             /**
              * Closes this [Cursor].
              */
+            @Synchronized
             override fun close() {
-                this.columnCursors.forEach { it.close() }
-                this.cursor.close()
+                this.dataInvalid = true
+                this.cursors.forEach { it.close() }
             }
         }
 
@@ -390,7 +381,6 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
             /* Execute INSERT on entity level. */
             val nextTupleId = SequenceCatalogueEntries.next(this@DefaultEntity.sequenceName, this@DefaultEntity.catalogue, this.context.xodusTx)
                 ?: throw DatabaseException.DataCorruptionException("Sequence entry for entity ${this@DefaultEntity.name} is missing.")
-            this.entityStore.putRight(this.context.xodusTx, LongBinding.longToCompressedEntry(nextTupleId), ByteBinding.BINDING.objectToEntry(0.toByte()))
 
             /* Execute INSERT on column level. */
             val inserts = Object2ObjectArrayMap<Name.ColumnName, Value>(this.columns.size)
@@ -400,7 +390,7 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
 
                 /* Check if null value is allowed. */
                 if (value == null && !tx.columnDef.nullable) throw DatabaseException("Cannot insert NULL value into column ${tx.columnDef}.")
-                if (value != null) (tx as ColumnTx<Value>).put(nextTupleId, value)
+                (tx as ColumnTx<Value>).add(nextTupleId, value)
             }
 
             /* Issue DataChangeEvent.InsertDataChange event and update indexes + statistics. */
@@ -413,29 +403,20 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
 
         /**
          * Updates the provided [Record] (identified based on its [TupleId]). Columns specified in the [Record] that are not part
-         * of the [DefaultEntity] will cause an error! This will set this [DefaultEntity.Tx] to [TxStatus.DIRTY].
+         * of the [DefaultEntity] will cause an error!
          *
          * @param record The [Record] that should be updated
          *
          * @throws DatabaseException If an error occurs during the insert.
          */
         override fun update(record: Record) = this.txLatch.withLock {
-            /* Check existence of Record on entity level. */
-            if (!this.entityStore.exists(this.context.xodusTx, LongBinding.longToCompressedEntry(record.tupleId), ByteBinding.BINDING.objectToEntry(0.toByte()))) {
-                throw DatabaseException("Record with tuple ID ${record.tupleId} cannot be updated because it doesn't exist on entity ${this@DefaultEntity.name}.")
-            }
-
             /* Execute UPDATE on column level. */
             val updates = Object2ObjectArrayMap<Name.ColumnName, Pair<Value?, Value?>>(record.columns.size)
             record.columns.forEach { def ->
                 val columnTx = this.columns[def.name] ?: throw DatabaseException("Record with tuple ID ${record.tupleId} cannot be updated because column $def does not exist on entity ${this@DefaultEntity.name}.")
                 val value = record[def]
-                if (value == null) {
-                    if (!def.nullable) throw DatabaseException("Record with tuple ID ${record.tupleId} cannot be updated with NULL value for column $def, because column is not nullable.")
-                    updates[def.name] = Pair(columnTx.delete(record.tupleId), value) /* Map: ColumnDef -> Pair[Old, New]. */
-                } else {
-                    updates[def.name] = Pair((columnTx as ColumnTx<Value>).put(record.tupleId, value), value) /* Map: ColumnDef -> Pair[Old, New]. */
-                }
+                if (value == null && !def.nullable) throw DatabaseException("Record with tuple ID ${record.tupleId} cannot be updated with NULL value for column $def, because column is not nullable.")
+                updates[def.name] = Pair((columnTx as ColumnTx<Value>).update(record.tupleId, value), value) /* Map: ColumnDef -> Pair[Old, New]. */
             }
 
             /* Issue DataChangeEvent.UpdateDataChangeEvent and update indexes + statistics. */
@@ -445,18 +426,13 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
         }
 
         /**
-         * Deletes the entry with the provided [TupleId]. This will set this [DefaultEntity.Tx] to [TxStatus.DIRTY]
+         * Deletes the entry with the provided [TupleId].
          *
          * @param tupleId The [TupleId] of the entry that should be deleted.
          *
          * @throws DatabaseException If an error occurs during the insert.
          */
         override fun delete(tupleId: TupleId) = this.txLatch.withLock {
-            /* Perform DELETE on entity level. */
-            if (!this.entityStore.delete(this.context.xodusTx, LongBinding.longToCompressedEntry(tupleId))) {
-                throw DatabaseException("Record with tuple ID $tupleId cannot be deleted because it doesn't exist on entity ${this@DefaultEntity.name}.")
-            }
-
             /* Perform DELETE on column level. */
             val deleted = Object2ObjectArrayMap<Name.ColumnName, Value?>(this.columns.size)
             this.columns.values.map {

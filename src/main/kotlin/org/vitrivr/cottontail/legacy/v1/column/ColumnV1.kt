@@ -3,7 +3,10 @@ package org.vitrivr.cottontail.legacy.v1.column
 import org.mapdb.CottontailStoreWAL
 import org.mapdb.DBException
 import org.vitrivr.cottontail.database.catalogue.Catalogue
-import org.vitrivr.cottontail.database.column.*
+import org.vitrivr.cottontail.database.column.Column
+import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.column.ColumnEngine
+import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.general.AbstractTx
 import org.vitrivr.cottontail.database.general.Cursor
@@ -20,7 +23,6 @@ import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.serializers.mapdb.MapDBSerializer
 import org.vitrivr.cottontail.utilities.extensions.write
 import java.nio.file.Path
-import java.util.*
 import java.util.concurrent.locks.StampedLock
 
 /**
@@ -156,7 +158,7 @@ class ColumnV1<T : Value>(override val name: Name.ColumnName, override val paren
          *
          * @return The number of entries in this [ColumnV1].
          */
-        fun count(): Long {
+        override fun count(): Long {
             return this@ColumnV1.header.count
         }
 
@@ -195,11 +197,11 @@ class ColumnV1<T : Value>(override val name: Name.ColumnName, override val paren
             }
         }
 
-        override fun put(tupleId: Long, value: T): T? {
+        override fun add(tupleId: TupleId, value: T?): Boolean {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
-        override fun compareAndPut(tupleId: Long, value: T, expected: T?): Boolean {
+        override fun update(tupleId: Long, value: T?): T? {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 
@@ -215,8 +217,8 @@ class ColumnV1<T : Value>(override val name: Name.ColumnName, override val paren
             this@ColumnV1.closeLock.unlockRead(this.closeStamp)
         }
 
-        override fun cursor(start: TupleId): Cursor<T> {
-            TODO("Not yet implemented")
+        override fun cursor(start: TupleId): Cursor<T?> {
+            throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
     }
 }
