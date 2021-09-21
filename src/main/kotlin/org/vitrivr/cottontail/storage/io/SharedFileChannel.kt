@@ -39,8 +39,10 @@ class SharedFileChannel constructor(path: Path): AutoCloseable {
      *
      * @param length The length to initialize this [SharedFileChannel] with.
      */
-    fun init(length: Long) {
-        this.wrapped.write(ByteBuffer.allocate(1), length)
+    fun ensureLength(length: Long) {
+        if (this.wrapped.size() < length) {
+            this.wrapped.write(ByteBuffer.allocate(1), length)
+        }
     }
 
     /**
@@ -69,14 +71,15 @@ class SharedFileChannel constructor(path: Path): AutoCloseable {
     /**
      * Writes [count] bytes from the provided [ByteArray] to the [FileChannel] starting at position [offset].
      *
+     * @param position The position in the file to write to.
      * @param input The [ByteArray] to read data from.
      * @param offset The offset into the [ByteArray].
      * @param count The number of bytes to write.
      * @return The effective number of bytes that were read.
      */
-    fun write(input: ByteArray, offset: Int, count: Int): Int {
-        val outBuffer = ByteBuffer.wrap(input).position(offset).limit(count)
-        return this.wrapped.write(outBuffer, 0)
+    fun write(input: ByteArray, position: Long, offset: Int, count: Int): Int {
+        val outBuffer = ByteBuffer.wrap(input).position(offset).limit(offset + count)
+        return this.wrapped.write(outBuffer, position)
     }
 
     /**
