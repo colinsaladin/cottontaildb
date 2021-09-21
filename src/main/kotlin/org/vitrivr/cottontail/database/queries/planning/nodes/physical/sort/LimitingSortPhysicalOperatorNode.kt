@@ -72,7 +72,8 @@ class LimitingSortPhysicalOperatorNode(input: Physical? = null, override val sor
         val p = this.totalCost.parallelisation()
         val input = this.input ?: throw IllegalStateException("Cannot convert disconnected OperatorNode to Operator (node = $this)")
         return if (p > 1 && input.canBePartitioned) {
-            LimitingHeapSortOperator(input.toOperator(ctx), this.sortOn, this.limit, this.skip)
+            val partitions = input.partition(p).map { it.toOperator(ctx) }
+            MergeLimitingHeapSortOperator(partitions, this.sortOn, this.limit)
         } else {
             LimitingHeapSortOperator(input.toOperator(ctx), this.sortOn, this.limit, this.skip)
         }
