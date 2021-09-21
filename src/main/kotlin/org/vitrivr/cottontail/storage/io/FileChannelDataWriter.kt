@@ -31,10 +31,16 @@ class FileChannelDataWriter constructor(private val reader: FileChannelDataReade
     private val lockingManager: LockingManager = LockingManager(this.reader.path.toFile(), lockId)
 
     /** [SharedFileChannel] instance that is currently being written. Corresponds with [block].*/
+    @Volatile
     private var channel: SharedFileChannel? = null
 
     /** [FileChannelDataReader.FileChannelBlock] instance that is currently being written. Corresponds with [channel]. */
+    @Volatile
     private var block: FileChannelDataReader.FileChannelBlock? = null
+
+    /** The current position of the [FileChannelDataWriter]. */
+    @Volatile
+    private var position: Long = 0L
 
     init {
         if (!JVMConstants.IS_ANDROID) {
@@ -52,7 +58,7 @@ class FileChannelDataWriter constructor(private val reader: FileChannelDataReade
      */
     override fun write(input: ByteArray, offset: Int, count: Int): Block {
         try {
-            (this.channel ?: throw ExodusException("Can't write, FileDataWriter is closed")).write(input, offset, count)
+            this.position += (this.channel ?: throw ExodusException("Can't write, FileDataWriter is closed")).write(input, this.position, offset, count)
         } catch (ioe: IOException) {
             if (this.lockingManager.usableSpace < count) {
                 throw OutOfDiskSpaceException(ioe)
@@ -131,13 +137,12 @@ class FileChannelDataWriter constructor(private val reader: FileChannelDataReade
             /* Create block and initialize it, if needed. */
             val result = this.reader.FileChannelBlock(address)
             val channel = result.channel()
-            if (channel.size() == 0L) {
-                channel.init(length)
-            }
+            channel.ensureLength(length)
 
             /* Update local pointers. */
             this.channel = channel
             this.block = result
+            this.position = 0L
             return result
         } catch (ioe: IOException) {
             throw ExodusException(ioe)
