@@ -3,10 +3,7 @@ package org.vitrivr.cottontail.database.entity
 import it.unimi.dsi.fastutil.objects.Object2ObjectArrayMap
 import jetbrains.exodus.env.StoreConfig
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
-import org.vitrivr.cottontail.database.catalogue.entries.ColumnCatalogueEntry
-import org.vitrivr.cottontail.database.catalogue.entries.EntityCatalogueEntry
-import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
-import org.vitrivr.cottontail.database.catalogue.entries.SequenceCatalogueEntries
+import org.vitrivr.cottontail.database.catalogue.entries.*
 import org.vitrivr.cottontail.database.catalogue.storeName
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.column.ColumnDef
@@ -274,6 +271,13 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
             while (cursor.moveNext()) {
                 var i = 0
                 cursor.value().forEach { _, v -> statistics[i++].insert(v) }
+            }
+
+            /* Write new statistics values. */
+            this.columns.values.forEachIndexed { i, c ->
+                val entry = StatisticsCatalogueEntry.read(c.columnDef.name, this@DefaultEntity.catalogue, this.context.xodusTx)
+                    ?: throw DatabaseException.DataCorruptionException("Failed to DELETE value from ${c.columnDef.name}: Reading column statistics failed.")
+                StatisticsCatalogueEntry.write(entry = entry.copy(statistics = statistics[i]), catalogue = this@DefaultEntity.catalogue, transaction = this.context.xodusTx)
             }
 
             /* Close all the opened cursors. */
