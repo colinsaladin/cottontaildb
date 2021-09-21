@@ -1,9 +1,11 @@
 package org.vitrivr.cottontail.storage.serializers
 
 import org.vitrivr.cottontail.model.values.Complex64VectorValue
+import org.vitrivr.cottontail.model.values.DoubleVectorValue
 import org.vitrivr.cottontail.storage.serializers.mapdb.Complex64VectorValueMapDBSerializer
 import org.vitrivr.cottontail.storage.serializers.mapdb.MapDBSerializer
 import org.vitrivr.cottontail.storage.serializers.xodus.Complex64VectorValueXodusBinding
+import org.vitrivr.cottontail.storage.serializers.xodus.DoubleVectorValueXodusBinding
 import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
 
 /**
@@ -14,5 +16,9 @@ import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
  */
 object Complex64VectorValueSerializerFactory : ValueSerializerFactory<Complex64VectorValue> {
     override fun mapdb(size: Int) = Complex64VectorValueMapDBSerializer(size)
-    override fun xodus(size: Int) = Complex64VectorValueXodusBinding(size)
+    override fun xodus(size: Int, nullable: Boolean): XodusBinding<Complex64VectorValue> = if (nullable) {
+        Complex64VectorValueXodusBinding.Nullable(size)
+    } else {
+        Complex64VectorValueXodusBinding.NonNullable(size)
+    }
 }

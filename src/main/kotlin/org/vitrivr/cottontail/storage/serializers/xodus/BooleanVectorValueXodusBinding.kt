@@ -11,19 +11,36 @@ import org.vitrivr.cottontail.model.values.BooleanVectorValue
  * @author Ralph Gasser
  * @version 1.0.0
  */
-class BooleanVectorValueXodusBinding(val size: Int): XodusBinding<BooleanVectorValue> {
+sealed class BooleanVectorValueXodusBinding(size: Int): XodusBinding<BooleanVectorValue> {
     init {
-        require(this.size > 0) { "Cannot initialize vector value binding with size value of $size." }
+        require(size > 0) { "Cannot initialize vector value binding with size value of $size." }
     }
 
-    override val type: Type<BooleanVectorValue>
-        get() = TODO("Not yet implemented")
+    override val type: Type<BooleanVectorValue> = Type.BooleanVector(size)
 
-    override fun entryToValue(entry: ByteIterable): BooleanVectorValue {
-        TODO("Not yet implemented")
+    /**
+     * [BooleanVectorValueXodusBinding] used for non-nullable values.
+     */
+    class NonNullable(size: Int): BooleanVectorValueXodusBinding(size)  {
+        override fun entryToValue(entry: ByteIterable): BooleanVectorValue {
+            TODO("Not yet implemented")
+        }
+
+        override fun valueToEntry(value: BooleanVectorValue?): ByteIterable {
+            TODO("Not yet implemented")
+        }
     }
 
-    override fun valueToEntry(value: BooleanVectorValue): ByteIterable {
-        TODO("Not yet implemented")
+    /**
+     * [BooleanVectorValueXodusBinding] used for nullable values.
+     */
+    class Nullable(size: Int): BooleanVectorValueXodusBinding(size)  {
+        override fun entryToValue(entry: ByteIterable): BooleanVectorValue {
+            TODO("Not yet implemented")
+        }
+
+        override fun valueToEntry(value: BooleanVectorValue?): ByteIterable {
+            TODO("Not yet implemented")
+        }
     }
 }

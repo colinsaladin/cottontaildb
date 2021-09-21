@@ -2,8 +2,10 @@ package org.vitrivr.cottontail.storage.serializers
 
 
 import org.vitrivr.cottontail.model.values.Complex64Value
+import org.vitrivr.cottontail.model.values.DateValue
 import org.vitrivr.cottontail.storage.serializers.mapdb.Complex64ValueMapDBSerializer
 import org.vitrivr.cottontail.storage.serializers.xodus.Complex64ValueXodusBinding
+import org.vitrivr.cottontail.storage.serializers.xodus.DateValueXodusBinding
 import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
 
 /**
@@ -14,5 +16,9 @@ import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
  */
 object Complex64ValueSerializerFactory : ValueSerializerFactory<Complex64Value> {
     override fun mapdb(size: Int) = Complex64ValueMapDBSerializer
-    override fun xodus(size: Int) = Complex64ValueXodusBinding
+    override fun xodus(size: Int, nullable: Boolean): XodusBinding<Complex64Value> = if (nullable) {
+        Complex64ValueXodusBinding.Nullable
+    } else {
+        Complex64ValueXodusBinding.NonNullable
+    }
 }

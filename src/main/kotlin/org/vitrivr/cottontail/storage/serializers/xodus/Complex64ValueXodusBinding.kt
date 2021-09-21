@@ -1,15 +1,14 @@
 package org.vitrivr.cottontail.storage.serializers.xodus
 
+import jetbrains.exodus.ArrayByteIterable
 import jetbrains.exodus.ByteIterable
-import jetbrains.exodus.bindings.ComparableBinding
 import jetbrains.exodus.bindings.DoubleBinding
-import jetbrains.exodus.bindings.FloatBinding
 import jetbrains.exodus.util.LightOutputStream
 import org.vitrivr.cottontail.model.basics.Type
-import org.vitrivr.cottontail.model.values.Complex32Value
+import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.values.Complex64Value
 import java.io.ByteArrayInputStream
-import java.nio.ByteBuffer
+import java.util.*
 
 /**
  * A [XodusBinding] for [Complex64Value] serialization and deserialization.
@@ -17,21 +16,56 @@ import java.nio.ByteBuffer
  * @author Ralph Gasser
  * @version 1.0.0
  */
-object Complex64ValueXodusBinding: XodusBinding<Complex64Value> {
+sealed class Complex64ValueXodusBinding: XodusBinding<Complex64Value> {
     override val type = Type.Complex64
-    private val outputStream = LightOutputStream(16)
-    private val buffer = ByteBuffer.allocate(16)
-    override fun entryToValue(entry: ByteIterable): Complex64Value {
-        this.buffer.clear()
-        this.buffer.put(entry.bytesUnsafe)
-        this.buffer.flip()
-        return Complex64Value(this.buffer.double, this.buffer.double)
+
+
+    /**
+     * [Complex64ValueXodusBinding] used for non-nullable values.
+     */
+    object NonNullable: Complex64ValueXodusBinding() {
+        override fun entryToValue(entry: ByteIterable): Complex64Value {
+            val stream = ByteArrayInputStream(entry.bytesUnsafe)
+            return Complex64Value(DoubleBinding.BINDING.readObject(stream),DoubleBinding.BINDING.readObject(stream))
+        }
+
+        override fun valueToEntry(value: Complex64Value?): ByteIterable {
+            require(value != null) { "Serialization error: Value cannot be null." }
+            val stream = LightOutputStream(this.type.physicalSize)
+            DoubleBinding.BINDING.writeObject(stream, value.real.value)
+            DoubleBinding.BINDING.writeObject(stream, value.real.imaginary)
+            return stream.asArrayByteIterable()
+        }
     }
 
-    override fun valueToEntry(value: Complex64Value): ByteIterable {
-        this.outputStream.clear()
-        FloatBinding.BINDING.writeObject(this.outputStream, value.real.value)
-        FloatBinding.BINDING.writeObject(this.outputStream, value.real.imaginary)
-        return this.outputStream.asArrayByteIterable()
+    /**
+     * [Complex64ValueXodusBinding] used for nullable values.
+     */
+    object Nullable: Complex64ValueXodusBinding() {
+        /** The special value that is being interpreted as NULL for this column. */
+        private val NULL_VALUE = Complex64Value(Double.MIN_VALUE, Double.MIN_VALUE)
+
+        /** The special value that is being interpreted as NULL for this column. */
+        private val NULL_VALUE_RAW: ArrayByteIterable = NonNullable.valueToEntry(NULL_VALUE) as ArrayByteIterable
+
+        override fun entryToValue(entry: ByteIterable): Complex64Value? {
+            val bytesRead = entry.bytesUnsafe
+            val bytesNull = NULL_VALUE_RAW.bytesUnsafe
+            return if (Arrays.equals(bytesNull, bytesRead)) {
+                null
+            } else {
+                val stream = ByteArrayInputStream(bytesRead)
+                Complex64Value(DoubleBinding.BINDING.readObject(stream),DoubleBinding.BINDING.readObject(stream))
+            }
+        }
+
+        override fun valueToEntry(value: Complex64Value?): ByteIterable {
+            if (value == null) return NULL_VALUE_RAW
+            if (value == NULL_VALUE) throw DatabaseException.ReservedValueException("Cannot serialize value '$value'! Value is reserved for NULL entries for type ${this.type}.")
+            val stream = LightOutputStream(this.type.physicalSize)
+            DoubleBinding.BINDING.writeObject(stream, value.real.value)
+            DoubleBinding.BINDING.writeObject(stream, value.real.imaginary)
+            return stream.asArrayByteIterable()
+        }
     }
 }

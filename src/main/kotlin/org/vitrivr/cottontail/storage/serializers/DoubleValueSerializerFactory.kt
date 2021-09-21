@@ -1,8 +1,10 @@
 package org.vitrivr.cottontail.storage.serializers
 
 import org.vitrivr.cottontail.model.values.DoubleValue
+import org.vitrivr.cottontail.model.values.FloatValue
 import org.vitrivr.cottontail.storage.serializers.mapdb.DoubleValueMapDBSerializer
 import org.vitrivr.cottontail.storage.serializers.xodus.DoubleValueXodusBinding
+import org.vitrivr.cottontail.storage.serializers.xodus.FloatValueXodusBinding
 import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
 
 /**
@@ -13,5 +15,9 @@ import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
  */
 object DoubleValueSerializerFactory : ValueSerializerFactory<DoubleValue> {
     override fun mapdb(size: Int) = DoubleValueMapDBSerializer
-    override fun xodus(size: Int) = DoubleValueXodusBinding
+    override fun xodus(size: Int, nullable: Boolean): XodusBinding<DoubleValue> = if (nullable) {
+        DoubleValueXodusBinding.Nullable
+    } else {
+        DoubleValueXodusBinding.NonNullable
+    }
 }

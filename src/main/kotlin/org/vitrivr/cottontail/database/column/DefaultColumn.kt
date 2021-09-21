@@ -71,7 +71,7 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
         ) ?: throw DatabaseException.DataCorruptionException("Data store for column ${this@DefaultColumn.name} is missing.")
 
         /** The internal [XodusBinding] reference used for de-/serialization. */
-        private val binding: XodusBinding<T> = this@DefaultColumn.columnDef.type.serializerFactory().xodus(this.columnDef.type.logicalSize)
+        private val binding: XodusBinding<T> = this@DefaultColumn.columnDef.type.serializerFactory().xodus(this.columnDef.type.logicalSize, this@DefaultColumn.nullable)
 
         /** Internal reference to the [ValueStatistics] for this [DefaultColumn]. */
         private val statistics: ValueStatistics<T> = (StatisticsCatalogueEntry.read(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)?.statistics
@@ -211,7 +211,7 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
                 private val subTx = this@Tx.context.xodusTx.readonlySnapshot
 
                 /** The per-[Cursor] [XodusBinding] instance. */
-                private val binding: XodusBinding<T> = this@DefaultColumn.columnDef.type.serializerFactory().xodus(this@DefaultColumn.type.logicalSize)
+                private val binding: XodusBinding<T> = this@DefaultColumn.columnDef.type.serializerFactory().xodus(this@DefaultColumn.type.logicalSize, this@DefaultColumn.nullable)
 
                 /** Internal [Cursor] used for iteration. */
                 private val cursor: jetbrains.exodus.env.Cursor = this@Tx.dataStore.openCursor(this.subTx)

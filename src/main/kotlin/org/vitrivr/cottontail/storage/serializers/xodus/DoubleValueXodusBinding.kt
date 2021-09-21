@@ -1,9 +1,14 @@
 package org.vitrivr.cottontail.storage.serializers.xodus
 
 import jetbrains.exodus.ByteIterable
+import jetbrains.exodus.bindings.BindingUtils
+import jetbrains.exodus.bindings.ByteBinding
 import jetbrains.exodus.bindings.DoubleBinding
 import org.vitrivr.cottontail.model.basics.Type
+import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.values.DoubleValue
+import java.io.ByteArrayInputStream
+import java.util.*
 
 /**
  * A [XodusBinding] for [DoubleValue] serialization and deserialization.
@@ -11,8 +16,40 @@ import org.vitrivr.cottontail.model.values.DoubleValue
  * @author Ralph Gasser
  * @version 1.0.0
  */
-object DoubleValueXodusBinding: XodusBinding<DoubleValue> {
+sealed class DoubleValueXodusBinding: XodusBinding<DoubleValue> {
     override val type = Type.Double
-    override fun entryToValue(entry: ByteIterable): DoubleValue = DoubleValue(DoubleBinding.BINDING.entryToObject(entry) as Double)
-    override fun valueToEntry(value: DoubleValue): ByteIterable = DoubleBinding.BINDING.objectToEntry(value.value)
+
+    /**
+     * [DoubleValueXodusBinding] used for non-nullable values.
+     */
+    object NonNullable: DoubleValueXodusBinding() {
+        override fun entryToValue(entry: ByteIterable): DoubleValue = DoubleValue(DoubleBinding.BINDING.readObject(ByteArrayInputStream(entry.bytesUnsafe)))
+        override fun valueToEntry(value: DoubleValue?): ByteIterable {
+            require(value != null) { "Serialization error: Value cannot be null." }
+            return DoubleBinding.BINDING.objectToEntry(value.value)
+        }
+    }
+
+    /**
+     * [DoubleValueXodusBinding] used for nullable values.
+     */
+    object Nullable: DoubleValueXodusBinding() {
+        private val NULL_VALUE = ByteBinding.BINDING.objectToEntry(Byte.MIN_VALUE)
+
+        override fun entryToValue(entry: ByteIterable): DoubleValue? {
+            val bytesRead = entry.bytesUnsafe
+            val bytesNull = NULL_VALUE.bytesUnsafe
+            return if (Arrays.equals(bytesNull, bytesRead)) {
+                null
+            } else {
+                DoubleValue(BindingUtils.readDouble(ByteArrayInputStream(bytesRead)))
+            }
+        }
+
+        override fun valueToEntry(value: DoubleValue?): ByteIterable {
+            if (value == null) return NULL_VALUE
+            if (value.value == Double.MIN_VALUE) throw DatabaseException.ReservedValueException("Cannot serialize value '$value'! Value is reserved for NULL entries for type ${this.type}.")
+            return DoubleBinding.BINDING.objectToEntry(value.value)
+        }
+    }
 }

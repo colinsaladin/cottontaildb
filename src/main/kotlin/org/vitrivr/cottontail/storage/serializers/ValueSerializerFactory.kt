@@ -14,6 +14,6 @@ interface ValueSerializerFactory<T : Value> {
     /** Reference to the [MapDBSerializer] serializer used for de-/serialization to MapDB based storage. */
     fun mapdb(size: Int = 1): MapDBSerializer<T>
 
-    /** Reference to the [XodusBinding] serializer used for de-/serialization to MapDB based storage. */
-    fun xodus(size: Int = 1): XodusBinding<T>
+    /** Reference to the [XodusBinding] used for de-/serialization of nullable values to Xodus based storage. */
+    fun xodus(size: Int = 1, nullable: Boolean): XodusBinding<T>
 }

@@ -1,8 +1,10 @@
 package org.vitrivr.cottontail.storage.serializers
 
 import org.vitrivr.cottontail.model.values.LongValue
+import org.vitrivr.cottontail.model.values.LongVectorValue
 import org.vitrivr.cottontail.storage.serializers.mapdb.LongValueMapDBSerializer
 import org.vitrivr.cottontail.storage.serializers.xodus.LongValueXodusBinding
+import org.vitrivr.cottontail.storage.serializers.xodus.LongVectorValueXodusBinding
 import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
 
 /**
@@ -13,5 +15,9 @@ import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
  */
 object LongValueSerializerFactory : ValueSerializerFactory<LongValue> {
     override fun mapdb(size: Int) = LongValueMapDBSerializer
-    override fun xodus(size: Int) = LongValueXodusBinding
+    override fun xodus(size: Int, nullable: Boolean): XodusBinding<LongValue> = if (nullable) {
+        LongValueXodusBinding.Nullable
+    } else {
+        LongValueXodusBinding.NonNullable
+    }
 }

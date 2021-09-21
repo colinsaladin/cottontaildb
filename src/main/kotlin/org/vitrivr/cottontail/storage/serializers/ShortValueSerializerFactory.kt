@@ -13,5 +13,9 @@ import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
  */
 object ShortValueSerializerFactory : ValueSerializerFactory<ShortValue> {
     override fun mapdb(size: Int) = ShortValueMapDBSerializer
-    override fun xodus(size: Int) = ShortValueXodusBinding
+    override fun xodus(size: Int, nullable: Boolean): XodusBinding<ShortValue> = if (nullable) {
+        ShortValueXodusBinding.Nullable
+    } else {
+        ShortValueXodusBinding.NotNullable
+    }
 }

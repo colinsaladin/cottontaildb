@@ -14,5 +14,9 @@ import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
  */
 object LongVectorValueSerializerFactory : ValueSerializerFactory<LongVectorValue> {
     override fun mapdb(size: Int) = LongVectorValueMapDBSerializer(size)
-    override fun xodus(size: Int) = LongVectorValueXodusBinding(size)
+    override fun xodus(size: Int, nullable: Boolean): XodusBinding<LongVectorValue> = if (nullable) {
+        LongVectorValueXodusBinding.Nullable(size)
+    } else {
+        LongVectorValueXodusBinding.NonNullable(size)
+    }
 }

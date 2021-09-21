@@ -101,7 +101,7 @@ class NonUniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : Abstract
     private inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context) {
 
         /** The internal [XodusBinding] reference used for de-/serialization. */
-        private val binding: XodusBinding<*> = this@NonUniqueHashIndex.columns[0].type.serializerFactory().xodus(this@NonUniqueHashIndex.columns[0].type.logicalSize)
+        private val binding: XodusBinding<*> = this@NonUniqueHashIndex.columns[0].type.serializerFactory().xodus(this@NonUniqueHashIndex.columns[0].type.logicalSize, this@NonUniqueHashIndex.columns[0].nullable)
 
         /**
          * Adds a mapping from the given [Value] to the given [TupleId].

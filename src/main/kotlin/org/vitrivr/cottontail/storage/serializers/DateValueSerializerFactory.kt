@@ -1,8 +1,10 @@
 package org.vitrivr.cottontail.storage.serializers
 
 import org.vitrivr.cottontail.model.values.DateValue
+import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.storage.serializers.mapdb.DateValueMapDBSerializer
 import org.vitrivr.cottontail.storage.serializers.xodus.DateValueXodusBinding
+import org.vitrivr.cottontail.storage.serializers.xodus.DoubleValueXodusBinding
 import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
 
 /**
@@ -13,5 +15,9 @@ import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
  */
 object DateValueSerializerFactory : ValueSerializerFactory<DateValue> {
     override fun mapdb(size: Int) = DateValueMapDBSerializer
-    override fun xodus(size: Int) = DateValueXodusBinding
+    override fun xodus(size: Int, nullable: Boolean): XodusBinding<DateValue> = if (nullable) {
+        DateValueXodusBinding.Nullable
+    } else {
+        DateValueXodusBinding.NonNullable
+    }
 }

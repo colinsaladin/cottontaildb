@@ -14,5 +14,9 @@ import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
  */
 object StringValueSerializerFactory : ValueSerializerFactory<StringValue> {
     override fun mapdb(size: Int) = StringValueMapDBSerializer
-    override fun xodus(size: Int): XodusBinding<StringValue> = StringValueXodusBinding
+    override fun xodus(size: Int, nullable: Boolean): XodusBinding<StringValue> = if (nullable) {
+        StringValueXodusBinding.Nullable
+    } else {
+        StringValueXodusBinding.NotNullable
+    }
 }
