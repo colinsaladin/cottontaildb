@@ -131,12 +131,17 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
         }
 
         /**
+         * Inserts the [Value] with the specified [TupleId].
          *
+         * @param tupleId The [TupleId] of the entry that should be updated.
+         * @param value The [Value]
+         * @return True on success, false otherwise.
          */
         override fun add(tupleId: TupleId, value: T?): Boolean {
             val rawTuple = tupleId.toKey()
             val valueRaw = this.binding.valueToEntry(value)
             if (this.dataStore.add(this.context.xodusTx, rawTuple, valueRaw)) {
+                this.dirty = true
                 this.statistics.insert(value)
                 return true
             }
@@ -161,10 +166,10 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
             if (!this.dataStore.put(this.context.xodusTx, rawTuple, valueRaw)) {
                 throw DatabaseException.DataCorruptionException("Failed to PUT tuple $tupleId to column ${this@DefaultColumn.name}.")
             }
+            this.dirty = true
             this.statistics.update(existing, value)
 
             /* Return updated value. */
-            this.dirty = true
             return existing
         }
 
@@ -176,16 +181,16 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          */
         override fun delete(tupleId: TupleId): T? = this.txLatch.withLock {
             /* Read existing value. */
-            val existing = this.dataStore.get(this.context.xodusTx, tupleId.toKey())?.let { this.binding.entryToValue(it) }
+            val rawTuple = tupleId.toKey()
+            val existingRaw = this.dataStore.get(this.context.xodusTx, rawTuple) ?: throw IllegalArgumentException("Cannot DELETE tuple $tupleId because it does not exist.")
+            val existing = this.binding.entryToValue(existingRaw)
 
             /* Delete entry and update statistics. */
-            if (existing != null) {
-                if (!this.dataStore.delete(this.context.xodusTx, tupleId.toKey())) {
-                    throw DatabaseException.DataCorruptionException("Failed to DELETE tuple $tupleId to column ${this@DefaultColumn.name}.")
-                }
-                this.dirty = true
-                this.statistics.delete(existing)
+            if (!this.dataStore.delete(this.context.xodusTx, rawTuple)) {
+                throw DatabaseException.DataCorruptionException("Failed to DELETE tuple $tupleId to column ${this@DefaultColumn.name}.")
             }
+            this.dirty = true
+            this.statistics.delete(existing)
 
             /* Return existing value. */
             return existing
