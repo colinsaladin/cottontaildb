@@ -1,11 +1,8 @@
 package org.vitrivr.cottontail.database.column
 
-import jetbrains.exodus.bindings.ByteBinding
-import jetbrains.exodus.bindings.IntegerBinding
 import jetbrains.exodus.bindings.LongBinding
 import jetbrains.exodus.env.Store
 import jetbrains.exodus.env.StoreConfig
-import jetbrains.exodus.util.ByteIterableUtil
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.catalogue.entries.StatisticsCatalogueEntry
 import org.vitrivr.cottontail.database.catalogue.storeName
@@ -18,7 +15,6 @@ import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.legacy.v2.column.ColumnV2
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.TupleId
-import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.basics.toKey
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.TxException
@@ -52,13 +48,6 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
     /** The [DBOVersion] of this [DefaultColumn]. */
     override val version: DBOVersion
         get() = DBOVersion.V3_0
-
-    /** The special value that is being interpreted as NULL for this column. */
-    private val nullValue = if (columnDef.type == Type.Byte) {
-        IntegerBinding.BINDING.objectToEntry(Integer.MIN_VALUE)
-    } else {
-        ByteBinding.BINDING.objectToEntry(Byte.MIN_VALUE)
-    }
 
     /**
      * Creates and returns a new [DefaultColumn.Tx] for the given [TransactionContext].
@@ -138,11 +127,7 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          */
         override fun get(tupleId: TupleId): T? = this.txLatch.withLock {
             val ret = this.dataStore.get(this.context.xodusTx, tupleId.toKey()) ?: throw java.lang.IllegalArgumentException("Tuple $tupleId does not exist on column ${this@DefaultColumn.name}.")
-            if (ByteIterableUtil.compare(this@DefaultColumn.nullValue, ret) == 0) {
-                null
-            } else {
-                this.binding.entryToValue(ret)
-            }
+            return this.binding.entryToValue(ret)
         }
 
         /**
@@ -150,7 +135,7 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          */
         override fun add(tupleId: TupleId, value: T?): Boolean {
             val rawTuple = tupleId.toKey()
-            val valueRaw = value?.let { this.binding.valueToEntry(value) } ?: this@DefaultColumn.nullValue
+            val valueRaw = this.binding.valueToEntry(value)
             if (this.dataStore.add(this.context.xodusTx, rawTuple, valueRaw)) {
                 this.statistics.insert(value)
                 return true
@@ -168,13 +153,9 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
         override fun update(tupleId: TupleId, value: T?): T? = this.txLatch.withLock {
             /* Read existing value. */
             val rawTuple = tupleId.toKey()
-            val valueRaw = value?.let { this.binding.valueToEntry(value) } ?: this@DefaultColumn.nullValue
+            val valueRaw = this.binding.valueToEntry(value)
             val existingRaw = this.dataStore.get(this.context.xodusTx, rawTuple) ?: throw IllegalArgumentException("Cannot update tuple $tupleId because it does not exist.")
-            val existing = if (ByteIterableUtil.compare(this@DefaultColumn.nullValue, existingRaw) == 0) {
-                null
-            } else {
-                this.binding.entryToValue(existingRaw)
-            }
+            val existing = this.binding.entryToValue(existingRaw)
 
             /* Perform PUT and update statistics. */
             if (!this.dataStore.put(this.context.xodusTx, rawTuple, valueRaw)) {
@@ -213,13 +194,27 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
         /**
          * Opens a new [Cursor] for this [DefaultColumn.Tx].
          *
+         * @return [Cursor]
+         */
+        override fun cursor(): Cursor<T?> = this.cursor(-1L, Long.MAX_VALUE)
+
+        /**
+         * Opens a new [Cursor] for this [DefaultColumn.Tx].
+         *
          * @param start The [TupleId] to start the [Cursor] at.
          * @return [Cursor]
          */
-        override fun cursor(start: TupleId): Cursor<T?> = this.txLatch.withLock {
+        override fun cursor(start: TupleId, end: TupleId): Cursor<T?> = this.txLatch.withLock {
             object : Cursor<T?> {
+
+                /** Creates a read-only snapshot of the enclosing Tx. */
+                private val subTx = this@Tx.context.xodusTx.readonlySnapshot
+
+                /** The per-[Cursor] [XodusBinding] instance. */
+                private val binding: XodusBinding<T> = this@DefaultColumn.columnDef.type.serializerFactory().xodus(this@DefaultColumn.type.logicalSize)
+
                 /** Internal [Cursor] used for iteration. */
-                private val cursor: jetbrains.exodus.env.Cursor = this@Tx.dataStore.openCursor(this@Tx.context.xodusTx)
+                private val cursor: jetbrains.exodus.env.Cursor = this@Tx.dataStore.openCursor(this.subTx)
 
                 /** The [TupleId] this [Cursor] currently points to. */
                 private var tid: TupleId
@@ -231,27 +226,26 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
                     if (start > -1L) {
                         this.cursor.getSearchKeyRange(start.toKey())
                         this.tid = LongBinding.compressedEntryToLong(this.cursor.key)
-                        this.value = this@Tx.binding.entryToValue(this.cursor.value)
+                        this.value = this.binding.entryToValue(this.cursor.value)
                     } else {
                         this.tid = -1L
                     }
                 }
 
                 override fun moveNext(): Boolean {
-                    if (this.cursor.next) {
+                    if (this.tid < end && this.cursor.next) {
                         this.tid = LongBinding.compressedEntryToLong(this.cursor.key)
-                        this.value = if (ByteIterableUtil.compare(this@DefaultColumn.nullValue, this.cursor.value) == 0) {
-                            null
-                        } else {
-                            this@Tx.binding.entryToValue(this.cursor.value)
-                        }
+                        this.value = this.binding.entryToValue(this.cursor.value)
                         return true
                     }
                     return false
                 }
                 override fun key(): TupleId = this.tid
                 override fun value(): T? = this.value
-                override fun close() = this.cursor.close()
+                override fun close() {
+                    this.cursor.close()
+                    this.subTx.abort()
+                }
             }
         }
 
@@ -260,9 +254,11 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
          */
         override fun beforeCommit() {
             /* Update statistics if there have been changes. */
-            val entry = StatisticsCatalogueEntry.read(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)
-                ?: throw DatabaseException.DataCorruptionException("Failed to DELETE value from ${this@DefaultColumn.name}: Reading column statistics failed.")
-            StatisticsCatalogueEntry.write(entry.copy(statistics = this.statistics), this@DefaultColumn.catalogue, this.context.xodusTx)
+            if (this.dirty) {
+                val entry = StatisticsCatalogueEntry.read(this@DefaultColumn.name, this@DefaultColumn.catalogue, this.context.xodusTx)
+                    ?: throw DatabaseException.DataCorruptionException("Failed to DELETE value from ${this@DefaultColumn.name}: Reading column statistics failed.")
+                StatisticsCatalogueEntry.write(entry.copy(statistics = this.statistics), this@DefaultColumn.catalogue, this.context.xodusTx)
+            }
             super.beforeCommit()
         }
 

@@ -43,10 +43,18 @@ interface ColumnTx<T : Value> : Tx {
     /**
      * Opens a new [Cursor] for this [ColumnTx].
      *
-     * @param start The [TupleId] to start the [Cursor] at.
      * @return [Cursor]
      */
-    fun cursor(start: TupleId): Cursor<T?>
+    fun cursor(): Cursor<T?>
+
+    /**
+     * Opens a new [Cursor] for this [ColumnTx].
+     *
+     * @param start The [TupleId] to start the [Cursor] at.
+     * @param end The [TupleId] to end the [Cursor] at.
+     * @return [Cursor]
+     */
+    fun cursor(start: TupleId, end: TupleId): Cursor<T?>
 
     /**
      * Gets and returns an entry from this [Column].

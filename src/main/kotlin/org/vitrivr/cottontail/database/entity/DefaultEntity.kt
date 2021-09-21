@@ -317,7 +317,6 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
             private val cursors: List<Cursor<out Value?>>
 
             /** Flag indicating that this [Cursor] has been moved recently but the underlying data has not been fetched yet. */
-            @Volatile
             private var dataInvalid: Boolean = true
 
             init {
@@ -325,7 +324,7 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
                 val partitionSize: Long = Math.floorDiv(maximum, partitions.toLong()) + 1L
                 this.end = min(((partitionIndex + 1) * partitionSize), maximum)
                 this.cursors = columns.map {
-                    this@Tx.columns[it.name]?.cursor(partitionIndex * partitionSize) ?: throw IllegalStateException("Column $it missing in transaction.")
+                    this@Tx.columns[it.name]?.cursor(partitionIndex * partitionSize, this.end) ?: throw IllegalStateException("Column $it missing in transaction.")
                 }
                 this.current = this.cursors.first().key()
             }
@@ -333,13 +332,11 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
             /**
              * Returns the [TupleId] this [Cursor] is currently pointing to.
              */
-            @Synchronized
             override fun key(): TupleId = this.current
 
             /**
              * Returns the [Record] this [Cursor] is currently pointing to.
              */
-            @Synchronized
             override fun value(): Record {
                 if (this.dataInvalid) {
                     this.cursors.forEachIndexed { index, cursor -> this.values[index] = cursor.value() }
@@ -351,7 +348,6 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
             /**
              * Tries to move this [Cursor]. Returns true on success and false otherwise.
              */
-            @Synchronized
             override fun moveNext(): Boolean {
                 if (this.current >= this.end) return false
                 this.dataInvalid = true
@@ -361,7 +357,6 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
             /**
              * Closes this [Cursor].
              */
-            @Synchronized
             override fun close() {
                 this.dataInvalid = true
                 this.cursors.forEach { it.close() }

@@ -221,7 +221,11 @@ class ColumnV2<T : Value>(val path: Path, override val parent: Entity) : Column<
             this@ColumnV2.closeLock.unlockRead(this.closeStamp)
         }
 
-        override fun cursor(start: TupleId): Cursor<T?> {
+        override fun cursor(): Cursor<T?> {
+            throw UnsupportedOperationException("Operation not supported on legacy DBO.")
+        }
+
+        override fun cursor(start: TupleId, end: TupleId): Cursor<T?> {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
     }
