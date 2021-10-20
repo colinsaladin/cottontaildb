@@ -1,12 +1,13 @@
 package org.vitrivr.cottontail.database.catalogue
 
-import jetbrains.exodus.env.Environment
-import jetbrains.exodus.env.Environments
 import jetbrains.exodus.env.forEach
+import org.lmdbjava.Env
+import org.lmdbjava.EnvFlags
 import org.vitrivr.cottontail.config.Config
 import org.vitrivr.cottontail.database.catalogue.entries.*
 import org.vitrivr.cottontail.database.catalogue.entries.MetadataEntry.Companion.METADATA_ENTRY_DB_VERSION
 import org.vitrivr.cottontail.database.general.*
+import org.vitrivr.cottontail.database.lmdb.executeInWriteTransaction
 import org.vitrivr.cottontail.database.schema.DefaultSchema
 import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.execution.TransactionContext
@@ -16,6 +17,7 @@ import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.TxException
 import org.vitrivr.cottontail.utilities.extensions.write
+import java.nio.ByteBuffer
 import java.nio.file.Path
 import java.util.concurrent.locks.StampedLock
 import kotlin.concurrent.withLock
@@ -66,21 +68,21 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
 
     /** Status indicating whether this [DefaultCatalogue] is open or closed. */
     override val closed: Boolean
-        get() = !this.environment.isOpen
+        get() = this.environment.isClosed
 
     /** A lock used to mediate access to this [DefaultCatalogue]. This is an internal variable and not part of the official interface. */
     internal val closeLock = StampedLock()
 
     /** The Xodus environment used for Cottontail DB. This is an internal variable and not part of the official interface. */
-    internal val environment: Environment = Environments.newInstance(
-        this.config.root.resolve("xodus").toFile(),
-        this.config.xodus.toEnvironmentConfig()
-    )
+    internal val environment: Env<ByteBuffer> = Env.create()
+        .setMapSize(Long.MAX_VALUE)
+        .setMaxDbs(Int.MAX_VALUE)
+        .open(this.config.root.resolve("cottontail.db").toFile(), EnvFlags.MDB_NOSUBDIR)
 
     init {
         /* Check if catalogue has been initialized and initialize if needed. */
-        this.environment.executeInExclusiveTransaction { tx ->
-            if (this.environment.getAllStoreNames(tx).size == 0) {
+        this.environment.executeInWriteTransaction { tx ->
+            if (this.environment.dbiNames.size == 0) {
                 /* Initialize database metadata. */
                 MetadataEntry.init(this, tx)
                 MetadataEntry.write(MetadataEntry(METADATA_ENTRY_DB_VERSION, this.version.toString()), this, tx)
