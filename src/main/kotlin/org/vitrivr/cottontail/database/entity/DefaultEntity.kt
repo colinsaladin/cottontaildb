@@ -16,7 +16,7 @@ import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.basics.IndexState
 import org.vitrivr.cottontail.database.index.basics.IndexType
-import org.vitrivr.cottontail.database.logging.operations.Operation
+import org.vitrivr.cottontail.database.operations.Operation
 import org.vitrivr.cottontail.database.schema.DefaultSchema
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import org.vitrivr.cottontail.execution.TransactionContext
@@ -382,10 +382,10 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
                 ?: throw DatabaseException.DataCorruptionException("Sequence entry for entity ${this@DefaultEntity.name} is missing.")
 
             /* Execute INSERT on column level. */
-            val inserts = Object2ObjectArrayMap<Name.ColumnName, Value>(this.columns.size)
+            val inserts = Object2ObjectArrayMap<ColumnDef<*>, Value>(this.columns.size)
             this.columns.values.forEach { tx ->
                 val value = record[tx.columnDef]
-                inserts[tx.columnDef.name] = value
+                inserts[tx.columnDef] = value
 
                 /* Check if null value is allowed. */
                 if (value == null && !tx.columnDef.nullable) throw DatabaseException("Cannot insert NULL value into column ${tx.columnDef}.")
@@ -410,12 +410,12 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          */
         override fun update(record: Record) = this.txLatch.withLock {
             /* Execute UPDATE on column level. */
-            val updates = Object2ObjectArrayMap<Name.ColumnName, Pair<Value?, Value?>>(record.columns.size)
+            val updates = Object2ObjectArrayMap<ColumnDef<*>, Pair<Value?, Value?>>(record.columns.size)
             record.columns.forEach { def ->
                 val columnTx = this.columns[def.name] ?: throw DatabaseException("Record with tuple ID ${record.tupleId} cannot be updated because column $def does not exist on entity ${this@DefaultEntity.name}.")
                 val value = record[def]
                 if (value == null && !def.nullable) throw DatabaseException("Record with tuple ID ${record.tupleId} cannot be updated with NULL value for column $def, because column is not nullable.")
-                updates[def.name] = Pair((columnTx as ColumnTx<Value>).update(record.tupleId, value), value) /* Map: ColumnDef -> Pair[Old, New]. */
+                updates[def] = Pair((columnTx as ColumnTx<Value>).update(record.tupleId, value), value) /* Map: ColumnDef -> Pair[Old, New]. */
             }
 
             /* Issue DataChangeEvent.UpdateDataChangeEvent and update indexes + statistics. */
@@ -433,9 +433,9 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          */
         override fun delete(tupleId: TupleId) = this.txLatch.withLock {
             /* Perform DELETE on column level. */
-            val deleted = Object2ObjectArrayMap<Name.ColumnName, Value?>(this.columns.size)
+            val deleted = Object2ObjectArrayMap<ColumnDef<*>, Value?>(this.columns.size)
             this.columns.values.map {
-                deleted[it.columnDef.name] = it.delete(tupleId)
+                deleted[it.columnDef] = it.delete(tupleId)
             }
 
             /* Issue DataChangeEvent.DeleteDataChangeEvent and update indexes + statistics. */

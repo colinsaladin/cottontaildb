@@ -5,6 +5,7 @@ import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.Binding
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
+import org.vitrivr.cottontail.database.queries.planning.nodes.logical.projection.FunctionProjectionLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.UnaryPhysicalOperatorNode
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.execution.operators.projection.FunctionProjectionOperator
@@ -23,9 +24,16 @@ class FunctionProjectionPhysicalOperatorNode(input: Physical? = null, val functi
         private const val NODE_NAME = "Function"
     }
 
+    /** The [ColumnDef] being produced by this [FunctionProjectionPhysicalOperatorNode]. */
+    val produces: ColumnDef<*> = ColumnDef(
+        name = this.alias ?: Name.ColumnName(this.function.signature.name.simple),
+        type = this.function.signature.returnType!!,
+        nullable = false
+    )
+
     /** The column produced by this [FunctionProjectionPhysicalOperatorNode] is determined by the [Function]'s signature. */
     override val columns: List<ColumnDef<*>>
-        get() = (this.input?.columns ?: emptyList()) + ColumnDef(this.alias ?: Name.ColumnName(this.function.signature.name.simple), this.function.signature.returnType!!)
+        get() = (this.input?.columns ?: emptyList()) + this.produces
 
     /** The [FunctionProjectionPhysicalOperatorNode] requires all [ColumnDef] used in the [Function]. */
     override val requires: List<ColumnDef<*>>
@@ -40,6 +48,11 @@ class FunctionProjectionPhysicalOperatorNode(input: Physical? = null, val functi
     override val cost: Cost
         get() = Cost(cpu = this.outputSize * this.function.cost)
 
+    /** [FunctionProjectionLogicalOperatorNode] can only be executed if [Function] can be executed. */
+    override val executable: Boolean
+        get() = super.executable && this.function.executable
+
+    /** Human-readable name of this [FunctionProjectionLogicalOperatorNode]. */
     override val name: String
         get() = NODE_NAME
 
@@ -62,6 +75,13 @@ class FunctionProjectionPhysicalOperatorNode(input: Physical? = null, val functi
     override fun partition(p: Int): List<Physical> {
         val input = this.input ?: throw IllegalStateException("Cannot partition disconnected OperatorNode (node = $this)")
         return input.partition(p).map { FunctionProjectionPhysicalOperatorNode(it, this.function, this.arguments, this.alias) }
+    }
+
+    /** Generates and returns a [String] representation of this [FunctionProjectionOperator]. */
+    override fun toString() = if (this.alias != null) {
+        "${super.toString()}[${this.function.signature} -> ${this.alias}]"
+    } else {
+        "${super.toString()}[${this.function.signature}]"
     }
 
     /**

@@ -8,24 +8,25 @@ import org.vitrivr.cottontail.database.catalogue.storeName
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.index.*
+import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.basics.IndexConfig
 import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.index.basics.NoIndexConfig
-import org.vitrivr.cottontail.database.logging.operations.Operation
+import org.vitrivr.cottontail.database.operations.Operation
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.ComparisonOperator
 import org.vitrivr.cottontail.execution.TransactionContext
-import org.vitrivr.cottontail.model.basics.*
+import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.Record
+import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.TxException
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.storage.serializers.xodus.XodusBinding
-
 import java.util.*
 import kotlin.concurrent.withLock
 
@@ -162,23 +163,23 @@ class UniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractInd
         override fun update(event: Operation.DataManagementOperation) = this.txLatch.withLock {
             when (event) {
                 is Operation.DataManagementOperation.InsertOperation-> {
-                    val value = event.inserts[this.dbo.columns[0].name]
+                    val value = event.inserts[this.dbo.columns[0]]
                     if (value != null) {
                         this.addMapping(value, event.tupleId)
                     }
                 }
                 is Operation.DataManagementOperation.UpdateOperation -> {
-                    val old = event.updates[this.dbo.columns[0].name]?.first
+                    val old = event.updates[this.dbo.columns[0]]?.first
                     if (old != null) {
                         this.removeMapping(old)
                     }
-                    val new = event.updates[this.dbo.columns[0].name]?.second
+                    val new = event.updates[this.dbo.columns[0]]?.second
                     if (new != null) {
                         this.addMapping(new, event.tupleId)
                     }
                 }
                 is Operation.DataManagementOperation.DeleteOperation -> {
-                    val old = event.deleted[this.dbo.columns[0].name]
+                    val old = event.deleted[this.dbo.columns[0]]
                     if (old != null) {
                         this.removeMapping(old)
                     }

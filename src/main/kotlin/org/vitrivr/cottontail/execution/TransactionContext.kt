@@ -1,30 +1,26 @@
 package org.vitrivr.cottontail.execution
 
 import jetbrains.exodus.env.Transaction
-import kotlinx.coroutines.flow.Flow
 import org.vitrivr.cottontail.database.general.DBO
 import org.vitrivr.cottontail.database.general.Tx
 import org.vitrivr.cottontail.database.locking.Lock
 import org.vitrivr.cottontail.database.locking.LockManager
 import org.vitrivr.cottontail.database.locking.LockMode
-import org.vitrivr.cottontail.database.logging.operations.Operation
-import org.vitrivr.cottontail.database.queries.QueryContext
-import org.vitrivr.cottontail.execution.operators.basics.Operator
-import org.vitrivr.cottontail.model.basics.Record
+import org.vitrivr.cottontail.database.operations.Operation
 import org.vitrivr.cottontail.model.basics.TransactionId
 
 /**
- * A [TransactionContext] used by operators to execute and obtain necessary resources and maintain a global state.
+ * A [TransactionContext] used by operators and their sub transactions to execute and obtain necessary locks on database objects.
  *
  * @author Ralph Gasser
- * @version 3.0.0
+ * @version 1.5.0
  */
 interface TransactionContext {
 
     /** The [TransactionId] of this [TransactionContext]. */
     val txId: TransactionId
 
-    /** The Xodus [Transaction] associated with this. */
+    /** The Xodus [Transaction] associated with this [TransactionContext]. */
     val xodusTx: Transaction
 
     /** The [TransactionType] of this [TransactionContext]. */
@@ -62,13 +58,4 @@ interface TransactionContext {
      * @param action The [Operation.DataManagementOperation] that has been reported.
      */
     fun signalEvent(action: Operation.DataManagementOperation)
-
-    /**
-     * Schedules an [Operator] for execution in this [TransactionContext] and blocks, until execution has completed.
-     *
-     * @param context The [QueryContext] to execute the [Operator] in.
-     * @param operator The [Operator.SinkOperator] that should be executed.
-     * @return Resulting [Flow] of [Record]s
-     */
-    fun execute(operator: Operator, context: QueryContext): Flow<Record>
 }

@@ -4,7 +4,7 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.general.Tx
 import org.vitrivr.cottontail.database.index.basics.IndexState
 import org.vitrivr.cottontail.database.index.basics.IndexType
-import org.vitrivr.cottontail.database.logging.operations.Operation
+import org.vitrivr.cottontail.database.operations.Operation
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
 import org.vitrivr.cottontail.model.basics.Countable
@@ -13,10 +13,10 @@ import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.exceptions.TxException
 
 /**
- * A [Tx] that operates on a single [AbstractIndex]. [Tx]s are a unit of isolation for data operations (read/write).
+ * A [Tx] that operates on a single [Index]. [Tx]s are a unit of isolation for data operations (read/write).
  *
  * @author Ralph Gasser
- * @version 1.8.1
+ * @version 2.0.0
  */
 interface IndexTx : Tx, Filterable, Countable {
 
@@ -26,35 +26,35 @@ interface IndexTx : Tx, Filterable, Countable {
     /** The order in which results of this [IndexTx] appear. Empty array that there is no particular order. */
     val order: Array<Pair<ColumnDef<*>, SortOrder>>
 
-    /** The [IndexType] of the [AbstractIndex] that underpins this [IndexTx]. */
+    /** The [IndexType] of the [Index] that underpins this [IndexTx]. */
     val state: IndexState
 
-    /** The [IndexType] of the [AbstractIndex] that underpins this [IndexTx]. */
+    /** The [IndexType] of the [Index] that underpins this [IndexTx]. */
     val type: IndexType
 
     /**
-     * (Re-)builds the underlying [AbstractIndex] completely.
+     * (Re-)builds the underlying [Index] completely.
      *
-     * @throws [TxException.TxValidationException] If rebuild of [AbstractIndex] fails for some reason.
+     * @throws [TxException.TxValidationException] If rebuild of [Index] fails for some reason.
      */
     @Throws(TxException.TxValidationException::class)
     fun rebuild()
 
     /**
-     * Updates the [AbstractIndex] underlying this [IndexTx] based on the provided [Operation.DataManagementOperation].
+     * Updates the [Index] underlying this [IndexTx] based on the provided [Operation.DataManagementOperation].
      *
-     * Not all [AbstractIndex] implementations support incremental updates. Should be indicated by [IndexTransaction#supportsIncrementalUpdate()]
+     * Not all [Index] implementations support incremental updates. Should be indicated by [IndexTransaction#supportsIncrementalUpdate()]
      *
      * @param event [Operation.DataManagementOperation] that should be processed.
-     * @throws [TxException.TxValidationException] If update of [AbstractIndex] fails for some reason.
+     * @throws [TxException.TxValidationException] If update of [Index] fails for some reason.
      */
     @Throws(TxException.TxValidationException::class)
     fun update(event: Operation.DataManagementOperation)
 
     /**
-     * Clears the [AbstractIndex] underlying this [IndexTx] and removes all entries it contains.
+     * Clears the [Index] underlying this [IndexTx] and removes all entries it contains.
      *
-     * @throws [TxException.TxValidationException] If update of [AbstractIndex] fails for some reason.
+     * @throws [TxException.TxValidationException] If update of [Index] fails for some reason.
      */
     @Throws(TxException.TxValidationException::class)
     fun clear()
@@ -73,7 +73,7 @@ interface IndexTx : Tx, Filterable, Countable {
      * all the [Record]s that match the [Predicate] and fall within the specified data
      * [LongRange], which must lie in 0..[count].
      *
-     * Not all [AbstractIndex] implementations support range filtering.
+     * Not all [Index] implementations support range filtering.
      *
      * @param predicate The [Predicate] to perform the lookup.
      * @param partitionIndex The [partitionIndex] for this [filterRange] call.

@@ -5,9 +5,9 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx
+import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
@@ -38,6 +38,12 @@ class IndexScanPhysicalOperatorNode(override val groupId: Int, val index: IndexT
     /** The name of this [IndexScanPhysicalOperatorNode]. */
     override val name: String
         get() = NODE_NAME
+
+    /** The [ColumnDef]s accessed by this [IndexScanPhysicalOperatorNode] depends on the [ColumnDef]s produced by the [Index]. */
+    override val physicalColumns: List<ColumnDef<*>> = this.fetch.map {
+        require(this.index.dbo.produces.contains(it.second)) { "The given column $it is not produced by the selected index ${this.index.dbo}. This is a programmer's error!"}
+        it.second
+    }
 
     /** The [ColumnDef]s produced by this [IndexScanPhysicalOperatorNode] depends on the [ColumnDef]s produced by the [Index]. */
     override val columns: List<ColumnDef<*>> = this.fetch.map {
@@ -107,10 +113,10 @@ class IndexScanPhysicalOperatorNode(override val groupId: Int, val index: IndexT
                 val operators = partitions.map { it.toOperator(ctx) }
                 MergeLimitingHeapSortOperator(operators, listOf(Pair(this.predicate.produces, SortOrder.ASCENDING)), this.predicate.k.toLong())
             } else {
-                IndexScanOperator(this.groupId, this.index, this.predicate, this.fetch)
+                IndexScanOperator(this.groupId, this.index, this.predicate, this.fetch, ctx.bindings)
             }
         }
-        is BooleanPredicate -> IndexScanOperator(this.groupId, this.index, this.predicate, this.fetch)
+        is BooleanPredicate -> IndexScanOperator(this.groupId, this.index, this.predicate, this.fetch, ctx.bindings)
         else -> throw UnsupportedOperationException("Unknown type of predicate ${this.predicate} cannot be converted to operator.")
     }
 

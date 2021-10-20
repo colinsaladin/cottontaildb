@@ -31,6 +31,9 @@ class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Enti
     override val name: String
         get() = NODE_NAME
 
+    /** The physical [ColumnDef] accessed by this [EntityScanPhysicalOperatorNode]. */
+    override val physicalColumns: List<ColumnDef<*>> = this.fetch.map { it.second }
+
     /** The [ColumnDef] produced by this [EntityScanPhysicalOperatorNode]. */
     override val columns: List<ColumnDef<*>> = this.fetch.map { it.second.copy(name = it.first) }
 
@@ -50,7 +53,7 @@ class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Enti
     /** The estimated [Cost] of scanning the [Entity]. */
     override val cost: Cost
         get() = Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.columns.sumOf {
-            this.statistics[it]?.avgWidth ?: it.type.logicalSize
+            this.statistics[it]?.avgWidth ?: it.type.physicalSize
         }
 
     init {
@@ -81,7 +84,7 @@ class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Enti
      *
      * @param ctx The [QueryContext] used for the conversion (e.g. late binding).
      */
-    override fun toOperator(ctx: QueryContext) = EntityScanOperator(this.groupId, this.entity, this.fetch, 0, 1)
+    override fun toOperator(ctx: QueryContext) = EntityScanOperator(this.groupId, this.entity, this.fetch, ctx.bindings,0, 1)
 
     /** Generates and returns a [String] representation of this [EntityScanPhysicalOperatorNode]. */
     override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.name.toString() }}]"

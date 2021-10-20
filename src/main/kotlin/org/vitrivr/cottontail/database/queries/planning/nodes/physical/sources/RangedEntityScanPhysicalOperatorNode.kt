@@ -5,7 +5,6 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPhysicalOperatorNode
@@ -31,16 +30,21 @@ class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity
     override val name: String
         get() = NODE_NAME
 
+    /** The physical [ColumnDef] accessed by this [RangedEntityScanPhysicalOperatorNode]. */
+    override val physicalColumns: List<ColumnDef<*>> = this.fetch.map { it.second }
+
     /** The [ColumnDef] produced by this [RangedEntityScanPhysicalOperatorNode]. */
     override val columns: List<ColumnDef<*>> = this.fetch.map { it.second.copy(name = it.first) }
 
-
+    /** The number of rows returned by this [RangedEntityScanPhysicalOperatorNode] equals to the number of rows in the [Entity]. */
     override val outputSize: Long = floorDiv(this.entity.count(), this.partitions.toLong())
 
     /** [ValueStatistics] are taken from the underlying [Entity]. The query planner uses statistics for [Cost] estimation. */
     override val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
 
     override val executable: Boolean = true
+
+    /** [RangedEntityScanPhysicalOperatorNode] cannot be partitioned any further. */
     override val canBePartitioned: Boolean = false
     override val cost: Cost
 
@@ -55,7 +59,7 @@ class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity
 
         /* Calculate costs. */
         this.cost = Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.columns.sumOf {
-            this.statistics[it]?.avgWidth ?: it.type.logicalSize
+            this.statistics[it]?.avgWidth ?: it.type.physicalSize
         }
     }
 
@@ -69,7 +73,7 @@ class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity
     /**
      * [RangedIndexScanPhysicalOperatorNode] cannot be partitioned.
      */
-    override fun partition(p: Int): List<OperatorNode.Physical> {
+    override fun partition(p: Int): List<Physical> {
         throw UnsupportedOperationException("RangedEntityScanPhysicalOperatorNode cannot be further partitioned.")
     }
 
@@ -78,7 +82,7 @@ class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity
      *
      * @param ctx The [QueryContext] used for the conversion (e.g. late binding).
      */
-    override fun toOperator(ctx: QueryContext) = EntityScanOperator(this.groupId, this.entity, this.fetch, this.partitionIndex, this.partitions)
+    override fun toOperator(ctx: QueryContext) = EntityScanOperator(this.groupId, this.entity, this.fetch, ctx.bindings, this.partitionIndex, this.partitions)
 
     /** Generates and returns a [String] representation of this [RangedEntityScanPhysicalOperatorNode]. */
     override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.name.toString() }},${this.partitionIndex}/${this.partitions}]"

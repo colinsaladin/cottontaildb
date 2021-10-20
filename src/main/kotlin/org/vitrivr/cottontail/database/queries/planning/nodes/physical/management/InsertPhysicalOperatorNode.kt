@@ -11,7 +11,6 @@ import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.management.InsertLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPhysicalOperatorNode
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
-import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.execution.operators.management.InsertOperator
 import org.vitrivr.cottontail.execution.operators.management.UpdateOperator
 import org.vitrivr.cottontail.model.basics.Record
@@ -21,7 +20,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * A [InsertPhysicalOperatorNode] that formalizes a INSERT operation on an [Entity].
  *
  * @author Ralph Gasser
- * @version 2.3.0
+ * @version 2.4.0
  */
 class InsertPhysicalOperatorNode(override val groupId: GroupId, val entity: EntityTx, val records: MutableList<Record>) : NullaryPhysicalOperatorNode() {
     companion object {
@@ -31,6 +30,9 @@ class InsertPhysicalOperatorNode(override val groupId: GroupId, val entity: Enti
     /** The name of this [InsertPhysicalOperatorNode]. */
     override val name: String
         get() = NODE_NAME
+
+    /** The physical [ColumnDef] accessed by the [InsertPhysicalOperatorNode]. */
+    override val physicalColumns: List<ColumnDef<*>> = this.entity.listColumns().map { it }
 
     /** The [InsertPhysicalOperatorNode] produces the [ColumnDef]s defined in the [UpdateOperator]. */
     override val columns: List<ColumnDef<*>> = InsertOperator.COLUMNS
@@ -69,7 +71,7 @@ class InsertPhysicalOperatorNode(override val groupId: GroupId, val entity: Enti
      *
      * @param ctx The [QueryContext] used for the conversion (e.g. late binding).
      */
-    override fun toOperator(ctx: QueryContext): Operator = InsertOperator(this.groupId, this.entity, this.records)
+    override fun toOperator(ctx: QueryContext) = InsertOperator(this.groupId, this.entity, this.records)
 
     /**
      * [InsertPhysicalOperatorNode] cannot be partitioned.

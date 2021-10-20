@@ -62,7 +62,7 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
     override val catalogue: DefaultCatalogue = this
 
     /** The [FunctionRegistry] exposed by this [Catalogue]. */
-    override val functions: FunctionRegistry = FunctionRegistry(this.config)
+    override val functions: FunctionRegistry = FunctionRegistry()
 
     /** Status indicating whether this [DefaultCatalogue] is open or closed. */
     override val closed: Boolean

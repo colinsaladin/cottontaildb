@@ -3,10 +3,10 @@ package org.vitrivr.cottontail.execution.operators.predicates
 import it.unimi.dsi.fastutil.ints.Int2ObjectOpenHashMap
 import kotlinx.coroutines.flow.*
 import org.vitrivr.cottontail.database.column.ColumnDef
-import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.Binding
 import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.ComparisonOperator
+import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.execution.operators.basics.take
 import org.vitrivr.cottontail.model.basics.Record
@@ -30,7 +30,7 @@ class FilterOnSubselectOperator(val parent: Operator, val subSelects: List<Opera
     override val columns: List<ColumnDef<*>>
         get() = this.parent.columns
 
-    override fun toFlow(context: QueryContext): Flow<Record> {
+    override fun toFlow(context: TransactionContext): Flow<Record> {
         /* Prepare main branch of query execution + sub-select branches. */
         val query = this.parent.toFlow(context)
         val subSelects = this.subSelects.map { it.groupId to it.toFlow(context) }
@@ -56,7 +56,7 @@ class FilterOnSubselectOperator(val parent: Operator, val subSelects: List<Opera
                         select.second.onEach {
                             val value = it[it.columns[0]]
                             if (value != null) {
-                                op.addRef(context.bindings.bind(value))
+                                op.addRef(this@FilterOnSubselectOperator.binding.bind(value))
                             }
                         }
                     }
