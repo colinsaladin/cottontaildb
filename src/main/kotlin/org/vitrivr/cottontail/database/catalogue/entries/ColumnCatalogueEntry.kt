@@ -5,6 +5,7 @@ import jetbrains.exodus.env.Store
 import jetbrains.exodus.env.StoreConfig
 import jetbrains.exodus.env.Transaction
 import jetbrains.exodus.util.LightOutputStream
+import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.catalogue.DefaultCatalogue
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.column.ColumnDef
@@ -19,7 +20,7 @@ import java.io.ByteArrayInputStream
  * @author Ralph Gasser
  * @version 1.0.0
  */
-data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, val nullable: Boolean, val primary: Boolean): Comparable<ColumnCatalogueEntry> {
+data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, val nullable: Boolean, val primary: Boolean){
     /**
      * Creates a [ColumnCatalogueEntry] from the provided [ColumnDef].
      *
@@ -27,21 +28,55 @@ data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, va
      */
     constructor(def: ColumnDef<*>) : this(def.name, def.type, def.primary, def.nullable)
 
-    companion object: ComparableBinding() {
+    /**
+     * Creates a [Serialized] version of this [ColumnCatalogueEntry].
+     *
+     * @return [Serialized]
+     */
+    private fun toSerialized() = Serialized(this.type, this.nullable, this.primary)
+
+    /**
+     * The [Serialized] version of the [ColumnCatalogueEntry]. That entry does not include the [Name.ColumnName]
+     */
+    private data class Serialized(val type: Type<*>, val nullable: Boolean, val primary: Boolean): Comparable<Serialized> {
+
+        /**
+         * Converts this [Serialized] to an actual [ColumnCatalogueEntry].
+         *
+         * @param name The [Name.ColumnName] this entry belongs to.
+         * @return [ColumnCatalogueEntry]
+         */
+        fun toActual(name: Name.ColumnName) = ColumnCatalogueEntry(name, this.type, this.nullable, this.primary)
+
+        companion object: ComparableBinding() {
+            /**
+             * De-serializes a [Serialized] from the given [ByteArrayInputStream].
+             */
+            override fun readObject(stream: ByteArrayInputStream): Serialized = Serialized(
+                Type.forOrdinal(IntegerBinding.readCompressed(stream), IntegerBinding.readCompressed(stream)),
+                BooleanBinding.BINDING.readObject(stream),
+                BooleanBinding.BINDING.readObject(stream),
+            )
+
+            /**
+             * Serializes a [Serialized] to the given [LightOutputStream].
+             */
+            override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
+                require(`object` is Serialized) { "$`object` cannot be written as column entry." }
+                IntegerBinding.writeCompressed(output, `object`.type.ordinal)
+                IntegerBinding.writeCompressed(output, `object`.type.logicalSize)
+                BooleanBinding.BINDING.writeObject(output, `object`.nullable)
+                BooleanBinding.BINDING.writeObject(output, `object`.primary)
+            }
+        }
+        override fun compareTo(other: Serialized): Int = this.type.ordinal.compareTo(other.type.ordinal)
+    }
+
+
+    companion object {
 
         /** Name of the [ColumnCatalogueEntry] store in the Cottontail DB catalogue. */
         private const val CATALOGUE_COLUMN_STORE_NAME: String = "ctt_cat_columns"
-
-        /**
-         * Returns the [Store] for [ColumnCatalogueEntry] entries.
-         *
-         * @param catalogue [DefaultCatalogue] to access [Store] for.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
-         * @return [Store]
-         */
-        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Store =
-            catalogue.environment.openStore(CATALOGUE_COLUMN_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
-                ?: throw DatabaseException.DataCorruptionException("Failed to open store for column catalogue.")
 
         /**
          * Initializes the store used to store [IndexCatalogueEntry] in Cottontail DB.
@@ -55,6 +90,17 @@ data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, va
         }
 
         /**
+         * Returns the [Store] for [ColumnCatalogueEntry] entries.
+         *
+         * @param catalogue [DefaultCatalogue] to access [Store] for.
+         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @return [Store]
+         */
+        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Store =
+            catalogue.environment.openStore(CATALOGUE_COLUMN_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
+                ?: throw DatabaseException.DataCorruptionException("Failed to open store for column catalogue.")
+
+        /**
          * Reads the [ColumnCatalogueEntry] for the given [Name.ColumnName] from the given [DefaultCatalogue].
          *
          * @param name [Name.ColumnName] to retrieve the [ColumnCatalogueEntry] for.
@@ -66,7 +112,7 @@ data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, va
             val rawName = Name.ColumnName.objectToEntry(name)
             val rawEntry = store(catalogue, transaction).get(transaction, rawName)
             return if (rawEntry != null) {
-                ColumnCatalogueEntry.entryToObject(rawEntry) as ColumnCatalogueEntry
+                (Serialized.entryToObject(rawEntry) as Serialized).toActual(name)
             } else {
                 null
             }
@@ -81,7 +127,7 @@ data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, va
          * @return True on success, false otherwise.
          */
         internal fun write(entry: ColumnCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
-            store(catalogue, transaction).put(transaction, Name.ColumnName.objectToEntry(entry.name), ColumnCatalogueEntry.objectToEntry(entry))
+            store(catalogue, transaction).put(transaction, Name.ColumnName.objectToEntry(entry.name), Serialized.objectToEntry(entry.toSerialized()))
 
         /**
          * Deletes the [ColumnCatalogueEntry] for the given [Name.ColumnName] from the given [DefaultCatalogue].
@@ -93,22 +139,6 @@ data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, va
          */
         internal fun delete(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
             store(catalogue, transaction).delete(transaction, Name.ColumnName.objectToEntry(name))
-
-        override fun readObject(stream: ByteArrayInputStream): ColumnCatalogueEntry = ColumnCatalogueEntry(
-            Name.ColumnName.readObject(stream),
-            Type.forOrdinal(IntegerBinding.readCompressed(stream), IntegerBinding.readCompressed(stream)),
-            BooleanBinding.BINDING.readObject(stream),
-            BooleanBinding.BINDING.readObject(stream),
-        )
-
-        override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
-            require(`object` is ColumnCatalogueEntry) { "$`object` cannot be written as column entry." }
-            Name.ColumnName.Binding.writeObject(output, `object`.name)
-            IntegerBinding.writeCompressed(output, `object`.type.ordinal)
-            IntegerBinding.writeCompressed(output, `object`.type.logicalSize)
-            BooleanBinding.BINDING.writeObject(output, `object`.nullable)
-            BooleanBinding.BINDING.writeObject(output, `object`.primary)
-        }
     }
 
     /**
@@ -117,5 +147,4 @@ data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, va
      * @return [ColumnDef] for this [ColumnCatalogueEntry]
      */
     fun toColumnDef(): ColumnDef<*> = ColumnDef(this.name, this.type, this.nullable, this.primary)
-    override fun compareTo(other: ColumnCatalogueEntry): Int = this.name.compareTo(other.name)
 }

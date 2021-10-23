@@ -22,7 +22,7 @@ import java.io.ByteArrayInputStream
  * @author Ralph Gasser
  * @version 1.0.0
  */
-data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, val statistics: ValueStatistics<*>): Comparable<StatisticsCatalogueEntry>  {
+data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, val statistics: ValueStatistics<*>)  {
     /**
      * Creates a [StatisticsCatalogueEntry] from the provided [ColumnDef].
      *
@@ -46,7 +46,51 @@ data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>
         else -> ValueStatistics(def.type)
     })
 
-    companion object: ComparableBinding() {
+    /**
+     * Creates a [Serialized] version of this [StatisticsCatalogueEntry].
+     *
+     * @return [Serialized]
+     */
+    private fun toSerialized() = Serialized(this.type, this.statistics)
+
+    /**
+     * The [Serialized] version of the [StatisticsCatalogueEntry]. That entry does not include the [Name.ColumnName].
+     */
+    private data class Serialized(val type: Type<*>, val statistics: ValueStatistics<*>): Comparable<Serialized> {
+
+        /**
+         * Converts this [Serialized] to an actual [StatisticsCatalogueEntry].
+         *
+         * @param name The [Name.ColumnName] this entry belongs to.
+         * @return [StatisticsCatalogueEntry]
+         */
+        fun toActual(name: Name.ColumnName) = StatisticsCatalogueEntry(name, this.type, this.statistics)
+
+        companion object: ComparableBinding() {
+            /**
+             * De-serializes a [Serialized] from the given [ByteArrayInputStream].
+             */
+            override fun readObject(stream: ByteArrayInputStream): Serialized {
+                val type = Type.forOrdinal(IntegerBinding.readCompressed(stream), IntegerBinding.readCompressed(stream))
+                val statistics = ValueStatistics.read(stream, type)
+                return Serialized(type, statistics)
+            }
+
+            /**
+             * Serializes a [Serialized] to the given [LightOutputStream].
+             */
+            override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
+                require(`object` is Serialized) { "$`object` cannot be written as statistics entry." }
+                IntegerBinding.writeCompressed(output, `object`.type.ordinal)
+                IntegerBinding.writeCompressed(output, `object`.type.logicalSize)
+                ValueStatistics.write(output, `object`.statistics)
+            }
+        }
+        override fun compareTo(other: Serialized): Int = this.type.ordinal.compareTo(other.type.ordinal)
+    }
+
+
+    companion object {
 
         /** Name of the [StatisticsCatalogueEntry] store in this [DefaultCatalogue]. */
         private const val CATALOGUE_STATISTICS_STORE_NAME: String = "ctt_cat_statistics"
@@ -84,7 +128,7 @@ data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>
         internal fun read(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): StatisticsCatalogueEntry? {
             val rawEntry = store(catalogue, transaction).get(transaction, Name.ColumnName.objectToEntry(name))
             return if (rawEntry != null) {
-                entryToObject(rawEntry) as StatisticsCatalogueEntry
+                (Serialized.entryToObject(rawEntry) as Serialized).toActual(name)
             } else {
                 null
             }
@@ -99,7 +143,7 @@ data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>
          * @return True on success, false otherwise.
          */
         internal fun write(entry: StatisticsCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
-             store(catalogue, transaction).put(transaction, Name.ColumnName.objectToEntry(entry.name), objectToEntry(entry))
+             store(catalogue, transaction).put(transaction, Name.ColumnName.objectToEntry(entry.name), Serialized.objectToEntry(entry.toSerialized()))
 
         /**
          * Deletes the [StatisticsCatalogueEntry] for the given [Name.ColumnName] from the given [DefaultCatalogue].
@@ -111,22 +155,5 @@ data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>
          */
         internal fun delete(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
             store(catalogue, transaction).delete(transaction, Name.ColumnName.objectToEntry(name))
-
-        override fun readObject(stream: ByteArrayInputStream):StatisticsCatalogueEntry {
-            val name = Name.ColumnName.readObject(stream)
-            val type = Type.forOrdinal(IntegerBinding.readCompressed(stream), IntegerBinding.readCompressed(stream))
-            val statistics = ValueStatistics.read(stream, type)
-            return StatisticsCatalogueEntry(name, type, statistics)
-        }
-
-        override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
-            require(`object` is StatisticsCatalogueEntry) { "$`object` cannot be written as statistics entry." }
-            Name.ColumnName.writeObject(output, `object`.name)
-            IntegerBinding.writeCompressed(output, `object`.type.ordinal)
-            IntegerBinding.writeCompressed(output, `object`.type.logicalSize)
-            ValueStatistics.write(output, `object`.statistics)
-        }
     }
-
-    override fun compareTo(other: StatisticsCatalogueEntry): Int = this.name.compareTo(other.name)
 }
