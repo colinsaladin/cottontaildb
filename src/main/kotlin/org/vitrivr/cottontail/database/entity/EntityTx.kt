@@ -74,7 +74,7 @@ interface EntityTx : Tx, Scanable, Countable, Modifiable {
      * @param params Additional parameters for index creation.
      * @return Newly created [Index] for use in context of this [Tx]
      */
-    fun createIndex(name: Name.IndexName, type: IndexType, columns: Array<Name.ColumnName>, params: Map<String, String>): Index
+    fun createIndex(name: Name.IndexName, type: IndexType, columns: List<Name.ColumnName>, params: Map<String, String>): Index
 
     /**
      * Drops the [Index] with the given name.

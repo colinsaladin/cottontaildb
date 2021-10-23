@@ -237,7 +237,7 @@ class EntityV2(val path: Path, override val parent: SchemaV2) : Entity, AutoClos
             throw DatabaseException.IndexDoesNotExistException(name)
         }
 
-        override fun createIndex(name: Name.IndexName, type: IndexType, columns: Array<Name.ColumnName>, params: Map<String, String>): Index {
+        override fun createIndex(name: Name.IndexName, type: IndexType, columns: List<Name.ColumnName>, params: Map<String, String>): Index {
             throw UnsupportedOperationException("Operation not supported on legacy DBO.")
         }
 

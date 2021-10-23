@@ -217,7 +217,7 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          * @param type Type of the [Index] to create.
          * @param columns The list of [columns] to [Index].
          */
-        override fun createIndex(name: Name.IndexName, type: IndexType, columns: Array<Name.ColumnName>, params: Map<String, String>): Index = this.txLatch.withLock {
+        override fun createIndex(name: Name.IndexName, type: IndexType, columns: List<Name.ColumnName>, params: Map<String, String>): Index = this.txLatch.withLock {
             /* Checks if index exists. */
             if (IndexCatalogueEntry.exists(name, this@DefaultEntity.catalogue, this.context.xodusTx)) {
                 throw DatabaseException.IndexAlreadyExistsException(name)
