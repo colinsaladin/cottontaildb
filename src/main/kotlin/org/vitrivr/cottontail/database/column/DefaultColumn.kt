@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.database.column
 
+import jetbrains.exodus.ArrayByteIterable
 import jetbrains.exodus.bindings.LongBinding
 import jetbrains.exodus.env.Store
 import jetbrains.exodus.env.StoreConfig
@@ -221,32 +222,16 @@ class DefaultColumn<T : Value>(override val columnDef: ColumnDef<T>, override va
                 /** Internal [Cursor] used for iteration. */
                 private val cursor: jetbrains.exodus.env.Cursor = this@Tx.dataStore.openCursor(this.subTx)
 
-                /** The [TupleId] this [Cursor] currently points to. */
-                private var tid: TupleId
-
-                /** The [Value] this [Cursor] currently points to. */
-                private var value: T? = null
+                /** Serialize the start value to a [ArrayByteIterable]. */
+                private val end: ArrayByteIterable = end.toKey()
 
                 init {
-                    if (start > -1L) {
-                        this.cursor.getSearchKeyRange(start.toKey())
-                        this.tid = LongBinding.compressedEntryToLong(this.cursor.key)
-                        this.value = this.binding.entryToValue(this.cursor.value)
-                    } else {
-                        this.tid = -1L
-                    }
+                    if (start > -1L) this.cursor.getSearchKeyRange(start.toKey())
                 }
 
-                override fun moveNext(): Boolean {
-                    if (this.tid < end && this.cursor.next) {
-                        this.tid = LongBinding.compressedEntryToLong(this.cursor.key)
-                        this.value = this.binding.entryToValue(this.cursor.value)
-                        return true
-                    }
-                    return false
-                }
-                override fun key(): TupleId = this.tid
-                override fun value(): T? = this.value
+                override fun moveNext(): Boolean = this.cursor.next && this.cursor.key < this.end
+                override fun key(): TupleId = LongBinding.compressedEntryToLong(this.cursor.key)
+                override fun value(): T? = this.binding.entryToValue(this.cursor.value)
                 override fun close() {
                     this.cursor.close()
                     this.subTx.abort()
