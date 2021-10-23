@@ -311,12 +311,6 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
             /** Array of [Value]s emitted by this [Iterator]. */
             private val values = arrayOfNulls<Value?>(columns.size)
 
-            /** The current [TupleId] this [Cursor] is pointin to. */
-            private var current: TupleId
-
-            /** The maximum [TupleId] to iterate over. */
-            private val end: TupleId
-
             /** The wrapped [Cursor] to iterate over columns. */
             private val cursors: List<Cursor<out Value?>>
 
@@ -324,19 +318,19 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
             private var dataInvalid: Boolean = true
 
             init {
-                val maximum: Long = this@Tx.maxTupleId()
-                val partitionSize: Long = Math.floorDiv(maximum, partitions.toLong()) + 1L
-                this.end = min(((partitionIndex + 1) * partitionSize), maximum)
+                val maxTupleId = this@Tx.maxTupleId()
+                val partitionSize: Long = Math.floorDiv(maxTupleId, partitions.toLong()) + 1L
+                val startTupleId = partitionIndex * partitionSize
+                val endTupleId = min(((partitionIndex + 1) * partitionSize), maxTupleId)
                 this.cursors = columns.map {
-                    this@Tx.columns[it.name]?.cursor(partitionIndex * partitionSize, this.end) ?: throw IllegalStateException("Column $it missing in transaction.")
+                    this@Tx.columns[it.name]?.cursor(startTupleId, endTupleId) ?: throw IllegalStateException("Column $it missing in transaction.")
                 }
-                this.current = this.cursors.first().key()
             }
 
             /**
              * Returns the [TupleId] this [Cursor] is currently pointing to.
              */
-            override fun key(): TupleId = this.current
+            override fun key(): TupleId = this.cursors.first().key()
 
             /**
              * Returns the [Record] this [Cursor] is currently pointing to.
@@ -346,16 +340,16 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
                     this.cursors.forEachIndexed { index, cursor -> this.values[index] = cursor.value() }
                     this.dataInvalid = false
                 }
-                return StandaloneRecord(this.current, columns, this.values)
+                return StandaloneRecord(this.cursors.first().key(), columns, this.values)
             }
 
             /**
              * Tries to move this [Cursor]. Returns true on success and false otherwise.
              */
             override fun moveNext(): Boolean {
-                if (this.current >= this.end) return false
+                val ret = this.cursors.all { it.moveNext() }
                 this.dataInvalid = true
-                return this.cursors.all { it.moveNext() }
+                return ret
             }
 
             /**
