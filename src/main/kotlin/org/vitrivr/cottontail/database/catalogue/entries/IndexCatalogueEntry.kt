@@ -20,7 +20,7 @@ import java.io.ByteArrayInputStream
  * @author Ralph Gasser
  * @version 1.0.0
  */
-data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, val state: IndexState, val columns: List<Name.ColumnName>, val config: Map<String,String>): Comparable<IndexCatalogueEntry> {
+data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, val state: IndexState, val columns: List<Name.ColumnName>, val config: Map<String,String>) {
 
     /**
      * Creates a [Serialized] version of this [IndexCatalogueEntry].
@@ -70,7 +70,7 @@ data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, va
                 /* Write all columns. */
                 ShortBinding.BINDING.writeObject(output,`object`.columns.size)
                 for (columnName in `object`.columns) {
-                    Name.ColumnName.writeObject(output, columnName)
+                    StringBinding.BINDING.writeObject(output, columnName)
                 }
 
                 /* Write all indexes. */
@@ -158,6 +158,4 @@ data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, va
         internal fun delete(name: Name.IndexName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
             store(catalogue, transaction).delete(transaction, Name.IndexName.objectToEntry(name))
     }
-
-    override fun compareTo(other: IndexCatalogueEntry): Int = this.name.toString().compareTo(other.name.toString())
 }

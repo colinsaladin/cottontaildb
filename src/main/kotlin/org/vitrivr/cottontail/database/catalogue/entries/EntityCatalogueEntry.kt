@@ -31,7 +31,7 @@ data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, va
      * The [Serialized] version of the [EntityCatalogueEntry]. That entry does not include the [Name] objects.
      */
     private data class Serialized(val created: Long, val columns: List<String>, val indexes: List<String>): Comparable<Serialized> {
-        fun toActual(name: Name.EntityName) = EntityCatalogueEntry(name, this.created, this.columns.map { name.column(it) }, this.columns.map { name.index(it) })
+        fun toActual(name: Name.EntityName) = EntityCatalogueEntry(name, this.created, this.columns.map { name.column(it) }, this.indexes.map { name.index(it) })
 
         companion object: ComparableBinding() {
             /**
