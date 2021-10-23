@@ -21,13 +21,21 @@ class FunctionProjectionLogicalOperatorNode(input: Logical? = null, val function
 
     /** The column produced by this [FunctionProjectionLogicalOperatorNode] is determined by the [Function]'s signature. */
     override val columns: List<ColumnDef<*>>
-        get() = (this.input?.columns ?: emptyList()) + ColumnDef(this.alias ?: Name.ColumnName(this.function.signature.name.simple), this.function.signature.returnType!!)
+        get() = (this.input?.columns ?: emptyList()) + ColumnDef(
+            name = this.alias ?: Name.ColumnName(this.function.signature.name.simple),
+            type = this.function.signature.returnType!!,
+            nullable = false
+        )
 
     /** The [FunctionProjectionLogicalOperatorNode] requires all [ColumnDef] used in the [Function]. */
     override val requires: List<ColumnDef<*>>
         get() = this.arguments.filterIsInstance<Binding.Column>().map { it.column }
 
-    /** Human readable name of this [FunctionProjectionLogicalOperatorNode]. */
+    /** [FunctionProjectionLogicalOperatorNode] can only be executed if [Function] can be executed. */
+    override val executable: Boolean
+        get() = super.executable && this.function.executable
+
+    /** Human-readable name of this [FunctionProjectionLogicalOperatorNode]. */
     override val name: String
         get() = NODE_NAME
 

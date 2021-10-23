@@ -35,6 +35,9 @@ class RangedIndexScanPhysicalOperatorNode(override val groupId: Int, val index: 
     override val name: String
         get() = NODE_NAME
 
+    override val physicalColumns: List<ColumnDef<*>>
+        get() = TODO("Not yet implemented")
+
     /** [ValueStatistics] are taken from the underlying [Entity]. The query planner uses statistics for [Cost] estimation. */
     override val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
 
@@ -85,7 +88,7 @@ class RangedIndexScanPhysicalOperatorNode(override val groupId: Int, val index: 
      *
      * @param ctx The [QueryContext] used for the conversion (e.g. late binding).
      */
-    override fun toOperator(ctx: QueryContext): Operator = IndexScanOperator(this.groupId, this.index, this.predicate, this.fetch, this.partitionIndex, this.partitions)
+    override fun toOperator(ctx: QueryContext): Operator = IndexScanOperator(this.groupId, this.index, this.predicate, this.fetch, ctx.bindings, this.partitionIndex, this.partitions)
 
     /**
      * [RangedIndexScanPhysicalOperatorNode] cannot be partitioned.

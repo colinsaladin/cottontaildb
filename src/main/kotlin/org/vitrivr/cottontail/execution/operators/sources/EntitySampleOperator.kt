@@ -7,26 +7,31 @@ import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.queries.GroupId
 import org.vitrivr.cottontail.database.queries.QueryContext
+import org.vitrivr.cottontail.database.queries.binding.BindingContext
+import org.vitrivr.cottontail.execution.TransactionContext
+import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Record
-import org.vitrivr.cottontail.model.recordset.StandaloneRecord
-import org.vitrivr.cottontail.model.values.types.Value
 import java.util.*
 
 /**
- * An [AbstractEntityOperator] that samples an [Entity] and streams all [Record]s found within.
+ * An [Operator.SourceOperator] that samples an [Entity] and streams all [Record]s found within.
  *
  * @author Ralph Gasser
- * @version 1.5.0
+ * @version 1.6.0
  */
-class EntitySampleOperator(groupId: GroupId, entity: EntityTx, fetch: List<Pair<Name.ColumnName,ColumnDef<*>>>, val p: Float, val seed: Long) : AbstractEntityOperator(groupId, entity, fetch) {
+class EntitySampleOperator(groupId: GroupId, val entity: EntityTx, val fetch: List<Pair<Name.ColumnName,ColumnDef<*>>>, override val binding: BindingContext, val p: Float, val seed: Long) : Operator.SourceOperator(groupId) {
+
+    /** The [ColumnDef] fetched by this [EntitySampleOperator]. */
+    override val columns: List<ColumnDef<*>> = this.fetch.map { it.second.copy(name = it.first) }
+
     /**
      * Converts this [EntitySampleOperator] to a [Flow] and returns it.
      *
      * @param context The [QueryContext] used for execution.
      * @return [Flow] representing this [EntitySampleOperator].
      */
-    override fun toFlow(context: QueryContext): Flow<Record> {
+    override fun toFlow(context: TransactionContext): Flow<Record> {
         val fetch = this.fetch.map { it.second }.toTypedArray()
         val random = SplittableRandom(this@EntitySampleOperator.seed)
         return flow {
@@ -34,7 +39,7 @@ class EntitySampleOperator(groupId: GroupId, entity: EntityTx, fetch: List<Pair<
                 while (cursor.moveNext()) {
                     if (random.nextDouble(0.0, 1.0) <= this@EntitySampleOperator.p) {
                         val record = cursor.value()
-                        context.bindings.bindRecord(record) /* Important: Make new record available to binding context. */
+                        this@EntitySampleOperator.binding.bindRecord(record) /* Important: Make new record available to binding context. */
                         emit(record)
                     }
                 }

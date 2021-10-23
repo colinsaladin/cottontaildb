@@ -13,7 +13,7 @@ import org.vitrivr.cottontail.model.basics.Record
  * A [InsertLogicalOperatorNode] that formalizes a INSERT operation on an [Entity].
  *
  * @author Ralph Gasser
- * @version 2.3.0
+ * @version 2.4.0
  */
 class InsertLogicalOperatorNode(override val groupId: GroupId, val entity: EntityTx, val records: MutableList<Record>) : NullaryLogicalOperatorNode() {
 
@@ -24,6 +24,9 @@ class InsertLogicalOperatorNode(override val groupId: GroupId, val entity: Entit
     /** The name of this [InsertLogicalOperatorNode]. */
     override val name: String
         get() = NODE_NAME
+
+    /** The physical [ColumnDef] accessed by the [InsertLogicalOperatorNode]. */
+    override val physicalColumns: List<ColumnDef<*>> = this.entity.listColumns().map { it }
 
     /** The [InsertLogicalOperatorNode] produces the columns defined in the [InsertOperator] */
     override val columns: List<ColumnDef<*>> = InsertOperator.COLUMNS

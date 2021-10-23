@@ -13,13 +13,13 @@ import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.IndexTx
+import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.basics.IndexState
 import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.index.hash.UniqueHashIndex
 import org.vitrivr.cottontail.database.index.lsh.superbit.SuperBitLSHIndex
-import org.vitrivr.cottontail.database.logging.operations.Operation
+import org.vitrivr.cottontail.database.operations.Operation
 import org.vitrivr.cottontail.database.queries.binding.Binding
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
@@ -27,7 +27,9 @@ import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.ComparisonOperator
 import org.vitrivr.cottontail.database.queries.predicates.bool.ConnectionOperator
 import org.vitrivr.cottontail.execution.TransactionContext
-import org.vitrivr.cottontail.model.basics.*
+import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.Record
+import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.QueryException
@@ -268,14 +270,14 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
         override fun update(event: Operation.DataManagementOperation) {
             when (event) {
                 is Operation.DataManagementOperation.InsertOperation -> {
-                    val new = event.inserts[this.dbo.columns[0].name]
+                    val new = event.inserts[this.dbo.columns[0]]
                     if (new is StringValue) {
                         this.indexWriter.addDocument(this@LuceneIndex.documentFromValue(new, event.tupleId))
                     }
                 }
                 is Operation.DataManagementOperation.UpdateOperation -> {
                     this.indexWriter.deleteDocuments(Term(TID_COLUMN, event.tupleId.toString()))
-                    val new = event.updates[this.dbo.columns[0].name]?.second
+                    val new = event.updates[this.dbo.columns[0]]?.second
                     if (new is StringValue) {
                         this.indexWriter.addDocument(this@LuceneIndex.documentFromValue(new, event.tupleId))
                     }

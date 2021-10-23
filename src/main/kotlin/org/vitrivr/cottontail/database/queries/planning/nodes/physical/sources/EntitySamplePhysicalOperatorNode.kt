@@ -34,6 +34,9 @@ class EntitySamplePhysicalOperatorNode(override val groupId: Int, val entity: En
     override val name: String
         get() = NODE_NAME
 
+    /** The physical [ColumnDef] accessed by this [EntitySamplePhysicalOperatorNode]. */
+    override val physicalColumns: List<ColumnDef<*>> = this.fetch.map { it.second }
+
     /** The [ColumnDef] produced by this [EntityScanPhysicalOperatorNode]. */
     override val columns: List<ColumnDef<*>> = this.fetch.map { it.second.copy(name = it.first) }
 
@@ -84,7 +87,7 @@ class EntitySamplePhysicalOperatorNode(override val groupId: Int, val entity: En
      *
      * @param ctx The [QueryContext] used for the conversion (e.g. late binding).
      */
-    override fun toOperator(ctx: QueryContext) = EntitySampleOperator(this.groupId, this.entity, this.fetch, this.p, this.seed)
+    override fun toOperator(ctx: QueryContext) = EntitySampleOperator(this.groupId, this.entity, this.fetch, ctx.bindings, this.p, this.seed)
 
     /** Generates and returns a [String] representation of this [EntitySamplePhysicalOperatorNode]. */
     override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.name.toString() }}]"

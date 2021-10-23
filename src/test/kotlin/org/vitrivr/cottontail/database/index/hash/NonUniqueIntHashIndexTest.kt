@@ -8,7 +8,7 @@ import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.AbstractIndexTest
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.basics.IndexType
-import org.vitrivr.cottontail.database.queries.binding.BindingContext
+import org.vitrivr.cottontail.database.queries.binding.DefaultBindingContext
 import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.ComparisonOperator
 import org.vitrivr.cottontail.database.schema.SchemaTx
@@ -20,13 +20,12 @@ import org.vitrivr.cottontail.model.values.FloatValue
 import org.vitrivr.cottontail.model.values.IntValue
 import org.vitrivr.cottontail.utilities.extensions.nextFloat
 import java.util.*
-import kotlin.collections.HashMap
 
 /**
  * This is a collection of test cases to test the correct behaviour of [UniqueHashIndex] with a [IntValue] keys.
  *
  * @author Ralph Gasser
- * @param 1.0.0
+ * @param 1.0.2
  */
 class NonUniqueIntHashIndexTest : AbstractIndexTest() {
 
@@ -57,7 +56,7 @@ class NonUniqueIntHashIndexTest : AbstractIndexTest() {
     @RepeatedTest(3)
     fun testFilterEqualPositive() {
         /* Obtain necessary transactions. */
-        val txn = this.manager.Transaction(TransactionType.SYSTEM)
+        val txn = this.manager.TransactionImpl(TransactionType.SYSTEM)
         val catalogueTx = txn.getTx(this.catalogue) as CatalogueTx
         val schema = catalogueTx.schemaForName(this.schemaName)
         val schemaTx = txn.getTx(schema) as SchemaTx
@@ -66,7 +65,7 @@ class NonUniqueIntHashIndexTest : AbstractIndexTest() {
         val index = entityTx.indexForName(this.indexName)
         val indexTx = txn.getTx(index) as IndexTx
 
-        val context = BindingContext()
+        val context = DefaultBindingContext()
         for (entry in this.list.entries) {
             val predicate = BooleanPredicate.Atomic(ComparisonOperator.Binary.Equal(context.bind(this.columns[0]), context.bind(entry.key)), false)
             var found = false
@@ -89,7 +88,7 @@ class NonUniqueIntHashIndexTest : AbstractIndexTest() {
     @RepeatedTest(3)
     fun testFilterEqualNegative() {
         /* Obtain necessary transactions. */
-        val txn = this.manager.Transaction(TransactionType.SYSTEM)
+        val txn = this.manager.TransactionImpl(TransactionType.SYSTEM)
         val catalogueTx = txn.getTx(this.catalogue) as CatalogueTx
         val schema = catalogueTx.schemaForName(this.schemaName)
         val schemaTx = txn.getTx(schema) as SchemaTx
@@ -99,7 +98,7 @@ class NonUniqueIntHashIndexTest : AbstractIndexTest() {
         val indexTx = txn.getTx(index) as IndexTx
 
         var count = 0
-        val context = BindingContext()
+        val context = DefaultBindingContext()
         val predicate = BooleanPredicate.Atomic(ComparisonOperator.Binary.Equal(context.bind(this.columns[0]), context.bind(IntValue(this.random.nextInt(100, Int.MAX_VALUE)))), false)
         indexTx.filter(predicate).forEach { count += 1 }
         Assertions.assertEquals(0, count)

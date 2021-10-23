@@ -8,15 +8,14 @@ import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.AbstractIndexTest
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.basics.IndexType
-import org.vitrivr.cottontail.database.queries.binding.BindingContext
+import org.vitrivr.cottontail.database.queries.binding.DefaultBindingContext
 import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
 import org.vitrivr.cottontail.database.schema.SchemaTx
 import org.vitrivr.cottontail.execution.TransactionType
+import org.vitrivr.cottontail.functions.basics.Argument
 import org.vitrivr.cottontail.functions.basics.Signature
 import org.vitrivr.cottontail.functions.math.distance.Distances
 import org.vitrivr.cottontail.functions.math.distance.basics.VectorDistance
-import org.vitrivr.cottontail.utilities.selection.ComparablePair
-import org.vitrivr.cottontail.utilities.selection.MinHeapSelection
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.basics.TupleId
@@ -25,9 +24,10 @@ import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.DoubleVectorValue
 import org.vitrivr.cottontail.model.values.LongValue
+import org.vitrivr.cottontail.utilities.selection.ComparablePair
+import org.vitrivr.cottontail.utilities.selection.MinHeapSelection
 import java.util.*
 import java.util.stream.Stream
-import kotlin.collections.ArrayList
 import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
@@ -71,11 +71,11 @@ class PQDoubleIndexTest : AbstractIndexTest() {
     @MethodSource("kernels")
     @ExperimentalTime
     fun test(distance: Distances) {
-        val txn = this.manager.Transaction(TransactionType.SYSTEM)
+        val txn = this.manager.TransactionImpl(TransactionType.SYSTEM)
         val k = 5000
         val query = DoubleVectorValue.random(this.indexColumn.type.logicalSize, this.random)
-        val function = this.catalogue.functions.obtain(Signature.Closed(distance.functionName, arrayOf(query.type, query.type), Type.Double)) as VectorDistance.Binary<*>
-        val context = BindingContext()
+        val function = this.catalogue.functions.obtain(Signature.Closed(distance.functionName, arrayOf(Argument.Typed(query.type), Argument.Typed(query.type)), Type.Double)) as VectorDistance.Binary<*>
+        val context = DefaultBindingContext()
         val predicate = KnnPredicate(column = this.indexColumn, k = k, distance = function, query = context.bind(query))
 
         /* Obtain necessary transactions. */

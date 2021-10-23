@@ -7,7 +7,8 @@ import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
-import org.vitrivr.cottontail.database.queries.binding.extensions.*
+import org.vitrivr.cottontail.database.queries.binding.extensions.fqn
+import org.vitrivr.cottontail.database.queries.binding.extensions.toValue
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.management.DeleteLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.management.InsertLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.management.UpdateLogicalOperatorNode
@@ -24,6 +25,7 @@ import org.vitrivr.cottontail.database.queries.predicates.bool.ConnectionOperato
 import org.vitrivr.cottontail.database.queries.projection.Projection
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
 import org.vitrivr.cottontail.database.schema.SchemaTx
+import org.vitrivr.cottontail.functions.basics.Argument
 import org.vitrivr.cottontail.functions.basics.Signature
 import org.vitrivr.cottontail.functions.exception.FunctionNotFoundException
 import org.vitrivr.cottontail.grpc.CottontailGrpc
@@ -33,7 +35,6 @@ import org.vitrivr.cottontail.model.exceptions.DatabaseException
 import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.values.StringValue
 import org.vitrivr.cottontail.model.values.pattern.LikePatternValue
-import org.vitrivr.cottontail.model.values.pattern.LucenePatternValue
 import org.vitrivr.cottontail.model.values.types.Value
 
 /**
@@ -44,7 +45,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * 3) A [OperatorNode.Logical] tree is constructed from the internal query objects.
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.0.0
  */
 object GrpcQueryBinder {
 
@@ -122,12 +123,17 @@ object GrpcQueryBinder {
             val entityTx = context.txn.getTx(entity) as EntityTx
 
             /* Parse columns to INSERT. */
-            val columns = Array<ColumnDef<*>>(insert.elementsCount) {
-                val columnName = insert.elementsList[it].column.fqn()
-                entityTx.columnForName(columnName).columnDef
-            }
-            val values = Array<Binding>(insert.elementsCount) {
-                context.bindings.bind(insert.elementsList[it].value.toValue(columns[it].type))
+            val columns = entityTx.listColumns().map { it }.toTypedArray()
+            val values = Array<Binding>(columns.size) { i ->
+                val element = insert.elementsList.singleOrNull { el ->
+                    val fqn = el.column.fqn()
+                    fqn.matches(columns[i].name)
+                }
+                if (element != null) {
+                    context.bindings.bind(element.value.toValue(columns[i].type))
+                } else {
+                    context.bindings.bindNull(columns[i].type)
+                }
             }
 
             /* Create and return INSERT-clause. */
@@ -283,25 +289,26 @@ object GrpcQueryBinder {
      * @return The resulting [OperatorNode.Logical].
      */
     private fun parseAndBindFrom(from: CottontailGrpc.From, columns: Map<Name.ColumnName,Name>, context: QueryContext): OperatorNode.Logical = try {
-        val columnAliases = columns.entries.filter { it.value is Name.ColumnName }.associate { it.value as Name.ColumnName to it.key } /* Map input column to alias. */
         when (from.fromCase) {
             CottontailGrpc.From.FromCase.SCAN -> {
                 val entity = parseAndBindEntity(from.scan.entity, context)
                 val entityTx = context.txn.getTx(entity) as EntityTx
-                val fetch = entityTx.listColumns().map {
-                    val column = it
-                    val name = columnAliases[column.name] ?: column.name
-                    name to column
+                val fetch = entityTx.listColumns().map { ci ->
+                    val name = columns.entries.singleOrNull { c -> c.value is Name.ColumnName && c.value.matches(ci.name) }
+                    if (name == null || name.key.components[3] == Name.NAME_COMPONENT_WILDCARD) {
+                        ci.name to ci
+                    } else {
+                        name.key to ci
+                    }
                 }
                 EntityScanLogicalOperatorNode(context.nextGroupId(), entity = entityTx, fetch = fetch)
             }
             CottontailGrpc.From.FromCase.SAMPLE -> {
                 val entity = parseAndBindEntity(from.sample.entity, context)
                 val entityTx = context.txn.getTx(entity) as EntityTx
-                val fetch = entityTx.listColumns().map {
-                    val column = it
-                    val name = columnAliases[column.name] ?: column.name
-                    name to column
+                val fetch = entityTx.listColumns().map { ci ->
+                    val name = columns.entries.singleOrNull { c -> c.value is Name.ColumnName && c.value.matches(ci.name) }?.key ?: ci.name
+                    name to ci
                 }
                 EntitySampleLogicalOperatorNode(context.nextGroupId(), entity = entityTx, fetch = fetch, p = from.sample.probability, seed = from.sample.seed)
             }
@@ -446,15 +453,6 @@ object GrpcQueryBinder {
                 throw QueryException.QuerySyntaxException("LIKE operator expects a literal, parseable string value as right operand.")
             }
         }
-        CottontailGrpc.ComparisonOperator.MATCH -> {
-            val r = right[0]
-            if (r is Binding.Literal && r.value is StringValue) {
-                r.value = LucenePatternValue((r.value as StringValue).value)
-                ComparisonOperator.Binary.Like(left, r)
-            } else {
-                throw QueryException.QuerySyntaxException("MATCH operator expects a literal, parseable string value as right operand.")
-            }
-        }
         CottontailGrpc.ComparisonOperator.BETWEEN -> {
             var rightLower = right[0]
             var rightUpper = right[1]
@@ -493,7 +491,7 @@ object GrpcQueryBinder {
                 null -> throw QueryException.QuerySyntaxException("Function argument at position $i is malformed.")
             }
         }
-        val signature = Signature.Closed<Value>(projection.first, arguments.map { it.type }.toTypedArray())
+        val signature = Signature.Closed<Value>(projection.first, arguments.map { Argument.Typed(it.type) }.toTypedArray())
         val functionObject = try {
             context.catalogue.functions.obtain(signature)
         } catch (e: FunctionNotFoundException) {
@@ -527,12 +525,14 @@ object GrpcQueryBinder {
      * @return The resulting [SelectProjectionLogicalOperatorNode].
      */
     private fun parseAndBindProjection(input: OperatorNode.Logical, projection: Map<Name.ColumnName,Name>, op: Projection, context: QueryContext, simplify: Boolean = false): OperatorNode.Logical = try {
-
-        val wildcards = projection.keys.filter { it.wildcard }
         when (op) {
             Projection.SELECT,
             Projection.SELECT_DISTINCT -> {
-                val fields = input.columns.filter { col -> projection.containsKey(col.name) || wildcards.any { w -> w.matches(col.name)} }.map { it.name }
+                val fields = projection.keys.flatMap { cp ->
+                    input.columns.filter { c -> cp.matches(c.name) }.ifEmpty { throw QueryException.QueryBindException("Column $cp could not be found in output.") }
+                }.map {
+                    it.name
+                }
                 SelectProjectionLogicalOperatorNode(input, op, fields)
             }
             Projection.COUNT -> CountProjectionLogicalOperatorNode(input, projection.keys.firstOrNull())
@@ -541,7 +541,11 @@ object GrpcQueryBinder {
             Projection.MAX,
             Projection.MIN,
             Projection.MEAN -> {
-                val fields = input.columns.filter { col -> projection.containsKey(col.name) || wildcards.any { w -> w.matches(col.name)} }.map { it.name }
+                val fields = projection.keys.flatMap { cp ->
+                    input.columns.filter { c -> cp.matches(c.name) }.ifEmpty { throw QueryException.QueryBindException("Column $cp could not be found in output.") }
+                }.map {
+                    it.name
+                }
                 AggregatingProjectionLogicalOperatorNode(input, op, fields)
             }
             else -> throw QueryException.QuerySyntaxException("Project of type $op is currently not supported.")
@@ -556,7 +560,7 @@ object GrpcQueryBinder {
      * [Name.FunctionName] the resulting [Name.ColumnName] resolving both simplification and aliases.
      *
      * @param projection The [CottontailGrpc.Projection] element to parse.
-     * @param simplify Whether or not names should be simplified, i.e., simple name instead of FQN should be used.
+     * @param simplify Whether names should be simplified, i.e., simple name instead of FQN should be used.
      * @return Mapping of resulting [Name.ColumnName] to source [Name]
      */
     private fun parseProjectionColumns(projection: CottontailGrpc.Projection, simplify: Boolean = false): Map<Name.ColumnName,Name> {
@@ -593,7 +597,7 @@ object GrpcQueryBinder {
                     if (map.contains(finalName)) {
                         throw QueryException.QuerySyntaxException("The query lacks a valid SELECT-clause (projection): Duplicate projection element $finalName at index $i.")
                     }
-                    map[finalName] =  e.function.name.fqn()
+                    map[finalName] = e.function.name.fqn()
                 }
                 CottontailGrpc.Projection.ProjectionElement.ProjCase.PROJ_NOT_SET,
                 null -> throw QueryException.QuerySyntaxException("The query lacks a valid SELECT-clause (projection): Projection element at index $i is malformed.")

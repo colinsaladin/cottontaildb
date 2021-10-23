@@ -12,7 +12,6 @@ import org.vitrivr.cottontail.database.schema.Schema
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.functions.FunctionRegistry
 import org.vitrivr.cottontail.functions.initialize
-import org.vitrivr.cottontail.legacy.v1.schema.SchemaV1
 import org.vitrivr.cottontail.legacy.v2.schema.SchemaV2
 import org.vitrivr.cottontail.model.basics.Name
 import org.vitrivr.cottontail.model.exceptions.DatabaseException
@@ -73,7 +72,7 @@ class CatalogueV2(override val config: Config) : Catalogue {
     private val registry: MutableMap<Name.SchemaName, SchemaV2> = Collections.synchronizedMap(Object2ObjectOpenHashMap())
 
     /** The [FunctionRegistry] exposed by this [Catalogue]. */
-    override val functions: FunctionRegistry = FunctionRegistry(this.config)
+    override val functions: FunctionRegistry = FunctionRegistry()
 
     /** Size of this [CatalogueV2] in terms of [Schema]s it contains. This is a snapshot and may change anytime! */
     val size: Int

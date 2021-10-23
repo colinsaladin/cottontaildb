@@ -13,11 +13,11 @@ import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.general.DBO
 import org.vitrivr.cottontail.database.general.Tx
 import org.vitrivr.cottontail.database.locking.LockMode
-import org.vitrivr.cottontail.database.logging.operations.Operation
-import org.vitrivr.cottontail.database.queries.QueryContext
+import org.vitrivr.cottontail.database.operations.Operation
 import org.vitrivr.cottontail.database.schema.SchemaTx
+import org.vitrivr.cottontail.execution.Transaction
 import org.vitrivr.cottontail.execution.TransactionContext
-import org.vitrivr.cottontail.execution.TransactionManager.Transaction
+import org.vitrivr.cottontail.execution.TransactionManager.TransactionImpl
 import org.vitrivr.cottontail.execution.TransactionStatus
 import org.vitrivr.cottontail.execution.TransactionType
 import org.vitrivr.cottontail.execution.operators.basics.Operator
@@ -64,7 +64,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
      * Tries to open the destination [Catalogue] for migration.
      *
      * @param config The [Config] to open the [Catalogue] with.
-     * @return Destination [Catalogue] of null upon failure.
+     * @return Destination [DefaultCatalogue] of null upon failure.
      */
     abstract fun openDestinationCatalogue(config: Config): DefaultCatalogue?
 
@@ -173,7 +173,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
      *
      * This is just a default implementation that covers the standard case and can be overwritten.
      *
-     * @param source The [CatalogueTx] pointing to the source catalogue.
+     * @param source The [Catalogue] pointing to the source catalogue.
      * @param destination The [DefaultCatalogue] pointing to the destination catalogue.
      */
     protected open fun migrateData(source: Catalogue, destination: DefaultCatalogue) {
@@ -252,9 +252,9 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
      * A [MigrationContext] is a special type of [TransactionContext] used during data migration.
      *
      * @author Ralph Gasser
-     * @version 1.0.0
+     * @version 2.0.0
      */
-    inner class LegacyMigrationContext : TransactionContext {
+    inner class LegacyMigrationContext : TransactionContext, Transaction {
         /** The [TransactionId] of the [MigrationContext]. */
         override val txId: TransactionId = transactionIdCounter.getAndIncrement()
 
@@ -270,7 +270,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
 
         /** The [TransactionStatus] of this [MigrationContext]. */
         @Volatile
-        override var state: TransactionStatus = TransactionStatus.READY
+        override var state: TransactionStatus = TransactionStatus.IDLE
             private set
 
         /** Map of all [Tx] that have been created as part of this [MigrationManager]. Used for final COMMIT or ROLLBACK. */
@@ -278,7 +278,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
 
         /**
          * Returns the [Tx] for the provided [DBO]. Creating [Tx] through this method makes sure,
-         * that only on [Tx] per [DBO] and [Transaction] is created.
+         * that only on [Tx] per [DBO] and [TransactionImpl] is created.
          *
          * @param dbo [DBO] to return the [Tx] for.
          * @return entity [Tx]
@@ -292,18 +292,18 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
         }
 
         override fun signalEvent(action: Operation.DataManagementOperation) {
-            throw UnsupportedOperationException("Operation signalEvent() for LegacyMigrationContext.")
+            throw UnsupportedOperationException("Operation signalEvent() not supported for LegacyMigrationContext.")
         }
 
-        override fun execute(operator: Operator, context: QueryContext): Flow<Record> {
-            throw UnsupportedOperationException("Operation execute() for LegacyMigrationContext.")
+        override fun execute(operator: Operator): Flow<Record> {
+            throw UnsupportedOperationException("Operation execute() not supported for LegacyMigrationContext.")
         }
 
         /**
          * Commits this [Transaction] thus finalizing and persisting all operations executed so far.
          */
-        fun commit() {
-            check(this.state === TransactionStatus.READY) { "Cannot commit transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
+        override fun commit() {
+            check(this.state === TransactionStatus.IDLE) { "Cannot commit transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
             this.state = TransactionStatus.FINALIZING
             this.txns.clear()
             this.state = TransactionStatus.COMMIT
@@ -312,11 +312,18 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
         /**
          * Rolls back this [Transaction] thus reverting all operations executed so far.
          */
-        fun rollback() {
-            check(this.state === TransactionStatus.READY || this.state === TransactionStatus.ERROR) { "Cannot rollback transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
+        override fun rollback() {
+            check(this.state === TransactionStatus.IDLE || this.state === TransactionStatus.ERROR) { "Cannot rollback transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
             this.state = TransactionStatus.FINALIZING
             this.txns.clear()
             this.state = TransactionStatus.ROLLBACK
+        }
+
+        /**
+         * Kills this [MigrationContext] thus reverting all operations executed so far.
+         */
+        override fun kill() {
+            throw UnsupportedOperationException("Operation kill() not supported for LegacyMigrationContext.")
         }
     }
 
@@ -326,7 +333,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
      * @author Ralph Gasser
      * @version 2.0.0
      */
-    inner class MigrationContext(override val xodusTx: jetbrains.exodus.env.Transaction) : TransactionContext {
+    inner class MigrationContext(override val xodusTx: jetbrains.exodus.env.Transaction) : TransactionContext, Transaction {
         /** The [TransactionId] of the [MigrationContext]. */
         override val txId: TransactionId = transactionIdCounter.getAndIncrement()
 
@@ -335,11 +342,12 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
 
         /** The [TransactionStatus] of this [MigrationContext]. */
         @Volatile
-        override var state: TransactionStatus = TransactionStatus.READY
+        override var state: TransactionStatus = TransactionStatus.IDLE
             private set
 
         /** [MigrationContext]s are never readonly. */
         override val readonly: Boolean = false
+
 
         /** Map of all [Tx] that have been created as part of this [MigrationManager]. Used for final COMMIT or ROLLBACK. */
         protected val txns: MutableMap<DBO, Tx> = Object2ObjectMaps.synchronize(Object2ObjectLinkedOpenHashMap())
@@ -363,15 +371,16 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
             /* No op. */
         }
 
-        override fun execute(operator: Operator, context: QueryContext): Flow<Record> {
-            throw UnsupportedOperationException("Operation execute() not supported for AbstractMigrationManager.")
+        override fun execute(operator: Operator): Flow<Record> {
+            throw UnsupportedOperationException("Operation execute() not supported for MigrationContext.")
         }
 
+
         /**
-         * Commits this [Transaction] thus finalizing and persisting all operations executed so far.
+         * Commits this [MigrationContext] thus finalizing and persisting all operations executed so far.
          */
-        fun commit() {
-            check(this.state === TransactionStatus.READY) { "Cannot commit transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
+        override fun commit() {
+            check(this.state === TransactionStatus.IDLE) { "Cannot commit transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
             this.state = TransactionStatus.FINALIZING
             try {
                 this.txns.values.reversed().forEachIndexed { i, txn ->
@@ -390,10 +399,10 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
         }
 
         /**
-         * Rolls back this [Transaction] thus reverting all operations executed so far.
+         * Rolls back this [MigrationContext] thus reverting all operations executed so far.
          */
-        fun rollback() {
-            check(this.state === TransactionStatus.READY || this.state === TransactionStatus.ERROR) { "Cannot rollback transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
+        override fun rollback() {
+            check(this.state === TransactionStatus.IDLE || this.state === TransactionStatus.ERROR) { "Cannot rollback transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
             this.state = TransactionStatus.FINALIZING
             try {
                 this.txns.values.reversed().forEachIndexed { i, txn ->
@@ -409,6 +418,13 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
                 this.txns.clear()
                 this.state = TransactionStatus.ROLLBACK
             }
+        }
+
+        /**
+         * Kills this [MigrationContext] thus reverting all operations executed so far.
+         */
+        override fun kill() {
+            throw UnsupportedOperationException("Operation kill() not supported for MigrationContext.")
         }
     }
 }

@@ -2,10 +2,7 @@ package org.vitrivr.cottontail.database.statistics.entity
 
 import org.mapdb.DataInput2
 import org.mapdb.DataOutput2
-import org.vitrivr.cottontail.database.logging.operations.Operation
-import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import org.vitrivr.cottontail.model.basics.TupleId
-import kotlin.math.max
 
 /**
  * A data object that collects statistics for an entity.

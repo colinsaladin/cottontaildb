@@ -4,10 +4,10 @@ import io.grpc.ManagedChannel
 import io.grpc.netty.NettyChannelBuilder
 import org.junit.jupiter.api.*
 import org.vitrivr.cottontail.TestConstants
+import org.vitrivr.cottontail.client.SimpleClient
 import org.vitrivr.cottontail.client.language.dql.Query
 import org.vitrivr.cottontail.client.language.extensions.And
 import org.vitrivr.cottontail.client.language.extensions.Literal
-import org.vitrivr.cottontail.client.SimpleClient
 import org.vitrivr.cottontail.embedded
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
@@ -24,14 +24,14 @@ class DQLServiceTest {
     @BeforeAll
     fun startCottontail() {
         this.embedded = embedded(TestConstants.testConfig())
-        val builder = NettyChannelBuilder.forAddress("localhost", 1865)
-        builder.usePlaintext()
-        this.channel = builder.build()
+        this.channel = NettyChannelBuilder.forAddress("localhost", 1865).usePlaintext().build()
         this.client = SimpleClient(this.channel)
         assert(client.ping())
+
+        /* Prepare test database. */
         GrpcTestUtils.dropTestSchema(client)
         GrpcTestUtils.createTestSchema(client)
-        GrpcTestUtils. createTestVectorEntity(client)
+        GrpcTestUtils.createTestVectorEntity(client)
         GrpcTestUtils.createTestEntity(client)
         GrpcTestUtils.populateTestEntity(client)
         GrpcTestUtils.populateVectorEntity(client)
@@ -39,7 +39,11 @@ class DQLServiceTest {
 
     @AfterAll
     fun cleanup() {
+        /* Drop test schema. */
         GrpcTestUtils.dropTestSchema(client)
+
+        /* Close SimpleClient. */
+        this.client.close()
 
         /* Shutdown ManagedChannel. */
         this.channel.shutdown()
@@ -51,17 +55,12 @@ class DQLServiceTest {
 
     @BeforeEach
     fun setup() {
-        assert(client.ping())
-    }
-
-    @AfterEach
-    fun tearDown() {
-        assert(client.ping())
+        assert(this.client.ping())
     }
 
     @Test
     fun pingTest() {
-        assert(client.ping()) { "ping unsuccessful" }
+        assert(this.client.ping()) { "ping unsuccessful" }
     }
 
     @Test
@@ -86,7 +85,8 @@ class DQLServiceTest {
         val lb = random.nextInt(98)
         val ub = random.nextInt(lb+1, 100)
         val query = Query().from(GrpcTestUtils.TEST_ENTITY_FQN_INPUT)
-            .select(GrpcTestUtils.STRING_COLUMN_NAME, GrpcTestUtils.INT_COLUMN_NAME)
+            .select(GrpcTestUtils.STRING_COLUMN_NAME)
+            .select(GrpcTestUtils.INT_COLUMN_NAME)
             .where(Literal(GrpcTestUtils.INT_COLUMN_NAME, "BETWEEN", lb, ub))
         val result = client.query(query)
         for (el in result) {
@@ -99,7 +99,8 @@ class DQLServiceTest {
         val random = Random.Default
         val lb = random.nextInt(50)
         val query = Query().from(GrpcTestUtils.TEST_ENTITY_FQN_INPUT)
-            .select(GrpcTestUtils.STRING_COLUMN_NAME, GrpcTestUtils.INT_COLUMN_NAME)
+            .select(GrpcTestUtils.STRING_COLUMN_NAME)
+            .select(GrpcTestUtils.INT_COLUMN_NAME)
             .where(
                  And(
                      Literal(GrpcTestUtils.INT_COLUMN_NAME, "BETWEEN", lb, lb+1),
@@ -123,7 +124,9 @@ class DQLServiceTest {
 
     @Test
     fun haversineDistance() {
-        val query = Query().from(GrpcTestUtils.TEST_VECTOR_ENTITY_FQN_INPUT).knn(GrpcTestUtils.TWOD_COLUMN_NAME, 2, "haversine", arrayOf(5f, 10f))
+        arrayOf(5f, 10f)
+        Query().from(GrpcTestUtils.TEST_VECTOR_ENTITY_FQN_INPUT)
+        val query = nns
         val result = client.query(query)
         val el = result.next()
         val distance = el.asDouble("distance")

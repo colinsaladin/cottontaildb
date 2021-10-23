@@ -9,8 +9,8 @@ import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.TestConstants.DBO_CONSTANT
 import org.vitrivr.cottontail.TestConstants.TEST_ENTITY
 import org.vitrivr.cottontail.TestConstants.TEST_SCHEMA
-import org.vitrivr.cottontail.client.language.ddl.*
 import org.vitrivr.cottontail.client.SimpleClient
+import org.vitrivr.cottontail.client.language.ddl.*
 import org.vitrivr.cottontail.embedded
 import java.util.concurrent.TimeUnit
 import kotlin.time.ExperimentalTime
@@ -26,33 +26,35 @@ class DDLServiceTest {
     @BeforeAll
     fun startCottontail() {
         this.embedded = embedded(TestConstants.testConfig())
+        this.channel =  NettyChannelBuilder.forAddress("localhost", 1865).usePlaintext().build()
+        this.client = SimpleClient(this.channel)
+
+        /** Drop and (re-)create test schema. */
+        GrpcTestUtils.dropTestSchema(client)
+        GrpcTestUtils.createTestSchema(client)
     }
 
     @AfterAll
     fun cleanup() {
+        /* Drop test schema. */
+        GrpcTestUtils.dropTestSchema(client)
+
+        /** Close SimpleClient. */
+        this.client.close()
+
         /* Shutdown ManagedChannel. */
         this.channel.shutdown()
-        this.channel.awaitTermination(5000, TimeUnit.MILLISECONDS)
+        this.channel.awaitTermination(25000, TimeUnit.MILLISECONDS)
 
         /* Stop embedded server. */
         this.embedded.stop()
+
     }
 
     @BeforeEach
     fun setup() {
-        val builder = NettyChannelBuilder.forAddress("localhost", 1865)
-        builder.usePlaintext()
-        this.channel = builder.build()
-        this.client = SimpleClient(this.channel)
         assert(client.ping())
-        GrpcTestUtils.dropTestSchema(client)
     }
-
-    @AfterEach
-    fun tearDown() {
-        GrpcTestUtils.dropTestSchema(client)
-    }
-
 
     @Test
     fun pingTest() {
