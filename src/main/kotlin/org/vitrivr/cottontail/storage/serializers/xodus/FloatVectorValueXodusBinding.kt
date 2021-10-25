@@ -2,11 +2,11 @@ package org.vitrivr.cottontail.storage.serializers.xodus
 
 import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.bindings.FloatBinding
+import jetbrains.exodus.util.ByteIterableUtil
 import jetbrains.exodus.util.LightOutputStream
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.FloatVectorValue
-import java.io.ByteArrayInputStream
-import java.util.*
+import org.xerial.snappy.Snappy
 
 /**
  * A [XodusBinding] for [FloatVectorValue] serialization and deserialization.
@@ -26,15 +26,12 @@ sealed class FloatVectorValueXodusBinding(size: Int): XodusBinding<FloatVectorVa
      * [FloatVectorValueXodusBinding] used for non-nullable values.
      */
     class NonNullable(size: Int): FloatVectorValueXodusBinding(size) {
-        override fun entryToValue(entry: ByteIterable): FloatVectorValue {
-            val stream = ByteArrayInputStream(entry.bytesUnsafe)
-            return FloatVectorValue(FloatArray(this.type.logicalSize) { FloatBinding.BINDING.readObject(stream) })
-        }
-
+        override fun entryToValue(entry: ByteIterable): FloatVectorValue = FloatVectorValue(Snappy.uncompressFloatArray(entry.bytesUnsafe))
         override fun valueToEntry(value: FloatVectorValue?): ByteIterable {
             require(value != null) { "Serialization error: Value cannot be null." }
             val stream = LightOutputStream(this.type.physicalSize)
-            repeat(this.type.logicalSize) { FloatBinding.BINDING.writeObject(stream, value.data[it]) }
+            val compressed = Snappy.compress(value.data)
+            stream.write(compressed)
             return stream.asArrayByteIterable()
         }
     }
@@ -48,13 +45,10 @@ sealed class FloatVectorValueXodusBinding(size: Int): XodusBinding<FloatVectorVa
         }
 
         override fun entryToValue(entry: ByteIterable): FloatVectorValue? {
-            val bytesRead = entry.bytesUnsafe
-            val bytesNull = NULL_VALUE.bytesUnsafe
-            return if (Arrays.equals(bytesNull, bytesRead)) {
+            return if (ByteIterableUtil.compare(entry, NULL_VALUE) == 0) {
                 null
             } else {
-                val stream = ByteArrayInputStream(bytesRead)
-                return FloatVectorValue(FloatArray(this.type.logicalSize) { FloatBinding.BINDING.readObject(stream) })
+                return FloatVectorValue(Snappy.uncompressFloatArray(entry.bytesUnsafe))
             }
         }
 
@@ -62,7 +56,8 @@ sealed class FloatVectorValueXodusBinding(size: Int): XodusBinding<FloatVectorVa
             NULL_VALUE
         } else {
             val stream = LightOutputStream(this.type.physicalSize)
-            repeat(this.type.logicalSize) { FloatBinding.BINDING.writeObject(stream, value.data[it]) }
+            val compressed = Snappy.compress(value.data)
+            stream.write(compressed)
             stream.asArrayByteIterable()
         }
     }

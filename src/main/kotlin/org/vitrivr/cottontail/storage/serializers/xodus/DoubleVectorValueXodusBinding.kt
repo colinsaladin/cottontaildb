@@ -2,9 +2,12 @@ package org.vitrivr.cottontail.storage.serializers.xodus
 
 import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.bindings.DoubleBinding
+import jetbrains.exodus.util.ByteIterableUtil
 import jetbrains.exodus.util.LightOutputStream
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.DoubleVectorValue
+import org.vitrivr.cottontail.model.values.FloatVectorValue
+import org.xerial.snappy.Snappy
 import java.io.ByteArrayInputStream
 import java.util.*
 
@@ -25,19 +28,12 @@ sealed class DoubleVectorValueXodusBinding(size: Int): XodusBinding<DoubleVector
      * [DoubleVectorValueXodusBinding] used for non-nullable values.
      */
     class NonNullable(size: Int): DoubleVectorValueXodusBinding(size) {
-        companion object {
-            private val NULL_VALUE = DoubleBinding.BINDING.objectToEntry(Double.MIN_VALUE)
-        }
-
-        override fun entryToValue(entry: ByteIterable): DoubleVectorValue {
-            val stream = ByteArrayInputStream(entry.bytesUnsafe)
-            return DoubleVectorValue(DoubleArray(this.type.logicalSize) { DoubleBinding.BINDING.readObject(stream) })
-        }
-
+        override fun entryToValue(entry: ByteIterable): DoubleVectorValue = DoubleVectorValue(Snappy.uncompressDoubleArray(entry.bytesUnsafe))
         override fun valueToEntry(value: DoubleVectorValue?): ByteIterable {
             require(value != null) { "Serialization error: Value cannot be null." }
             val stream = LightOutputStream(this.type.physicalSize)
-            repeat(this.type.logicalSize) { DoubleBinding.BINDING.writeObject(stream, value.data[it]) }
+            val compressed = Snappy.compress(value.data)
+            stream.write(compressed)
             return stream.asArrayByteIterable()
         }
     }
@@ -50,22 +46,18 @@ sealed class DoubleVectorValueXodusBinding(size: Int): XodusBinding<DoubleVector
             private val NULL_VALUE = DoubleBinding.BINDING.objectToEntry(Double.MIN_VALUE)
         }
 
-        override fun entryToValue(entry: ByteIterable): DoubleVectorValue? {
-            val bytesRead = entry.bytesUnsafe
-            val bytesNull = NULL_VALUE.bytesUnsafe
-            return if (Arrays.equals(bytesNull, bytesRead)) {
-                null
-            } else {
-                val stream = ByteArrayInputStream(bytesRead)
-                return DoubleVectorValue(DoubleArray(this.type.logicalSize) { DoubleBinding.BINDING.readObject(stream) })
-            }
+        override fun entryToValue(entry: ByteIterable): DoubleVectorValue? = if (ByteIterableUtil.compare(NULL_VALUE, entry) == 0) {
+            null
+        } else {
+            DoubleVectorValue(Snappy.uncompressDoubleArray(entry.bytesUnsafe))
         }
 
         override fun valueToEntry(value: DoubleVectorValue?): ByteIterable = if (value == null) {
             NULL_VALUE
         } else {
             val stream = LightOutputStream(this.type.physicalSize)
-            repeat(this.type.logicalSize) { DoubleBinding.BINDING.writeObject(stream, value.data[it]) }
+            val compressed = Snappy.compress(value.data)
+            stream.write(compressed)
             stream.asArrayByteIterable()
         }
     }

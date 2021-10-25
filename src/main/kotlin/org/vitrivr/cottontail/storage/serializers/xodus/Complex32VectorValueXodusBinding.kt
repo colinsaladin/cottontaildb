@@ -2,8 +2,12 @@ package org.vitrivr.cottontail.storage.serializers.xodus
 
 import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.bindings.ComparableBinding
+import jetbrains.exodus.bindings.FloatBinding
+import jetbrains.exodus.util.ByteIterableUtil
+import jetbrains.exodus.util.LightOutputStream
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.Complex32VectorValue
+import org.xerial.snappy.Snappy
 
 /**
  * A [ComparableBinding] for Xodus based [Complex32VectorValue] serialization and deserialization.
@@ -22,26 +26,36 @@ sealed class Complex32VectorValueXodusBinding(size: Int): XodusBinding<Complex32
      * [Complex32VectorValueXodusBinding] used for non-nullable values.
      */
     class NonNullable(size: Int): Complex32VectorValueXodusBinding(size) {
-        override fun entryToValue(entry: ByteIterable): Complex32VectorValue? {
-            TODO("Not yet implemented")
-        }
-
+        override fun entryToValue(entry: ByteIterable): Complex32VectorValue = Complex32VectorValue(Snappy.uncompressFloatArray(entry.bytesUnsafe))
         override fun valueToEntry(value: Complex32VectorValue?): ByteIterable {
-            TODO("Not yet implemented")
+            require(value != null) { "Serialization error: Value cannot be null." }
+            val stream = LightOutputStream(this.type.physicalSize)
+            val compressed = Snappy.compress(value.data)
+            stream.write(compressed)
+            return stream.asArrayByteIterable()
         }
-
     }
 
     /**
      * [Complex32VectorValueXodusBinding] used for nullable values.
      */
     class Nullable(size: Int): Complex32VectorValueXodusBinding(size) {
-        override fun entryToValue(entry: ByteIterable): Complex32VectorValue? {
-            TODO("Not yet implemented")
+        companion object {
+            private val NULL_VALUE = FloatBinding.BINDING.objectToEntry(Float.MIN_VALUE)
+        }
+        override fun entryToValue(entry: ByteIterable): Complex32VectorValue? = if (ByteIterableUtil.compare(NULL_VALUE, entry) == 0) {
+            null
+        } else {
+            Complex32VectorValue(Snappy.uncompressFloatArray(entry.bytesUnsafe))
         }
 
-        override fun valueToEntry(value: Complex32VectorValue?): ByteIterable {
-            TODO("Not yet implemented")
+        override fun valueToEntry(value: Complex32VectorValue?): ByteIterable = if (value == null) {
+            NULL_VALUE
+        } else {
+            val stream = LightOutputStream(this.type.physicalSize)
+            val compressed = Snappy.compress(value.data)
+            stream.write(compressed)
+            stream.asArrayByteIterable()
         }
     }
 }

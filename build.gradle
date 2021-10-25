@@ -127,6 +127,9 @@ dependencies {
     ///// FastUtil
     implementation group: 'it.unimi.dsi', name: 'fastutil', version: version_fastutil
 
+    ///// Snappy
+    implementation group: 'org.xerial.snappy', name: 'snappy-java', version: version_snappy
+
     ///// Google Guava
     implementation group: 'com.google.guava', name: 'guava', version: '30.1-jre'
 

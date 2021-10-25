@@ -1,16 +1,12 @@
 package org.vitrivr.cottontail.storage.serializers.xodus
 
 import jetbrains.exodus.ByteIterable
-import jetbrains.exodus.bindings.IntegerBinding
 import jetbrains.exodus.bindings.LongBinding
-import jetbrains.exodus.bindings.ShortBinding
+import jetbrains.exodus.util.ByteIterableUtil
 import jetbrains.exodus.util.LightOutputStream
 import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.LongVectorValue
-import org.vitrivr.cottontail.model.values.ShortValue
-import java.io.ByteArrayInputStream
-import java.nio.ByteBuffer
-import java.util.*
+import org.xerial.snappy.Snappy
 
 /**
  * A [XodusBinding] for [LongVectorValue] serialization and deserialization.
@@ -30,16 +26,13 @@ sealed class LongVectorValueXodusBinding(val size: Int): XodusBinding<LongVector
      * [LongVectorValueXodusBinding] used for non-nullable values.
      */
     class NonNullable(size: Int): LongVectorValueXodusBinding(size) {
-        override fun entryToValue(entry: ByteIterable): LongVectorValue {
-            val bytesRead = entry.bytesUnsafe
-            val stream = ByteArrayInputStream(bytesRead)
-            return LongVectorValue(LongArray(this.size) { LongBinding.BINDING.readObject(stream) })
-        }
+        override fun entryToValue(entry: ByteIterable): LongVectorValue = LongVectorValue(Snappy.uncompressLongArray(entry.bytesUnsafe))
 
         override fun valueToEntry(value: LongVectorValue?): ByteIterable {
             require(value != null) { "Serialization error: Value cannot be null." }
             val stream = LightOutputStream(this.type.physicalSize)
-            repeat(this.size) { LongBinding.BINDING.writeObject(stream, value.data[it]) }
+            val compressed = Snappy.compress(value.data)
+            stream.write(compressed)
             return stream.asArrayByteIterable()
         }
     }
@@ -54,13 +47,10 @@ sealed class LongVectorValueXodusBinding(val size: Int): XodusBinding<LongVector
         }
 
         override fun entryToValue(entry: ByteIterable): LongVectorValue? {
-            val bytesRead = entry.bytesUnsafe
-            val bytesNull = NULL_VALUE.bytesUnsafe
-            return if (Arrays.equals(bytesNull, bytesRead)) {
+            return if (ByteIterableUtil.compare(NULL_VALUE, entry) == 0) {
                 null
             } else {
-                val stream = ByteArrayInputStream(bytesRead)
-                return LongVectorValue(LongArray(this.size) { LongBinding.BINDING.readObject(stream) })
+                return LongVectorValue(Snappy.uncompressLongArray(entry.bytesUnsafe))
             }
         }
 
@@ -68,7 +58,8 @@ sealed class LongVectorValueXodusBinding(val size: Int): XodusBinding<LongVector
             NULL_VALUE
         } else {
             val stream = LightOutputStream(this.type.physicalSize)
-            repeat(this.size) { LongBinding.BINDING.writeObject(stream, value.data[it]) }
+            val compressed = Snappy.compress(value.data)
+            stream.write(compressed)
             stream.asArrayByteIterable()
         }
     }
