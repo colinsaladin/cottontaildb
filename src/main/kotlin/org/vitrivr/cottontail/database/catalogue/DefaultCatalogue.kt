@@ -1,6 +1,6 @@
 package org.vitrivr.cottontail.database.catalogue
 
-import jetbrains.exodus.env.Environment
+import jetbrains.exodus.env.ContextualEnvironment
 import jetbrains.exodus.env.Environments
 import jetbrains.exodus.env.forEach
 import org.vitrivr.cottontail.config.Config
@@ -72,7 +72,7 @@ class DefaultCatalogue(override val config: Config) : Catalogue {
     internal val closeLock = StampedLock()
 
     /** The Xodus environment used for Cottontail DB. This is an internal variable and not part of the official interface. */
-    internal val environment: Environment = Environments.newInstance(
+    internal val environment: ContextualEnvironment = Environments.newContextualInstance(
         this.config.root.resolve("xodus").toFile(),
         this.config.xodus.toEnvironmentConfig()
     )

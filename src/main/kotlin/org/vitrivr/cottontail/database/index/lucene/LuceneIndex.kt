@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.database.index.lucene
 
+import jetbrains.exodus.lucene.ExodusDirectory
 import org.apache.lucene.analysis.standard.StandardAnalyzer
 import org.apache.lucene.document.*
 import org.apache.lucene.index.*
@@ -7,8 +8,6 @@ import org.apache.lucene.queryparser.flexible.standard.QueryParserUtil
 import org.apache.lucene.search.*
 import org.apache.lucene.search.similarities.SimilarityBase.log2
 import org.apache.lucene.store.Directory
-import org.apache.lucene.store.FSDirectory
-import org.apache.lucene.store.NativeFSLockFactory
 import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
@@ -71,10 +70,7 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
     }
 
     /** The [Directory] containing the data for this [LuceneIndex]. */
-    private val directory: Directory = FSDirectory.open(
-        this@LuceneIndex.catalogue.config.root.resolve("lucene").resolve(this@LuceneIndex.name.toString()),
-        NativeFSLockFactory.getDefault()
-    )
+    private val directory: Directory = ExodusDirectory(this.catalogue.environment)
 
     /**
      * Checks if this [LuceneIndex] can process the given [Predicate].
