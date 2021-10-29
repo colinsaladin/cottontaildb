@@ -218,6 +218,8 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          * @param columns The list of [columns] to [Index].
          */
         override fun createIndex(name: Name.IndexName, type: IndexType, columns: List<Name.ColumnName>, params: Map<String, String>): Index = this.txLatch.withLock {
+            val entity = EntityCatalogueEntry.read(this@DefaultEntity.name, this@DefaultEntity.catalogue, this.context.xodusTx) ?:  throw DatabaseException.DataCorruptionException("CREATE index $name failed: Failed to read catalogue entry for entity.")
+
             /* Checks if index exists. */
             if (IndexCatalogueEntry.exists(name, this@DefaultEntity.catalogue, this.context.xodusTx)) {
                 throw DatabaseException.IndexAlreadyExistsException(name)
@@ -233,6 +235,11 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
             if (this@DefaultEntity.catalogue.environment.openStore(name.storeName(), indexEntry.type.storeConfig(), this.context.xodusTx, true) == null) {
                 throw DatabaseException.DataCorruptionException("CREATE index $name failed: Failed to create store.")
             }
+
+            /* Update entity catalogue entry. */
+            EntityCatalogueEntry.write(entity.copy(indexes = (entity.indexes + name)), this@DefaultEntity.catalogue, this.context.xodusTx)
+
+            /* Open index. */
             return type.open(name, this@DefaultEntity)
         }
 
@@ -242,6 +249,8 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
          * @param name [Name.IndexName] of the [Index] to drop.
          */
         override fun dropIndex(name: Name.IndexName) = this.txLatch.withLock {
+            val entity = EntityCatalogueEntry.read(this@DefaultEntity.name, this@DefaultEntity.catalogue, this.context.xodusTx) ?:  throw DatabaseException.DataCorruptionException("CREATE index $name failed: Failed to read catalogue entry for entity.")
+
             /* Check if index exists. */
             if (!IndexCatalogueEntry.exists(name, this@DefaultEntity.catalogue, this.context.xodusTx)) {
                 throw DatabaseException.IndexDoesNotExistException(name)
@@ -251,6 +260,9 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
             if (!IndexCatalogueEntry.delete(name, this@DefaultEntity.catalogue, this.context.xodusTx)) {
                 throw DatabaseException.DataCorruptionException("DROP index $name failed: Failed to delete catalogue entry.")
             }
+
+            /* Update entity catalogue entry. */
+            EntityCatalogueEntry.write(entity.copy(indexes = (entity.indexes - name)), this@DefaultEntity.catalogue, this.context.xodusTx)
 
             /* Remove index store. */
             this@DefaultEntity.catalogue.environment.removeStore(name.storeName(), this.context.xodusTx)
