@@ -21,7 +21,7 @@ object SequenceCatalogueEntries {
     /**
      * Initializes the store used to store sequences in Cottontail DB.
      */
-    internal fun init(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()) {
+    internal fun init(catalogue: DefaultCatalogue, transaction: Transaction) {
         catalogue.environment.openStore(CATALOGUE_SEQUENCE_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, true)
             ?: throw DatabaseException.DataCorruptionException("Failed to create store for sequence catalogue.")
     }
@@ -30,10 +30,10 @@ object SequenceCatalogueEntries {
      * Returns the [Store] for [EntityCatalogueEntry] entries.
      *
      * @param catalogue [DefaultCatalogue] to retrieve [EntityCatalogueEntry] from.
-     * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+     * @param transaction The Xodus [Transaction] to use.
      * @return [EntityCatalogueEntry]
      */
-    internal fun store(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Store {
+    internal fun store(catalogue: DefaultCatalogue, transaction: Transaction): Store {
         return catalogue.environment.openStore(CATALOGUE_SEQUENCE_STORE_NAME, StoreConfig.USE_EXISTING, transaction, false)
             ?: throw DatabaseException.DataCorruptionException("Failed to open store for sequence catalogue.")
     }
@@ -43,10 +43,10 @@ object SequenceCatalogueEntries {
      *
      * @param name [Name.SequenceName] that identifies the sequence entry.
      * @param catalogue [DefaultCatalogue] to retrieve the sequence entry from.
-     * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+     * @param transaction The Xodus [Transaction] to use.
      * @return [EntityCatalogueEntry]
      */
-    internal fun read(name: Name.SequenceName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Long? {
+    internal fun read(name: Name.SequenceName, catalogue: DefaultCatalogue, transaction: Transaction): Long? {
         val rawEntry = store(catalogue, transaction).get(transaction, Name.SequenceName.objectToEntry(name))
         return if (rawEntry != null) {
             LongBinding.compressedEntryToLong(rawEntry)
@@ -59,10 +59,10 @@ object SequenceCatalogueEntries {
      *
      * @param name [Name.SequenceName] that identifies the sequence entry.
      * @param catalogue [DefaultCatalogue] to retrieve the sequence entry from.
-     * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+     * @param transaction The Xodus [Transaction] to use.
      * @return [EntityCatalogueEntry]
      */
-    internal fun next(name: Name.SequenceName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Long? {
+    internal fun next(name: Name.SequenceName, catalogue: DefaultCatalogue, transaction: Transaction): Long? {
         val store = store(catalogue, transaction)
         val rawName = Name.SequenceName.objectToEntry(name)
         val rawEntry = store(catalogue, transaction).get(transaction, rawName)
@@ -80,10 +80,10 @@ object SequenceCatalogueEntries {
      *
      * @param name [Name.SequenceName] identifying the sequence to create.
      * @param catalogue [DefaultCatalogue] to reset the sequence.
-     * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+     * @param transaction The Xodus [Transaction] to use.
      * @return True on success.
      */
-    internal fun create(name: Name.SequenceName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+    internal fun create(name: Name.SequenceName, catalogue: DefaultCatalogue, transaction: Transaction): Boolean =
         store(catalogue, transaction).add(transaction, Name.SequenceName.objectToEntry(name), LongBinding.longToCompressedEntry(0L))
 
     /**
@@ -91,10 +91,10 @@ object SequenceCatalogueEntries {
      *
      * @param name [Name.SequenceName] identifying the sequence to delete.
      * @param catalogue [DefaultCatalogue] to reset the sequence.
-     * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+     * @param transaction The Xodus [Transaction] to use.
      * @return True on success.
      */
-    internal fun delete(name: Name.SequenceName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+    internal fun delete(name: Name.SequenceName, catalogue: DefaultCatalogue, transaction: Transaction): Boolean =
         store(catalogue, transaction).delete(transaction, Name.SequenceName.objectToEntry(name))
 
     /**
@@ -102,9 +102,9 @@ object SequenceCatalogueEntries {
      *
      * @param name [Name.SequenceName] identifying the sequence to reset.
      * @param catalogue [DefaultCatalogue] to reset the sequence.
-     * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+     * @param transaction The Xodus [Transaction] to use.
      * @return True on success.
      */
-    internal fun reset(name: Name.SequenceName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+    internal fun reset(name: Name.SequenceName, catalogue: DefaultCatalogue, transaction: Transaction): Boolean =
         store(catalogue, transaction).put(transaction, Name.SequenceName.objectToEntry(name), LongBinding.longToCompressedEntry(0L))
 }

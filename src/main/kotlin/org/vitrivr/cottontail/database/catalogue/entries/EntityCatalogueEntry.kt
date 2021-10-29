@@ -45,7 +45,7 @@ data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, va
                 val indexes = (0 until IntegerBinding.readCompressed(stream)).map {
                     StringBinding.BINDING.readObject(stream)
                 }
-                return Serialized( created, columns, indexes)
+                return Serialized(created, columns, indexes)
             }
 
             /**
@@ -83,7 +83,7 @@ data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, va
          * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
          * @return [Store]
          */
-        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Store {
+        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction): Store {
             return catalogue.environment.openStore(CATALOGUE_ENTITY_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
                 ?: throw DatabaseException.DataCorruptionException("Failed to open store for entity catalogue.")
         }
@@ -94,7 +94,7 @@ data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, va
          * @param catalogue The [DefaultCatalogue] to initialize.
          * @param transaction The [Transaction] to use.
          */
-        internal fun init(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()) {
+        internal fun init(catalogue: DefaultCatalogue, transaction: Transaction) {
             catalogue.environment.openStore(CATALOGUE_ENTITY_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, true)
                 ?: throw DatabaseException.DataCorruptionException("Failed to create entity catalogue.")
         }
@@ -104,10 +104,10 @@ data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, va
          *
          * @param name [Name.EntityName] to retrieve the [EntityCatalogueEntry] for.
          * @param catalogue [DefaultCatalogue] to retrieve [EntityCatalogueEntry] from.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return [EntityCatalogueEntry]
          */
-        internal fun read(name: Name.EntityName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): EntityCatalogueEntry? {
+        internal fun read(name: Name.EntityName, catalogue: DefaultCatalogue, transaction: Transaction): EntityCatalogueEntry? {
             val rawEntry = store(catalogue, transaction).get(transaction, Name.EntityName.objectToEntry(name))
             return if (rawEntry != null) {
                 (Serialized.entryToObject(rawEntry) as Serialized).toActual(name)
@@ -121,10 +121,10 @@ data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, va
          *
          * @param name [Name.EntityName] to check.
          * @param catalogue [DefaultCatalogue] to retrieve [EntityCatalogueEntry] from.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return true of false
          */
-        internal fun exists(name: Name.EntityName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+        internal fun exists(name: Name.EntityName, catalogue: DefaultCatalogue, transaction: Transaction): Boolean =
             store(catalogue, transaction).get(transaction, Name.EntityName.objectToEntry(name)) != null
 
         /**
@@ -132,10 +132,10 @@ data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, va
          *
          * @param entry [EntityCatalogueEntry] to write
          * @param catalogue [DefaultCatalogue] to write [EntityCatalogueEntry] to.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return True on success, false otherwise.
          */
-        internal fun write(entry: EntityCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+        internal fun write(entry: EntityCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction): Boolean =
             store(catalogue, transaction).put(transaction, Name.EntityName.objectToEntry(entry.name), Serialized.objectToEntry(entry.toSerialized()))
 
         /**
@@ -143,10 +143,10 @@ data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, va
          *
          * @param name [Name.EntityName] of the [EntityCatalogueEntry] that should be deleted.
          * @param catalogue [DefaultCatalogue] to write [EntityCatalogueEntry] to.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return True on success, false otherwise.
          */
-        internal fun delete(name: Name.EntityName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+        internal fun delete(name: Name.EntityName, catalogue: DefaultCatalogue, transaction: Transaction): Boolean =
             store(catalogue, transaction).delete(transaction, Name.EntityName.objectToEntry(name))
     }
 }

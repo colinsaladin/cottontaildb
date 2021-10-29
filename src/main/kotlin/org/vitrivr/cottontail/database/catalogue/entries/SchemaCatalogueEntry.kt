@@ -32,7 +32,7 @@ data class SchemaCatalogueEntry(val name: Name.SchemaName): Comparable<SchemaCat
          * @param catalogue The [DefaultCatalogue] to initialize.
          * @param transaction The [Transaction] to use.
          */
-        internal fun init(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()) {
+        internal fun init(catalogue: DefaultCatalogue, transaction: Transaction) {
             catalogue.environment.openStore(CATALOGUE_SCHEMA_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, true)
                 ?: throw DatabaseException.DataCorruptionException("Failed to create schema catalogue store.")
         }
@@ -41,10 +41,10 @@ data class SchemaCatalogueEntry(val name: Name.SchemaName): Comparable<SchemaCat
          * Returns the [Store] for [SchemaCatalogueEntry] entries.
          *
          * @param catalogue [DefaultCatalogue] to access [Store] for.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return [Store]
          */
-        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Store {
+        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction): Store {
             return catalogue.environment.openStore(CATALOGUE_SCHEMA_STORE_NAME, StoreConfig.USE_EXISTING, transaction, false)
                 ?: throw DatabaseException.DataCorruptionException("Failed to open store for schema catalogue.")
         }
@@ -54,10 +54,10 @@ data class SchemaCatalogueEntry(val name: Name.SchemaName): Comparable<SchemaCat
          *
          * @param name [Name.SchemaName] to retrieve the [SchemaCatalogueEntry] for.
          * @param catalogue [DefaultCatalogue] to retrieve [SchemaCatalogueEntry] from.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return [SchemaCatalogueEntry]
          */
-        internal fun read(name: Name.SchemaName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): SchemaCatalogueEntry? {
+        internal fun read(name: Name.SchemaName, catalogue: DefaultCatalogue, transaction: Transaction): SchemaCatalogueEntry? {
             val rawEntry = store(catalogue, transaction).get(transaction, Name.SchemaName.objectToEntry(name))
             return if (rawEntry != null) {
                 entryToObject(rawEntry) as SchemaCatalogueEntry
@@ -71,10 +71,10 @@ data class SchemaCatalogueEntry(val name: Name.SchemaName): Comparable<SchemaCat
          *
          * @param name [Name.SchemaName] to retrieve the [SchemaCatalogueEntry] for.
          * @param catalogue [DefaultCatalogue] to retrieve [SchemaCatalogueEntry] from.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return [SchemaCatalogueEntry]
          */
-        internal fun exists(name: Name.SchemaName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+        internal fun exists(name: Name.SchemaName, catalogue: DefaultCatalogue, transaction: Transaction): Boolean =
             store(catalogue, transaction).get(transaction, Name.SchemaName.objectToEntry(name)) != null
 
         /**
@@ -82,10 +82,10 @@ data class SchemaCatalogueEntry(val name: Name.SchemaName): Comparable<SchemaCat
          *
          * @param entry [SchemaCatalogueEntry] to write
          * @param catalogue [DefaultCatalogue] to write [SchemaCatalogueEntry] to.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return True on success, false otherwise.
          */
-        internal fun write(entry: SchemaCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+        internal fun write(entry: SchemaCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction ): Boolean =
             store(catalogue, transaction).put(transaction, Name.SchemaName.objectToEntry(entry.name), objectToEntry(entry))
 
         /**
@@ -96,7 +96,7 @@ data class SchemaCatalogueEntry(val name: Name.SchemaName): Comparable<SchemaCat
          * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
          * @return True on success, false otherwise.
          */
-        internal fun delete(name: Name.SchemaName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean
+        internal fun delete(name: Name.SchemaName, catalogue: DefaultCatalogue, transaction: Transaction): Boolean
             = store(catalogue, transaction).delete(transaction, Name.SchemaName.objectToEntry(name))
 
         override fun readObject(stream: ByteArrayInputStream) = SchemaCatalogueEntry(Name.SchemaName(StringBinding.BINDING.readObject(stream)))

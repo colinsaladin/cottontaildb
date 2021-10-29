@@ -84,7 +84,7 @@ data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, va
          * @param catalogue The [DefaultCatalogue] to initialize.
          * @param transaction The [Transaction] to use.
          */
-        internal fun init(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()) {
+        internal fun init(catalogue: DefaultCatalogue, transaction: Transaction) {
             catalogue.environment.openStore(CATALOGUE_COLUMN_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, true)
                 ?: throw DatabaseException.DataCorruptionException("Failed to create entity catalogue store.")
         }
@@ -93,10 +93,10 @@ data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, va
          * Returns the [Store] for [ColumnCatalogueEntry] entries.
          *
          * @param catalogue [DefaultCatalogue] to access [Store] for.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return [Store]
          */
-        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Store =
+        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction ): Store =
             catalogue.environment.openStore(CATALOGUE_COLUMN_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
                 ?: throw DatabaseException.DataCorruptionException("Failed to open store for column catalogue.")
 
@@ -105,10 +105,10 @@ data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, va
          *
          * @param name [Name.ColumnName] to retrieve the [ColumnCatalogueEntry] for.
          * @param catalogue [DefaultCatalogue] to retrieve [ColumnCatalogueEntry] from.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return [ColumnCatalogueEntry]
          */
-        internal fun read(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): ColumnCatalogueEntry? {
+        internal fun read(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction): ColumnCatalogueEntry? {
             val rawName = Name.ColumnName.objectToEntry(name)
             val rawEntry = store(catalogue, transaction).get(transaction, rawName)
             return if (rawEntry != null) {
@@ -123,10 +123,10 @@ data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, va
          *
          * @param entry [ColumnCatalogueEntry] to write
          * @param catalogue [DefaultCatalogue] to write [ColumnCatalogueEntry] to.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return True on success, false otherwise.
          */
-        internal fun write(entry: ColumnCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+        internal fun write(entry: ColumnCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction): Boolean =
             store(catalogue, transaction).put(transaction, Name.ColumnName.objectToEntry(entry.name), Serialized.objectToEntry(entry.toSerialized()))
 
         /**
@@ -134,10 +134,10 @@ data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, va
          *
          * @param name [Name.ColumnName] of the [ColumnCatalogueEntry] that should be deleted.
          * @param catalogue [DefaultCatalogue] to write [ColumnCatalogueEntry] to.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return True on success, false otherwise.
          */
-        internal fun delete(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+        internal fun delete(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction): Boolean =
             store(catalogue, transaction).delete(transaction, Name.ColumnName.objectToEntry(name))
     }
 

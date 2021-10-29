@@ -50,10 +50,10 @@ data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, va
             override fun readObject(stream: ByteArrayInputStream): Serialized {
                 val type = IndexType.values()[IntegerBinding.readCompressed(stream)]
                 val state = IndexState.values()[IntegerBinding.readCompressed(stream)]
-                val columns = (0 until ShortBinding.BINDING.readObject(stream)).map {
+                val columns = (0 until IntegerBinding.readCompressed(stream)).map {
                     StringBinding.BINDING.readObject(stream)
                 }
-                val entries = (0 until ShortBinding.BINDING.readObject(stream)).associate {
+                val entries = (0 until IntegerBinding.readCompressed(stream)).associate {
                     StringBinding.BINDING.readObject(stream) to StringBinding.BINDING.readObject(stream)
                 }
                 return Serialized(type, state, columns, entries)
@@ -68,13 +68,13 @@ data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, va
                 IntegerBinding.writeCompressed(output, `object`.state.ordinal)
 
                 /* Write all columns. */
-                ShortBinding.BINDING.writeObject(output,`object`.columns.size)
+                IntegerBinding.writeCompressed(output,`object`.columns.size)
                 for (columnName in `object`.columns) {
                     StringBinding.BINDING.writeObject(output, columnName)
                 }
 
                 /* Write all indexes. */
-                ShortBinding.BINDING.writeObject(output,`object`.config.size)
+                IntegerBinding.writeCompressed(output,`object`.config.size)
                 for (entry in `object`.config) {
                     StringBinding.BINDING.writeObject(output, entry.key)
                     StringBinding.BINDING.writeObject(output, entry.value)
@@ -94,7 +94,7 @@ data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, va
          * @param catalogue The [DefaultCatalogue] to initialize.
          * @param transaction The [Transaction] to use.
          */
-        internal fun init(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()) {
+        internal fun init(catalogue: DefaultCatalogue, transaction: Transaction) {
             catalogue.environment.openStore(CATALOGUE_INDEX_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, true)
                 ?: throw DatabaseException.DataCorruptionException("Failed to create store for index catalogue.")
         }
@@ -103,10 +103,10 @@ data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, va
          * Returns the [Store] for [IndexCatalogueEntry] entries.
          *
          * @param catalogue [DefaultCatalogue] to retrieve [IndexCatalogueEntry] from.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return [Store]
          */
-        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Store =
+        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction): Store =
             catalogue.environment.openStore(CATALOGUE_INDEX_STORE_NAME, StoreConfig.USE_EXISTING, transaction, false)
                 ?: throw DatabaseException.DataCorruptionException("Failed to open store for index catalogue.")
 
@@ -115,9 +115,9 @@ data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, va
          *
          * @param name [Name.IndexName] to retrieve the [IndexCatalogueEntry] for.
          * @param catalogue [DefaultCatalogue] to retrieve [IndexCatalogueEntry] from.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          */
-        internal fun read(name: Name.IndexName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): IndexCatalogueEntry? {
+        internal fun read(name: Name.IndexName, catalogue: DefaultCatalogue, transaction: Transaction): IndexCatalogueEntry? {
             val rawEntry = store(catalogue, transaction).get(transaction, Name.IndexName.objectToEntry(name))
             return if (rawEntry != null) {
                 (Serialized.entryToObject(rawEntry) as Serialized).toActual(name)
@@ -131,9 +131,9 @@ data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, va
          *
          * @param name [Name.IndexName] to check.
          * @param catalogue [DefaultCatalogue] to retrieve [IndexCatalogueEntry] from.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          */
-        internal fun exists(name: Name.IndexName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+        internal fun exists(name: Name.IndexName, catalogue: DefaultCatalogue, transaction: Transaction): Boolean =
             store(catalogue, transaction).get(transaction, Name.IndexName.objectToEntry(name)) != null
 
         /**
@@ -141,10 +141,10 @@ data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, va
          *
          * @param entry [IndexCatalogueEntry] to write
          * @param catalogue [DefaultCatalogue] to write [IndexCatalogueEntry] to.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return True on success, false otherwise.
          */
-        internal fun write(entry: IndexCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+        internal fun write(entry: IndexCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction): Boolean =
             store(catalogue, transaction).put(transaction, Name.IndexName.objectToEntry(entry.name), Serialized.objectToEntry(entry.toSerialized()))
 
         /**
@@ -152,10 +152,10 @@ data class IndexCatalogueEntry(val name: Name.IndexName, val type: IndexType, va
          *
          * @param name [Name.IndexName] of the [IndexCatalogueEntry] that should be deleted.
          * @param catalogue [DefaultCatalogue] to write [IndexCatalogueEntry] to.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return True on success, false otherwise.
          */
-        internal fun delete(name: Name.IndexName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+        internal fun delete(name: Name.IndexName, catalogue: DefaultCatalogue, transaction: Transaction): Boolean =
             store(catalogue, transaction).delete(transaction, Name.IndexName.objectToEntry(name))
     }
 }

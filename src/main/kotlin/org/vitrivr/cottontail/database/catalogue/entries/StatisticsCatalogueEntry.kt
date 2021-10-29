@@ -99,10 +99,10 @@ data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>
          * Returns the [Store] for [ColumnCatalogueEntry] entries.
          *
          * @param catalogue [DefaultCatalogue] to access [Store] for.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return [Store]
          */
-        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Store =
+        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction): Store =
             catalogue.environment.openStore(CATALOGUE_STATISTICS_STORE_NAME, StoreConfig.USE_EXISTING, transaction, false)
                 ?: throw DatabaseException.DataCorruptionException("Failed to open store for column statistics catalogue.")
 
@@ -112,7 +112,7 @@ data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>
          * @param catalogue The [DefaultCatalogue] to initialize.
          * @param transaction The [Transaction] to use.
          */
-        internal fun init(catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()) {
+        internal fun init(catalogue: DefaultCatalogue, transaction: Transaction) {
             catalogue.environment.openStore(CATALOGUE_STATISTICS_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, true)
                 ?: throw DatabaseException.DataCorruptionException("Failed to create column statistics catalogue store.")
         }
@@ -122,10 +122,10 @@ data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>
          *
          * @param name [Name.ColumnName] to retrieve the [StatisticsCatalogueEntry] for.
          * @param catalogue [DefaultCatalogue] to retrieve [StatisticsCatalogueEntry] from.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return [StatisticsCatalogueEntry]
          */
-        internal fun read(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): StatisticsCatalogueEntry? {
+        internal fun read(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction): StatisticsCatalogueEntry? {
             val rawEntry = store(catalogue, transaction).get(transaction, Name.ColumnName.objectToEntry(name))
             return if (rawEntry != null) {
                 (Serialized.entryToObject(rawEntry) as Serialized).toActual(name)
@@ -139,10 +139,10 @@ data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>
          *
          * @param entry [StatisticsCatalogueEntry] to write
          * @param catalogue [DefaultCatalogue] to write [StatisticsCatalogueEntry] to.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return True on success, false otherwise.
          */
-        internal fun write(entry: StatisticsCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+        internal fun write(entry: StatisticsCatalogueEntry, catalogue: DefaultCatalogue, transaction: Transaction): Boolean =
              store(catalogue, transaction).put(transaction, Name.ColumnName.objectToEntry(entry.name), Serialized.objectToEntry(entry.toSerialized()))
 
         /**
@@ -150,10 +150,10 @@ data class StatisticsCatalogueEntry(val name: Name.ColumnName, val type: Type<*>
          *
          * @param name [Name.ColumnName] of the [StatisticsCatalogueEntry] that should be deleted.
          * @param catalogue [DefaultCatalogue] to write [StatisticsCatalogueEntry] to.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @param transaction The Xodus [Transaction] to use.
          * @return True on success, false otherwise.
          */
-        internal fun delete(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction = catalogue.environment.beginTransaction()): Boolean =
+        internal fun delete(name: Name.ColumnName, catalogue: DefaultCatalogue, transaction: Transaction): Boolean =
             store(catalogue, transaction).delete(transaction, Name.ColumnName.objectToEntry(name))
     }
 }
