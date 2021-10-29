@@ -214,6 +214,7 @@ class TransactionManager(private val catalogue: DefaultCatalogue, transactionTab
          */
         private fun performCommit() {
             this@TransactionImpl.state = TransactionStatus.FINALIZING
+            var commit = false
             try {
                 this@TransactionImpl.txns.values.reversed().forEachIndexed { i, txn ->
                     try {
@@ -222,8 +223,10 @@ class TransactionManager(private val catalogue: DefaultCatalogue, transactionTab
                         LOGGER.error("An error occurred while committing Tx $i (${txn.dbo.name}) of transaction ${this@TransactionImpl.txId}. This is serious!", e)
                     }
                 }
+                commit = this.xodusTx.commit()
             } finally {
-                this@TransactionImpl.finalize(true)
+                if (!commit) this.xodusTx.abort()
+                this@TransactionImpl.finalize(commit)
             }
         }
 
@@ -252,6 +255,7 @@ class TransactionManager(private val catalogue: DefaultCatalogue, transactionTab
                         LOGGER.error("An error occurred while rolling back Tx $i (${txn.dbo.name}) of transaction ${this@TransactionImpl.txId}. This is serious!", e)
                     }
                 }
+                this.xodusTx.abort()
             } finally {
                 this@TransactionImpl.finalize(false)
             }
