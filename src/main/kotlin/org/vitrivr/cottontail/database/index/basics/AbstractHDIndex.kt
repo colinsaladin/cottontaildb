@@ -26,5 +26,10 @@ abstract class AbstractHDIndex(name: Name.IndexName, parent: DefaultEntity) : Ab
     /**
      * A [Tx] that affects this [AbstractIndex].
      */
-    protected abstract inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context), IndexTx
+    protected abstract inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context), IndexTx {
+
+        /** The dimensionality of the [AbstractHDIndex] this [Tx] belongs to. */
+        val dimension: Int
+            get() = super.columns[0].type.logicalSize
+    }
 }

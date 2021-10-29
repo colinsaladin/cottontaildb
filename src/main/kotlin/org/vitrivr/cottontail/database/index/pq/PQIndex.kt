@@ -144,14 +144,17 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
     /**
      * A [IndexTx] that affects this [AbstractIndex].
      */
-    private inner class Tx(context: TransactionContext) : AbstractHDIndex.Tx(context) {
+    private inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context) {
 
-        /** Internal [VAFMarks] reference. */
+        /** Internal [PQ] reference. */
         private var pq: PQ? = null
 
-        init {
-
-        }
+        /** The [PQIndexConfig] used by this [PQIndex] instance. */
+        override val config: PQIndexConfig
+            get() {
+                val entry = IndexCatalogueEntry.read(this@PQIndex.name, this@PQIndex.parent.parent.parent, this.context.xodusTx) ?: throw DatabaseException.DataCorruptionException("Failed to read catalogue entry for index ${this@PQIndex.name}.")
+                return PQIndexConfig.fromParamMap(entry.config)
+            }
 
         /**
          * Rebuilds the surrounding [PQIndex] from scratch, thus re-creating the the [PQ] codebook
@@ -170,7 +173,7 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
             /* Clear and re-generate signatures. */
             this.clear()
             txn.cursor(this.dbo.columns).forEach { rec ->
-                val value = rec[this@PQIndex.columns[0]]
+                val value = rec[this.columns[0]]
                 if (value is VectorValue<*>) {
                     //TODO: val sig = pq.getSignature(value)
                     //TODO: this.dataStore.put(this.context.xodusTx, sig, rec.tupleId.toKey())
@@ -179,7 +182,7 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
 
             /* Update index state for index. */
             this.updateState(IndexState.CLEAN)
-            VAFIndex.LOGGER.debug("Rebuilding PQIndex {} completed!", this@PQIndex.name)
+            LOGGER.debug("Rebuilding PQIndex {} completed!", this@PQIndex.name)
         }
 
         /**
@@ -282,7 +285,7 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
                 for (j in 0 until preKnn.size) {
                     val tupleIds = preKnn[j].first
                     for (tupleId in tupleIds) {
-                        val exact = txn.read(tupleId, this@PQIndex.columns)[this@PQIndex.columns[0]]
+                        val exact = txn.read(tupleId, this@Tx.columns)[this@Tx.columns[0]]
                         if (exact is VectorValue<*>) {
                             val distance = this.predicate.distance(query, exact)
                             if (knn.size < this.predicate.k || knn.peek()!!.second > distance) {
@@ -309,11 +312,11 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
          */
         private fun acquireLearningData(txn: EntityTx): List<VectorValue<*>> {
             val learningData = LinkedList<VectorValue<*>>()
-            val rng = SplittableRandom(this@PQIndex.config.seed)
-            val learningDataFraction = this@PQIndex.config.sampleSize.toDouble() / txn.count()
+            val rng = SplittableRandom(this@Tx.config.seed)
+            val learningDataFraction = this@Tx.config.sampleSize.toDouble() / txn.count()
             txn.cursor(this.dbo.columns).forEach {
                 if (rng.nextDouble() <= learningDataFraction) {
-                    val value = it[this@PQIndex.columns[0]]
+                    val value = it[this@Tx.columns[0]]
                     if (value is VectorValue<*>) {
                         learningData.add(value)
                     }

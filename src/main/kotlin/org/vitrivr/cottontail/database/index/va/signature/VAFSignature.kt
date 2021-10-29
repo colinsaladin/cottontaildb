@@ -1,8 +1,8 @@
 package org.vitrivr.cottontail.database.index.va.signature
 
 import jetbrains.exodus.bindings.ComparableBinding
-import jetbrains.exodus.bindings.IntegerBinding
 import jetbrains.exodus.util.LightOutputStream
+import org.xerial.snappy.Snappy
 import java.io.ByteArrayInputStream
 
 
@@ -23,16 +23,11 @@ value class VAFSignature(val cells: IntArray): Comparable<VAFSignature> {
     operator fun get(index: Int): Int = this.cells[index]
 
     companion object : ComparableBinding() {
-        override fun readObject(stream: ByteArrayInputStream) = VAFSignature(IntArray(IntegerBinding.readCompressed(stream)) {
-            IntegerBinding.readCompressed(stream)
-        })
-
+        override fun readObject(stream: ByteArrayInputStream) = VAFSignature(Snappy.uncompressIntArray(stream.readAllBytes()))
         override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
             require(`object` is VAFSignature) { "Cannot serialize object $`object` as VAFSignature." }
-            IntegerBinding.writeCompressed(output, `object`.cells.size)
-            for (b in `object`.cells) {
-                IntegerBinding.writeCompressed(output, b)
-            }
+            val bytes = Snappy.compress(`object`.cells)
+            output.write(bytes)
         }
     }
 

@@ -230,9 +230,15 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
         /** The [IndexReader] instance used for accessing the [LuceneIndex]. */
         private val indexReader = DirectoryReader.open(this@LuceneIndex.directory)
 
-
         /** The [IndexWriter] instance used for accessing the [LuceneIndex]. */
-        private val indexWriter = IndexWriter(this@LuceneIndex.directory, IndexWriterConfig(this@LuceneIndex.config.getAnalyzer()).setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND).setCommitOnClose(true))
+        private val indexWriter = IndexWriter(this@LuceneIndex.directory, IndexWriterConfig(this.config.getAnalyzer()).setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND).setCommitOnClose(true))
+
+        /** The [LuceneIndexConfig] used by this [LuceneIndex] instance. */
+        override val config: LuceneIndexConfig
+            get() {
+                val entry = IndexCatalogueEntry.read(this@LuceneIndex.name, this@LuceneIndex.parent.parent.parent, this.context.xodusTx) ?: throw DatabaseException.DataCorruptionException("Failed to read catalogue entry for index ${this@LuceneIndex.name}.")
+                return LuceneIndexConfig.fromParamMap(entry.config)
+            }
 
         /**
          * Returns the number of [Document] in this [LuceneIndex], which should roughly correspond
@@ -253,7 +259,7 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
 
             /* Recreate entries. */
             this.indexWriter.deleteAll()
-            entityTx.cursor(this@LuceneIndex.columns).forEach { record ->
+            entityTx.cursor(this.columns).forEach { record ->
                 this.indexWriter.addDocument(documentFromRecord(record))
             }
         }

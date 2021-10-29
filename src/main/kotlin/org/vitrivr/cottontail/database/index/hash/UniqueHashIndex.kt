@@ -92,7 +92,11 @@ class UniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractInd
     private inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context) {
 
         /** The internal [XodusBinding] reference used for de-/serialization. */
-        private val binding: XodusBinding<*> = this@UniqueHashIndex.columns[0].type.serializerFactory().xodus(this@UniqueHashIndex.columns[0].type.logicalSize, this@UniqueHashIndex.columns[0].nullable)
+        private val binding: XodusBinding<*> = this.columns[0].type.serializerFactory().xodus(this.columns[0].type.logicalSize, this.columns[0].nullable)
+
+        /** [UniqueHashIndex] does not have an [IndexConfig]*/
+        override val config: IndexConfig
+            get() = this@UniqueHashIndex.config
 
         /**
          * Adds a mapping from the given [Value] to the given [TupleId].

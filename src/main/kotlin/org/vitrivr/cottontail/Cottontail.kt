@@ -146,6 +146,8 @@ fun standalone(config: Config) {
 
     /* Instantiate Catalogue, execution engine and gRPC server. */
     val catalogue = DefaultCatalogue(config)
+    Runtime.getRuntime().addShutdownHook(Thread { catalogue.close() }) /* Catalogue should always be closed. */
+
 
     /* Start gRPC Server and print message. */
     val server = CottontailGrpcServer(config, catalogue)

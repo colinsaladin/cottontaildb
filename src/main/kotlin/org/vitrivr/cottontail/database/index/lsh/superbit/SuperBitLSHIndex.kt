@@ -101,6 +101,13 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
      */
     private inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context) {
 
+        /** The [SuperBitLSHIndexConfig] used by this [SuperBitLSHIndex] instance. */
+        override val config: SuperBitLSHIndexConfig
+            get() {
+                val entry = IndexCatalogueEntry.read(this@SuperBitLSHIndex.name, this@SuperBitLSHIndex.parent.parent.parent, this.context.xodusTx) ?: throw DatabaseException.DataCorruptionException("Failed to read catalogue entry for index ${this@SuperBitLSHIndex.name}.")
+                return SuperBitLSHIndexConfig.fromParamMap(entry.config)
+            }
+
         /**
          * Adds a mapping from the given [Value] to the given [TupleId].
          *
@@ -147,7 +154,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
             val tx = this.context.getTx(this.dbo.parent) as EntityTx
             val specimen = this.acquireSpecimen(tx)
                 ?: throw DatabaseException("Could not gather specimen to create index.") // todo: find better exception
-            val lsh = SuperBitLSH(this@SuperBitLSHIndex.config.stages, this@SuperBitLSHIndex.config.buckets, this@SuperBitLSHIndex.config.seed, specimen, this@SuperBitLSHIndex.config.considerImaginary, this@SuperBitLSHIndex.config.samplingMethod)
+            val lsh = SuperBitLSH(this.config.stages, this.config.buckets, this.config.seed, specimen, this.config.considerImaginary, this.config.samplingMethod)
 
 
             /* Locally (Re-)create index entries and sort bucket for each stage to corresponding map. */
@@ -156,8 +163,8 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
             }
 
             /* for every record get bucket-signature, then iterate over stages and add tid to the list of that bucket of that stage */
-            tx.cursor(this@SuperBitLSHIndex.columns).forEach {
-                val value = it[this.dbo.columns[0]] ?: throw DatabaseException("Could not find column for entry in index $this") // todo: what if more columns? This should never happen -> need to change type and sort this out on index creation
+            tx.cursor(this.columns).forEach {
+                val value = it[this.columns[0]] ?: throw DatabaseException("Could not find column for entry in index $this") // todo: what if more columns? This should never happen -> need to change type and sort this out on index creation
                 if (value is VectorValue<*>) {
                     val buckets = lsh.hash(value)
                     (buckets zip local).forEach { (bucket, map) ->
@@ -235,14 +242,8 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
                 check(value is VectorValue<*>) { "Bound value for query vector has wrong type (found = ${value?.type})." }
 
                 /** Prepare SuperBitLSH data structure. */
-                val lsh = SuperBitLSH(
-                    this@SuperBitLSHIndex.config.stages,
-                    this@SuperBitLSHIndex.config.buckets,
-                    this@SuperBitLSHIndex.config.seed,
-                    value,
-                    this@SuperBitLSHIndex.config.considerImaginary,
-                    this@SuperBitLSHIndex.config.samplingMethod
-                )
+                val config = this@Tx.config
+                val lsh = SuperBitLSH(config.stages, config.buckets, config.seed, value, config.considerImaginary, config.samplingMethod)
 
                 /** Prepare list of matches. */
                 this.tupleIds = LinkedList<TupleId>()
@@ -282,7 +283,7 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
          */
         private fun acquireSpecimen(tx: EntityTx): VectorValue<*>? {
             for (index in 0L until tx.maxTupleId()) {
-                val read = tx.read(index, this@SuperBitLSHIndex.columns)[this.dbo.columns[0]]
+                val read = tx.read(index, this@Tx.columns)[this@Tx.columns[0]]
                 if (read is VectorValue<*>) {
                     return read
                 }

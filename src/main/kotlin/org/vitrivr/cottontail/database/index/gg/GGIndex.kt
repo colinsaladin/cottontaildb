@@ -106,7 +106,14 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
     /**
      * A [IndexTx] that affects this [AbstractIndex].
      */
-    private inner class Tx(context: TransactionContext) : AbstractHDIndex.Tx(context) {
+    private inner class Tx(context: TransactionContext) : AbstractIndex.Tx(context) {
+
+        /** The [GGIndexConfig] used by this [GGIndex] instance. */
+        override val config: GGIndexConfig
+            get() {
+                val entry = IndexCatalogueEntry.read(this@GGIndex.name, this@GGIndex.parent.parent.parent, this.context.xodusTx) ?: throw DatabaseException.DataCorruptionException("Failed to read catalogue entry for index ${this@GGIndex.name}.")
+                return GGIndexConfig.fromParamsMap(entry.config)
+            }
 
         /**
          * Rebuilds the surrounding [PQIndex] from scratch using the following, greedy grouping algorithm:
@@ -131,25 +138,25 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
 
             /* Prepare necessary data structures. */
             val groupSize =
-                ((remainingTids.size + config.numGroups - 1) / config.numGroups)  // ceildiv
+                ((remainingTids.size + this.config.numGroups - 1) / this.config.numGroups)  // ceildiv
             val finishedTIds = mutableSetOf<Long>()
-            val random = SplittableRandom(this@GGIndex.config.seed)
+            val random = SplittableRandom(this.config.seed)
 
             /* Start rebuilding the index. */
             this.clear()
             while (remainingTids.isNotEmpty()) {
                 /* Randomly pick group seed value. */
                 val groupSeedTid = remainingTids.elementAt(random.nextInt(remainingTids.size))
-                val groupSeedValue = txn.read(groupSeedTid, this@GGIndex.columns)[this@GGIndex.columns[0]]
+                val groupSeedValue = txn.read(groupSeedTid, this.columns)[this.columns[0]]
                 if (groupSeedValue is VectorValue<*>) {
                     /* Perform kNN for group. */
-                    val signature = Signature.Closed(this@GGIndex.config.distance.functionName, arrayOf(Argument.Typed(this@GGIndex.columns[0].type)), Type.Double)
+                    val signature = Signature.Closed(this.config.distance.functionName, arrayOf(Argument.Typed(this.columns[0].type)), Type.Double)
                     val function = this@GGIndex.parent.parent.parent.functions.obtain(signature)
                     check(function is VectorDistance.Binary<*>) { "GGIndex rebuild failed: Function $signature is not a vector distance function." }
                     val knn = MinHeapSelection<ComparablePair<Pair<TupleId, VectorValue<*>>, DoubleValue>>(groupSize)
                     remainingTids.forEach { tid ->
-                        val r = txn.read(tid, this@GGIndex.columns)
-                        val vec = r[this@GGIndex.columns[0]]
+                        val r = txn.read(tid, this.columns)
+                        val vec = r[this.columns[0]]
                         if (vec is VectorValue<*>) {
                             val distance = function(vec)
                             if (knn.size < groupSize || knn.peek()!!.second > distance) {
@@ -206,7 +213,7 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
         override fun filter(predicate: Predicate): Iterator<Record> = object : Iterator<Record> {
 
             /** Cast [KnnPredicate] (if such a cast is possible).  */
-            private val predicate = if (predicate is KnnPredicate && predicate.distance.signature.name == this@GGIndex.config.distance.functionName) {
+            private val predicate = if (predicate is KnnPredicate && predicate.distance.signature.name == this@Tx.config.distance.functionName) {
                 predicate
             } else {
                 throw QueryException.UnsupportedPredicateException("Index '${this@GGIndex.name}' (GGIndex) does not support predicates of type '${predicate::class.simpleName}'.")
@@ -233,14 +240,14 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
              */
             private fun prepareResults(): ArrayDeque<StandaloneRecord> {
                 /* Scan >= 10% of entries by default */
-                val considerNumGroups = (this@GGIndex.config.numGroups + 9) / 10
+                val considerNumGroups = (this@Tx.config.numGroups + 9) / 10
                 val txn = this@Tx.context.getTx(this@GGIndex.parent) as EntityTx
-                val signature = Signature.Closed(this@GGIndex.config.distance.functionName, arrayOf(Argument.Typed(this@GGIndex.columns[0].type)), Type.Double)
+                val signature = Signature.Closed(this@Tx.config.distance.functionName, arrayOf(Argument.Typed(this@Tx.columns[0].type)), Type.Double)
                 val function = this@GGIndex.parent.parent.parent.functions.obtain(signature)
                 check (function is VectorDistance.Binary<*>) { "Function $signature is not a vector distance function." }
 
                 /** Phase 1): Perform kNN on the groups. */
-                require(this.predicate.k < txn.maxTupleId() / config.numGroups * considerNumGroups) { "Value of k is too large for this index considering $considerNumGroups groups." }
+                require(this.predicate.k < txn.maxTupleId() / this@Tx.config.numGroups * considerNumGroups) { "Value of k is too large for this index considering $considerNumGroups groups." }
                 val groupKnn = MinHeapSelection<ComparablePair<LongArray, DoubleValue>>(considerNumGroups)
 
                 LOGGER.debug("Scanning group mean signals.")
@@ -259,7 +266,7 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
                 for (k in 0 until groupKnn.size) {
                     for (tupleId in groupKnn[k].first) {
                         val value =
-                            txn.read(tupleId, this@GGIndex.columns)[this@GGIndex.columns[0]]
+                            txn.read(tupleId, this@Tx.columns)[this@Tx.columns[0]]
                         if (value is VectorValue<*>) {
                             val distance = function(value)
                             if (knn.size < knn.k || knn.peek()!!.second > distance) {

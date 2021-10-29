@@ -10,11 +10,9 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx
-import org.vitrivr.cottontail.database.index.basics.AbstractHDIndex
-import org.vitrivr.cottontail.database.index.basics.AbstractIndex
-import org.vitrivr.cottontail.database.index.basics.IndexState
-import org.vitrivr.cottontail.database.index.basics.IndexType
+import org.vitrivr.cottontail.database.index.basics.*
 import org.vitrivr.cottontail.database.index.va.bounds.Bounds
 import org.vitrivr.cottontail.database.index.va.bounds.L1Bounds
 import org.vitrivr.cottontail.database.index.va.bounds.L2Bounds
@@ -69,7 +67,7 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
         val LOGGER: Logger = LoggerFactory.getLogger(VAFIndex::class.java)
 
         /** Key to read/write the Marks entry. */
-        val MARKS_ENTRY_KEY = LongBinding.longToCompressedEntry(-1L)
+        val MARKS_ENTRY_KEY = LongBinding.longToCompressedEntry(0L)
     }
 
     /** The [VAFIndex] implementation returns exactly the columns that is indexed. */
@@ -79,20 +77,17 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
     override val type = IndexType.VAF
 
     /** The [VAFIndexConfig] used by this [VAFIndex] instance. */
-    override val config: VAFIndexConfig = this.catalogue.environment.computeInTransaction { tx ->
-        val entry = IndexCatalogueEntry.read(this.name, this.parent.parent.parent, tx) ?: throw DatabaseException.DataCorruptionException("Failed to read catalogue entry for index ${this.name}.")
-        VAFIndexConfig.fromParamMap(entry.config)
-    }
+    override val config: VAFIndexConfig
+        get() = this.catalogue.environment.computeInTransaction { tx ->
+            val entry = IndexCatalogueEntry.read(this.name, this.parent.parent.parent, tx) ?: throw DatabaseException.DataCorruptionException("Failed to read catalogue entry for index ${this.name}.")
+            VAFIndexConfig.fromParamMap(entry.config)
+        }
 
     /** False since [VAFIndex] currently doesn't support incremental updates. */
     override val supportsIncrementalUpdate: Boolean = false
 
     /** True since [VAFIndex] supports partitioning. */
     override val supportsPartitioning: Boolean = true
-
-    init {
-        require(this.columns.size == 1) { "$VAFIndex only supports indexing a single column." }
-    }
 
     /**
      * Calculates the cost estimate if this [VAFIndex] processing the provided [Predicate].
@@ -139,12 +134,18 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
         init {
             val rawMarksEntry = this.dataStore.get(this.context.xodusTx, MARKS_ENTRY_KEY)
             if (rawMarksEntry == null) {
-                this.marks = VAFMarks.getEquidistantMarks(DoubleArray(this@VAFIndex.dimension), DoubleArray(this@VAFIndex.dimension), IntArray(this@VAFIndex.dimension) { this@VAFIndex.config.marksPerDimension })
-                this.rebuild()
+                this.marks = VAFMarks.getEquidistantMarks(DoubleArray(this.dimension), DoubleArray(this.dimension), IntArray(this.dimension) { this.config.marksPerDimension })
             } else {
                 this.marks = VAFMarks.entryToObject(rawMarksEntry) as VAFMarks
             }
         }
+
+        /** The configuration map used for the [Index] that underpins this [IndexTx]. */
+        override val config: VAFIndexConfig
+            get() {
+                val entry = IndexCatalogueEntry.read(this@VAFIndex.name, this@VAFIndex.parent.parent.parent, this.context.xodusTx) ?: throw DatabaseException.DataCorruptionException("Failed to read catalogue entry for index ${this@VAFIndex.name}.")
+                return VAFIndexConfig.fromParamMap(entry.config)
+            }
 
         /**
          * (Re-)builds the [VAFIndex] from scratch.
@@ -154,12 +155,12 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
 
             /* Prepare transaction for entity. */
             val entityTx = this.context.getTx(this@VAFIndex.parent) as EntityTx
-            val columnTx = this.context.getTx(entityTx.columnForName(this@VAFIndex.columns[0].name)) as ColumnTx<*>
+            val columnTx = this.context.getTx(entityTx.columnForName(this.columns[0].name)) as ColumnTx<*>
 
             /* Obtain minimum and maximum per dimension. */
             val stat = columnTx.statistics()
-            val min = DoubleArray(this@VAFIndex.columns[0].type.logicalSize)
-            val max = DoubleArray(this@VAFIndex.columns[0].type.logicalSize)
+            val min = DoubleArray(columns[0].type.logicalSize)
+            val max = DoubleArray(columns[0].type.logicalSize)
             when (stat) {
                 is FloatVectorValueStatistics -> repeat(min.size) {
                     min[it] = stat.min.data[it].toDouble()
@@ -179,8 +180,8 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
                 }
                 else -> {
                     /* Brute force :-( This may take a while. */
-                    entityTx.cursor(this@VAFIndex.columns).forEach { r ->
-                        val value = r[this@VAFIndex.columns[0]] as VectorValue<*>
+                    entityTx.cursor(this.columns).forEach { r ->
+                        val value = r[this.columns[0]] as VectorValue<*>
                         for (i in 0 until value.logicalSize) {
                             min[i] = min(min[i], value[i].asDouble().value)
                             max[i] = max(max[i], value[i].asDouble().value)
@@ -190,13 +191,13 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
             }
 
             /* Calculate and update marks. */
-            this.marks = VAFMarks.getEquidistantMarks(min, max, IntArray(this@VAFIndex.columns[0].type.logicalSize) { this@VAFIndex.config.marksPerDimension })
+            this.marks = VAFMarks.getEquidistantMarks(min, max, IntArray(this.columns[0].type.logicalSize) { this.config.marksPerDimension })
             this.dataStore.put(this.context.xodusTx, MARKS_ENTRY_KEY, VAFMarks.objectToEntry(this.marks))
 
             /* Calculate and update signatures. */
             this.clear()
-            entityTx.cursor(this@VAFIndex.columns).forEach { r ->
-                val value = r[this@VAFIndex.columns[0]]
+            entityTx.cursor(this.columns).forEach { r ->
+                val value = r[this.columns[0]]
                 if (value is RealVectorValue<*>) {
                     this.dataStore.put(this.context.xodusTx, r.tupleId.toKey(), VAFSignature.objectToEntry(this.marks.getSignature(value)))
                 }

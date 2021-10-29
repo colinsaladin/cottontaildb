@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.index
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.general.Tx
+import org.vitrivr.cottontail.database.index.basics.IndexConfig
 import org.vitrivr.cottontail.database.index.basics.IndexState
 import org.vitrivr.cottontail.database.index.basics.IndexType
 import org.vitrivr.cottontail.database.operations.Operation
@@ -23,6 +24,9 @@ interface IndexTx : Tx, Filterable, Countable {
     /** Reference to the [Index] this [IndexTx] belongs to. */
     override val dbo: Index
 
+    /** The [ColumnDef]s indexed by the [Index] this [IndexTx] belongs to. */
+    val columns: Array<ColumnDef<*>>
+
     /** The order in which results of this [IndexTx] appear. Empty array that there is no particular order. */
     val order: Array<Pair<ColumnDef<*>, SortOrder>>
 
@@ -31,6 +35,9 @@ interface IndexTx : Tx, Filterable, Countable {
 
     /** The [IndexType] of the [Index] that underpins this [IndexTx]. */
     val type: IndexType
+
+    /** The configuration map used for the [Index] that underpins this [IndexTx]. */
+    val config: IndexConfig
 
     /**
      * (Re-)builds the underlying [Index] completely.
