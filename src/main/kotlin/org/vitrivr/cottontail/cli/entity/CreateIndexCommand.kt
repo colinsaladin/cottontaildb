@@ -44,7 +44,7 @@ class CreateIndexCommand(client: SimpleClient) : AbstractCottontailCommand.Entit
             .setType(this.index)
             .setName(
                 CottontailGrpc.IndexName.newBuilder().setEntity(entity)
-                    .setName("index-${index.name.lowercase()}-${entityName.schema()}_${entity.name}_${attribute}")
+                    .setName("index-${index.name.lowercase()}-${entity.schema.name}_${entity.name}_${attribute}")
             )
             .addColumns(CottontailGrpc.ColumnName.newBuilder().setName(this.attribute))
             .build()
