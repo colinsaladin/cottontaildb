@@ -7,6 +7,7 @@ import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
 import org.vitrivr.cottontail.database.column.Column
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.general.Cursor
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.basics.IndexState
@@ -211,15 +212,15 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
         }
 
         /**
-         * Performs a lookup through this [SuperBitLSHIndex] and returns a [Iterator] of
-         * all [TupleId]s that match the [Predicate]. Only supports [KnnPredicate]s.
+         * Performs a lookup through this [SuperBitLSHIndex] and returns a [Cursor] of all [TupleId]s that match the [Predicate]. O
+         * nly supports [KnnPredicate]s.
          *
-         * The [Iterator] is not thread safe!
+         * The [Cursor] is not thread safe!
          *
          * @param predicate The [Predicate] for the lookup*
          * @return The resulting [Iterator]
          */
-        override fun filter(predicate: Predicate) = object : Iterator<Record> {
+        override fun filter(predicate: Predicate) = object : Cursor<Record> {
 
             /** Cast [KnnPredicate] (if such a cast is possible).  */
             private val predicate = if (predicate is KnnPredicate) {
@@ -230,6 +231,9 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
 
             /** List of [TupleId]s returned by this [Iterator]. */
             private val tupleIds: LinkedList<TupleId>
+
+            /** */
+            private var current: TupleId? = null
 
             /* Performs some sanity checks. */
             init {
@@ -255,12 +259,23 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
                 }
             }
 
-            override fun hasNext(): Boolean {
-                return this.tupleIds.isNotEmpty()
-            }
-
             override fun next(): Record = StandaloneRecord(this.tupleIds.removeFirst(), this@SuperBitLSHIndex.produces, arrayOf())
 
+            override fun moveNext(): Boolean {
+                if (this.tupleIds.isNotEmpty()) {
+                    this.current = this.tupleIds.removeFirst()
+                    return true
+                }
+                return false
+            }
+
+            override fun key(): TupleId = this.current ?: throw IllegalStateException("Cursor doesn't point ot a valid entry.")
+
+            override fun value(): Record = StandaloneRecord(this.key(), this@SuperBitLSHIndex.produces, arrayOf())
+
+            override fun close() {
+                TODO("Not yet implemented")
+            }
         }
 
         /**
@@ -269,9 +284,9 @@ class SuperBitLSHIndex<T : VectorValue<*>>(name: Name.IndexName, parent: Default
          * @param predicate The [Predicate] for the lookup.
          * @param partitionIndex The [partitionIndex] for this [filterRange] call.
          * @param partitions The total number of partitions for this [filterRange] call.
-         * @return The resulting [Iterator].
+         * @return The resulting [Cursor].
          */
-        override fun filterRange(predicate: Predicate, partitionIndex: Int, partitions: Int): Iterator<Record> {
+        override fun filterRange(predicate: Predicate, partitionIndex: Int, partitions: Int): Cursor<Record> {
             throw UnsupportedOperationException("The SuperBitLSHIndex does not support ranged filtering!")
         }
 

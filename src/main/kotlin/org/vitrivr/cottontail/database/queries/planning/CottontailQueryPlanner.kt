@@ -27,7 +27,7 @@ import java.util.*
  * Finally, the best plan in terms of [Cost] is selected.
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.2.0
  */
 class CottontailQueryPlanner(private val logicalRules: Collection<RewriteRule>, private val physicalRules: Collection<RewriteRule>, planCacheSize: Int = 100) {
 
@@ -56,7 +56,7 @@ class CottontailQueryPlanner(private val logicalRules: Collection<RewriteRule>, 
 
         /* Execute actual query planning and select candidate with lowest cost. */
         val candidates = this.plan(context)
-        context.physical = candidates.minByOrNull { it.totalCost } ?: throw QueryException.QueryPlannerException("Failed to generate a physical execution plan for expression: $logical.")
+        context.physical = candidates.minByOrNull { context.policy.score(it.totalCost) } ?: throw QueryException.QueryPlannerException("Failed to generate a physical execution plan for expression: $logical.")
 
         /* Update plan cache. */
         if (!cache) this.planCache[digest] = context.physical!!
@@ -79,7 +79,7 @@ class CottontailQueryPlanner(private val logicalRules: Collection<RewriteRule>, 
         for (d in decomposition) {
             val stage1 = this.optimizeLogical(d.value, context).map { it.implement() }
             val stage2 = stage1.flatMap { this.optimizePhysical(it, context) }
-            val candidate = stage2.minByOrNull { it.totalCost } ?: throw QueryException.QueryPlannerException("Failed to generate a physical execution plan for expression: $logical.")
+            val candidate = stage2.minByOrNull { context.policy.score(it.totalCost) } ?: throw QueryException.QueryPlannerException("Failed to generate a physical execution plan for expression: $logical.")
             candidates[d.key] = candidate
         }
         return listOf(this.compose(0, candidates))

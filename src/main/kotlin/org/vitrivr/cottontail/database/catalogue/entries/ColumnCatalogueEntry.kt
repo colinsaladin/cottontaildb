@@ -97,7 +97,7 @@ data class ColumnCatalogueEntry(val name: Name.ColumnName, val type: Type<*>, va
          * @return [Store]
          */
         internal fun store(catalogue: DefaultCatalogue, transaction: Transaction ): Store =
-            catalogue.environment.openStore(CATALOGUE_COLUMN_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
+            catalogue.environment.openStore(CATALOGUE_COLUMN_STORE_NAME, StoreConfig.USE_EXISTING, transaction, false)
                 ?: throw DatabaseException.DataCorruptionException("Failed to open store for column catalogue.")
 
         /**

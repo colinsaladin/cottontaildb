@@ -5,7 +5,10 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.database.queries.QueryContext
+import org.vitrivr.cottontail.database.queries.logical
+import org.vitrivr.cottontail.database.queries.physical
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPhysicalOperatorNode
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
@@ -30,11 +33,10 @@ class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity
     override val name: String
         get() = NODE_NAME
 
-    /** The physical [ColumnDef] accessed by this [RangedEntityScanPhysicalOperatorNode]. */
-    override val physicalColumns: List<ColumnDef<*>> = this.fetch.map { it.second }
-
-    /** The [ColumnDef] produced by this [RangedEntityScanPhysicalOperatorNode]. */
-    override val columns: List<ColumnDef<*>> = this.fetch.map { it.second.copy(name = it.first) }
+    /** The [ColumnPair] produced by this [RangedEntityScanPhysicalOperatorNode]. */
+    override val columns: List<ColumnPair> = this.fetch.map {
+        it.second.copy(name = it.first) to it.second /* Logical --> physical column. */
+    }
 
     /** The number of rows returned by this [RangedEntityScanPhysicalOperatorNode] equals to the number of rows in the [Entity]. */
     override val outputSize: Long = floorDiv(this.entity.count(), this.partitions.toLong())
@@ -52,14 +54,17 @@ class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity
         require(this.partitions >= 1) { "A range entity scan requires at least one partition in order to be valid." }
         require(this.partitionIndex < this.partitions) { "The partition index must be smaller than the overall number of partitions." }
 
-        /* Obtain statistics costs. */
-        this.entity.listColumns().forEach { columnDef ->
-            this.statistics[columnDef] = (this.entity.context.getTx(this.entity.columnForName(columnDef.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
+        /* Obtain statistics. */
+        this.columns.forEach {
+            val physical = it.physical()
+            if (physical != null) {
+                this.statistics[it.logical()] = (this.entity.context.getTx(this.entity.columnForName(physical.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
+            }
         }
 
         /* Calculate costs. */
         this.cost = Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.columns.sumOf {
-            this.statistics[it]?.avgWidth ?: it.type.physicalSize
+            this.statistics[it.first]?.avgWidth ?: it.first.type.physicalSize
         }
     }
 
@@ -85,7 +90,7 @@ class RangedEntityScanPhysicalOperatorNode(override val groupId: Int, val entity
     override fun toOperator(ctx: QueryContext) = EntityScanOperator(this.groupId, this.entity, this.fetch, ctx.bindings, this.partitionIndex, this.partitions)
 
     /** Generates and returns a [String] representation of this [RangedEntityScanPhysicalOperatorNode]. */
-    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.name.toString() }},${this.partitionIndex}/${this.partitions}]"
+    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.first.name.toString() }},${this.partitionIndex}/${this.partitions}]"
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

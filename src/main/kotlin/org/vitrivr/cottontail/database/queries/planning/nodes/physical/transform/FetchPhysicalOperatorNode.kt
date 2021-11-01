@@ -5,6 +5,7 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
@@ -21,7 +22,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * This can be used for late population, which can lead to optimized performance for kNN queries
  *
  * @author Ralph Gasser
- * @version 2.4.0
+ * @version 2.5.0
  */
 class FetchPhysicalOperatorNode(input: Physical? = null, val entity: EntityTx, val fetch: List<Pair<Name.ColumnName,ColumnDef<*>>>) : UnaryPhysicalOperatorNode(input) {
 
@@ -33,31 +34,32 @@ class FetchPhysicalOperatorNode(input: Physical? = null, val entity: EntityTx, v
     override val name: String
         get() = NODE_NAME
 
-    /** The [FetchPhysicalOperatorNode] accesses the [ColumnDef] of its input + the columns to be fetched. */
-    override val physicalColumns: List<ColumnDef<*>> = super.physicalColumns + this.fetch.map { it.second }
+    /** The [FetchPhysicalOperatorNode] returns the [ColumnPair] of its input + the columns to be fetched. */
+    override val columns: List<ColumnPair>
+       get() = (this.input?.columns ?: emptyList()) + this.fetch.map {
+           it.second.copy(name = it.first) to it.second /* Renamed-column --> physical column. */
+       }
 
-    /** The [FetchPhysicalOperatorNode] returns the [ColumnDef] of its input + the columns to be fetched. */
-    override val columns: List<ColumnDef<*>> = super.columns + this.fetch.map { it.second.copy(name = it.first) }
-
-    /** The [RecordStatistics] is taken from the underlying [Entity]. [RecordStatistics] are used by the query planning for [Cost] estimation. */
-    override val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
+    /** The map of [ValueStatistics] employed by this [FetchPhysicalOperatorNode]. */
+    override val statistics: Map<ColumnDef<*>, ValueStatistics<*>>
+        get() {
+            val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>, ValueStatistics<*>>()
+            input?.statistics?.forEach { (t, u) -> statistics[t] = u }
+            this.fetch.forEach {
+                val c = it.second.copy(name = it.first)
+                if (!statistics.containsKey(c)) {
+                    statistics[c] = (this.entity.context.getTx(this.entity.columnForName(it.second.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
+                }
+            }
+            return statistics
+        }
 
     /** The [Cost] of a [FetchPhysicalOperatorNode]. */
     override val cost: Cost
-        get() = Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.columns.sumOf {
-            this.statistics[it]?.avgWidth ?: it.type.physicalSize
+        get() = Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.fetch.sumOf {
+            val c = it.second.copy(name = it.first)
+            (this.statistics[c]?.avgWidth?.times(Char.SIZE_BYTES)) ?: it.second.type.physicalSize
         }
-
-    init {
-        /* Obtain statistics. */
-        super.statistics.forEach { (t, u) -> this.statistics[t] = u }
-        this.fetch.forEach {
-            if (!this.statistics.containsKey(it.second)) {
-                val c = this.entity.columnForName(it.second.name)
-                this.statistics[it.second] = (this.entity.context.getTx(this.entity.columnForName(c.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
-            }
-        }
-    }
 
     /**
      * Creates and returns a copy of this [FetchPhysicalOperatorNode] without any children or parents.

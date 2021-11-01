@@ -4,7 +4,9 @@ import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.database.queries.QueryContext
+import org.vitrivr.cottontail.database.queries.logical
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.projection.Projection
@@ -32,11 +34,10 @@ class EntityCountPhysicalOperatorNode(override val groupId: Int, val entity: Ent
     /** The output size of an [EntityCountPhysicalOperatorNode] is always one. */
     override val outputSize = 1L
 
-    /** physical [ColumnDef] accessed by this [EntityCountPhysicalOperatorNode]. */
-    override val physicalColumns: List<ColumnDef<*>> = emptyList()
-
     /** [ColumnDef] produced by this [EntityCountPhysicalOperatorNode]. */
-    override val columns: List<ColumnDef<*>> = listOf(ColumnDef(this.alias ?: this.entity.dbo.name.column(Projection.COUNT.label()), Type.Long, false))
+    override val columns: List<ColumnPair> = listOf(
+        ColumnDef(this.alias ?: this.entity.dbo.name.column(Projection.COUNT.label()), Type.Long, false) to null
+    )
 
     /** [EntityCountPhysicalOperatorNode] is always executable. */
     override val executable: Boolean = true
@@ -72,7 +73,7 @@ class EntityCountPhysicalOperatorNode(override val groupId: Int, val entity: Ent
     override fun toOperator(ctx: QueryContext) = EntityCountOperator(this.groupId, this.entity, ctx.bindings, this.alias)
 
     /** Generates and returns a [String] representation of this [EntityCountPhysicalOperatorNode]. */
-    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.name.toString() }}]"
+    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.logical().name.toString() }}]"
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

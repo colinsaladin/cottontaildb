@@ -1,11 +1,12 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.logical.transform
 
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.UnaryLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.transform.DistancePhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
-import org.vitrivr.cottontail.utilities.math.KnnUtilities
+import org.vitrivr.cottontail.functions.math.distance.Distances
 
 /**
  * A [UnaryLogicalOperatorNode] that represents calculating the distance of a certain [ColumnDef] to a certain
@@ -14,7 +15,7 @@ import org.vitrivr.cottontail.utilities.math.KnnUtilities
  * This can be used for late population, which can lead to optimized performance for kNN queries
  *
  * @author Ralph Gasser
- * @version 2.2.0
+ * @version 2.4.0
  */
 @Deprecated("Replaced by FunctionProjectionLogicalOperator; do not use anymore!")
 class DistanceLogicalOperatorNode(input: OperatorNode.Logical? = null, val predicate: KnnPredicate) : UnaryLogicalOperatorNode(input) {
@@ -28,8 +29,8 @@ class DistanceLogicalOperatorNode(input: OperatorNode.Logical? = null, val predi
         get() = NODE_NAME
 
     /** The [DistanceLogicalOperatorNode] returns the [ColumnDef] of its input + a distance column. */
-    override val columns: List<ColumnDef<*>>
-        get() = (this.input?.columns ?: emptyList()) + KnnUtilities.distanceColumnDef(this.predicate.column.name.entity())
+    override val columns: List<ColumnPair>
+        get() = (this.input?.columns ?: emptyList()) + (Distances.DISTANCE_COLUMN_DEF to null)
 
     /** The [DistanceLogicalOperatorNode] requires all [ColumnDef]s used in the [KnnPredicate]. */
     override val requires: List<ColumnDef<*>> = listOf(this.predicate.column)

@@ -9,6 +9,7 @@ import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.extensions.fqn
 import org.vitrivr.cottontail.database.queries.binding.extensions.toValue
+import org.vitrivr.cottontail.database.queries.logical
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.management.DeleteLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.management.InsertLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.management.UpdateLogicalOperatorNode
@@ -529,9 +530,9 @@ object GrpcQueryBinder {
             Projection.SELECT,
             Projection.SELECT_DISTINCT -> {
                 val fields = projection.keys.flatMap { cp ->
-                    input.columns.filter { c -> cp.matches(c.name) }.ifEmpty { throw QueryException.QueryBindException("Column $cp could not be found in output.") }
+                    input.columns.filter { c -> cp.matches(c.logical().name) }.ifEmpty { throw QueryException.QueryBindException("Column $cp could not be found in output.") }
                 }.map {
-                    it.name
+                    it.logical().name
                 }
                 SelectProjectionLogicalOperatorNode(input, op, fields)
             }
@@ -542,9 +543,9 @@ object GrpcQueryBinder {
             Projection.MIN,
             Projection.MEAN -> {
                 val fields = projection.keys.flatMap { cp ->
-                    input.columns.filter { c -> cp.matches(c.name) }.ifEmpty { throw QueryException.QueryBindException("Column $cp could not be found in output.") }
+                    input.columns.filter { c -> cp.matches(c.logical().name) }.ifEmpty { throw QueryException.QueryBindException("Column $cp could not be found in output.") }
                 }.map {
-                    it.name
+                    it.logical().name
                 }
                 AggregatingProjectionLogicalOperatorNode(input, op, fields)
             }
@@ -627,5 +628,5 @@ object GrpcQueryBinder {
      * @return List of [ColumnDef] that  match the [Name.ColumnName]
      */
     private fun OperatorNode.Logical.findColumnsForName(name: Name.ColumnName): List<ColumnDef<*>> =
-        this.columns.filter { name.matches(it.name) }
+        this.columns.map { it.logical() }.filter { name.matches(it.name) }
 }

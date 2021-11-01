@@ -1,10 +1,10 @@
 package org.vitrivr.cottontail.database.queries.planning.rules.physical.index
 
-import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.Binding
+import org.vitrivr.cottontail.database.queries.logical
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.projection.FunctionProjectionPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.sort.SortPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources.EntityScanPhysicalOperatorNode
@@ -13,9 +13,8 @@ import org.vitrivr.cottontail.database.queries.planning.nodes.physical.transform
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.transform.LimitPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.rules.RewriteRule
 import org.vitrivr.cottontail.database.queries.predicates.knn.KnnPredicate
+import org.vitrivr.cottontail.functions.math.distance.Distances
 import org.vitrivr.cottontail.functions.math.distance.basics.VectorDistance
-import org.vitrivr.cottontail.model.basics.Name
-import org.vitrivr.cottontail.model.basics.Type
 
 /**
  * A [RewriteRule] that replaces a very specific operator constellation that indicates a Nearest Neighbor Search (NNS)
@@ -37,10 +36,9 @@ object NNSIndexScanRule : RewriteRule {
             val scan = node.input
             if (scan is EntityScanPhysicalOperatorNode) {
                 val physicalQueryColumn = scan.fetch.singleOrNull { it.first == queryColumn.name }?.second ?: return null
-                val distanceColumn = ColumnDef(Name.ColumnName(node.function.name.simple), Type.Double)
                 val sort = node.output
                 if (sort is SortPhysicalOperatorNode) {
-                    if (sort.sortOn.first().first != node.columns.last()) return null /* Sort on distance column is required. */
+                    if (sort.sortOn.first().first != node.columns.last().logical()) return null /* Sort on distance column is required. */
                     val limit = sort.output
                     if (limit is LimitPhysicalOperatorNode) {
                         /* Column produced by the kNN. */
@@ -49,13 +47,14 @@ object NNSIndexScanRule : RewriteRule {
                         if (candidate != null) {
                             when {
                                 /* Case 1: Index produces distance, hence no distance calculation required! */
-                                candidate.produces.contains(distanceColumn) -> {
-                                    var p: OperatorNode.Physical = IndexScanPhysicalOperatorNode(node.groupId, ctx.txn.getTx(candidate) as IndexTx, predicate, listOf(Pair(node.alias ?: distanceColumn.name, distanceColumn)))
+                                candidate.produces.contains(Distances.DISTANCE_COLUMN_DEF) -> {
+                                    val fetch = scan.fetch.filter { candidate.produces.contains(it.second) } + Pair(node.alias ?: Distances.DISTANCE_COLUMN_NAME, Distances.DISTANCE_COLUMN_DEF)
+                                    var p: OperatorNode.Physical = IndexScanPhysicalOperatorNode(node.groupId, ctx.txn.getTx(candidate) as IndexTx, predicate, fetch)
                                     val newFetch = scan.fetch.filter { !candidate.produces.contains(it.second) && it != predicate.column }
                                     if (newFetch.isNotEmpty()) {
                                         p = FetchPhysicalOperatorNode(p, scan.entity, newFetch)
                                     }
-                                    return sort.output?.copyWithOutput(p) ?: p /* TODO: Index should indicate if results are sorted. */
+                                    return sort.copyWithOutput(p) /* TODO: Index should indicate if results are sorted. */
                                 }
 
                                 /* Case 2: Index produces the columns needed for the NNS operation. */

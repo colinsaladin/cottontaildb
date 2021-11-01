@@ -5,6 +5,7 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.database.queries.GroupId
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
@@ -31,11 +32,8 @@ class InsertPhysicalOperatorNode(override val groupId: GroupId, val entity: Enti
     override val name: String
         get() = NODE_NAME
 
-    /** The physical [ColumnDef] accessed by the [InsertPhysicalOperatorNode]. */
-    override val physicalColumns: List<ColumnDef<*>> = this.entity.listColumns().map { it }
-
-    /** The [InsertPhysicalOperatorNode] produces the [ColumnDef]s defined in the [UpdateOperator]. */
-    override val columns: List<ColumnDef<*>> = InsertOperator.COLUMNS
+    /** The [InsertPhysicalOperatorNode] produces the [ColumnPair]s defined in the [InsertOperator]. */
+    override val columns: List<ColumnPair> = InsertOperator.COLUMNS
 
     /** The [ValueStatistics] for this [InsertPhysicalOperatorNode]. */
     override val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()

@@ -71,7 +71,7 @@ class DQLService(override val catalogue: Catalogue, override val manager: Transa
         val candidates = this.planner.plan(ctx)
 
         /* Return execution plans. */
-        return executeAndMaterialize(ctx, ExplainQueryOperator(candidates))
+        return executeAndMaterialize(ctx, ExplainQueryOperator(candidates, ctx.policy))
     }
 
     /**

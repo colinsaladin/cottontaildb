@@ -1,8 +1,8 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.logical.management
 
-import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.database.queries.GroupId
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.NullaryLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.management.InsertPhysicalOperatorNode
@@ -25,11 +25,8 @@ class InsertLogicalOperatorNode(override val groupId: GroupId, val entity: Entit
     override val name: String
         get() = NODE_NAME
 
-    /** The physical [ColumnDef] accessed by the [InsertLogicalOperatorNode]. */
-    override val physicalColumns: List<ColumnDef<*>> = this.entity.listColumns().map { it }
-
-    /** The [InsertLogicalOperatorNode] produces the columns defined in the [InsertOperator] */
-    override val columns: List<ColumnDef<*>> = InsertOperator.COLUMNS
+    /** The [InsertLogicalOperatorNode] produces the [ColumnPairs]s defined in the [InsertOperator] */
+    override val columns: List<ColumnPair> = InsertOperator.COLUMNS
 
     /**
      * Creates and returns a copy of this [InsertLogicalOperatorNode] without any children or parents.

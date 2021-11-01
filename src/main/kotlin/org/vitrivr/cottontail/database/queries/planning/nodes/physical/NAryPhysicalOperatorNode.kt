@@ -65,12 +65,8 @@ abstract class NAryPhysicalOperatorNode(vararg inputs: Physical) : OperatorNode.
     /** [NAryPhysicalOperatorNode] usually cannot be partitioned. */
     override val canBePartitioned: Boolean = false
 
-    /** By default, the [NAryPhysicalOperatorNode] outputs the physical [ColumnDef] of its input. */
-    override val physicalColumns: List<ColumnDef<*>>
-        get() = (this.inputs.firstOrNull()?.physicalColumns ?: emptyList())
-
     /** By default, the [NAryPhysicalOperatorNode] outputs the [ColumnDef] of its input. */
-    override val columns: List<ColumnDef<*>>
+    override val columns: List<Pair<ColumnDef<*>,ColumnDef<*>?>>
         get() = (this.inputs.firstOrNull()?.columns ?: emptyList())
 
     /** By default, a [UnaryPhysicalOperatorNode]'s statistics are retained. */

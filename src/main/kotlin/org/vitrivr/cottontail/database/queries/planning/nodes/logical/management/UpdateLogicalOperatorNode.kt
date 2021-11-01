@@ -3,6 +3,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.logical.managemen
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.database.queries.binding.Binding
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.UnaryLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.management.UpdatePhysicalOperatorNode
@@ -12,7 +13,7 @@ import org.vitrivr.cottontail.execution.operators.management.UpdateOperator
  * A [DeleteLogicalOperatorNode] that formalizes an UPDATE operation on an [Entity].
  *
  * @author Ralph Gasser
- * @version 2.2.1
+ * @version 2.4.0
  */
 class UpdateLogicalOperatorNode(input: Logical? = null, val entity: EntityTx, val values: List<Pair<ColumnDef<*>, Binding>>) : UnaryLogicalOperatorNode(input) {
 
@@ -24,8 +25,8 @@ class UpdateLogicalOperatorNode(input: Logical? = null, val entity: EntityTx, va
     override val name: String
         get() = NODE_NAME
 
-    /** The [UpdateLogicalOperatorNode] does produce the columns defined in the [UpdateOperator]. */
-    override val columns: List<ColumnDef<*>> = UpdateOperator.COLUMNS
+    /** The [UpdateLogicalOperatorNode] does produce the [ColumnPair] defined in the [UpdateOperator]. */
+    override val columns: List<ColumnPair> = UpdateOperator.COLUMNS
 
     /** The [UpdateLogicalOperatorNode] requires the [ColumnDef] that are being updated. */
     override val requires: List<ColumnDef<*>> = this.values.map { it.first }

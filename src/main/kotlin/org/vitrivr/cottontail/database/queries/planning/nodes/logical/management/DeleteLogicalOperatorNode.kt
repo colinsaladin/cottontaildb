@@ -3,6 +3,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.logical.managemen
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.UnaryLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.management.DeletePhysicalOperatorNode
 import org.vitrivr.cottontail.execution.operators.management.DeleteOperator
@@ -11,7 +12,7 @@ import org.vitrivr.cottontail.execution.operators.management.DeleteOperator
  * A [DeleteLogicalOperatorNode] that formalizes a DELETE operation on an [Entity].
  *
  * @author Ralph Gasser
- * @version 2.2.1
+ * @version 2.4.0
  */
 class DeleteLogicalOperatorNode(input: Logical? = null, val entity: EntityTx) : UnaryLogicalOperatorNode(input) {
 
@@ -23,8 +24,8 @@ class DeleteLogicalOperatorNode(input: Logical? = null, val entity: EntityTx) : 
     override val name: String
         get() = NODE_NAME
 
-    /** The [DeleteLogicalOperatorNode] produces the columns defined in the [DeleteOperator] */
-    override val columns: List<ColumnDef<*>> = DeleteOperator.COLUMNS
+    /** The [DeleteLogicalOperatorNode] produces the [ColumnPair]s defined in the [DeleteOperator] */
+    override val columns: List<ColumnPair> = DeleteOperator.COLUMNS
 
     /** The [DeleteLogicalOperatorNode] does not require any [ColumnDef]. */
     override val requires: List<ColumnDef<*>> = emptyList()

@@ -70,9 +70,9 @@ internal interface TransactionalGrpcService {
      * @return [QueryContext]
      */
     fun queryContext(metadata: CottontailGrpc.Metadata): QueryContext = if (metadata.queryId.isNullOrEmpty()) {
-        QueryContext(UUID.randomUUID().toString(), catalogue, transactionContext(metadata))
+        QueryContext(UUID.randomUUID().toString(), this.catalogue, this.catalogue.config.cost.policy(), transactionContext(metadata))
     } else {
-        QueryContext(metadata.queryId, catalogue, transactionContext(metadata))
+        QueryContext(metadata.queryId, this.catalogue, this.catalogue.config.cost.policy(), transactionContext(metadata))
     }
 
     /**

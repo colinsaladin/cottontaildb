@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.physical.transfor
 
 import it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
@@ -11,7 +12,7 @@ import org.vitrivr.cottontail.database.statistics.columns.DoubleValueStatistics
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.execution.operators.projection.DistanceProjectionOperator
-import org.vitrivr.cottontail.utilities.math.KnnUtilities
+import org.vitrivr.cottontail.functions.math.distance.Distances
 
 /**
  * A [UnaryPhysicalOperatorNode] that represents the application of a [KnnPredicate] on some intermediate result.
@@ -29,9 +30,9 @@ class DistancePhysicalOperatorNode(input: Physical? = null, val predicate: KnnPr
     override val name: String
         get() = NODE_NAME
 
-    /** The [DistancePhysicalOperatorNode] returns the [ColumnDef] of its input + a distance column. */
-    override val columns: List<ColumnDef<*>>
-        get() = super.columns + KnnUtilities.distanceColumnDef(this.predicate.column.name.entity())
+    /** The [DistancePhysicalOperatorNode] returns the [ColumnPair]s of its input + a distance column. */
+    override val columns: List<ColumnPair>
+        get() = super.columns + (Distances.DISTANCE_COLUMN_DEF to null)
 
     /** The [DistancePhysicalOperatorNode] requires all [ColumnDef]s used in the [KnnPredicate]. */
     override val requires: List<ColumnDef<*>> = this.predicate.columns.toList()

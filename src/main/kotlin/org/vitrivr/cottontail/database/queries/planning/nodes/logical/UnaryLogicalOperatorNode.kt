@@ -39,12 +39,8 @@ abstract class UnaryLogicalOperatorNode(input: Logical? = null) : OperatorNode.L
             field = value
         }
 
-    /** By default, a [UnaryLogicalOperatorNode]'s input physical columns are retained. */
-    override val physicalColumns: List<ColumnDef<*>>
-        get() = this.input?.physicalColumns ?: emptyList()
-
     /** By default, a [UnaryLogicalOperatorNode]'s input columns are retained. */
-    override val columns: List<ColumnDef<*>>
+    override val columns: List<Pair<ColumnDef<*>,ColumnDef<*>?>>
         get() = this.input?.columns ?: emptyList()
 
     /** By default, a [UnaryLogicalOperatorNode]'s order is retained. */

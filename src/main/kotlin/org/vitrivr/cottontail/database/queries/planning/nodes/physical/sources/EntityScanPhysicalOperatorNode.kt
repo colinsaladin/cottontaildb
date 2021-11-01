@@ -5,8 +5,7 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.column.ColumnTx
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.queries.OperatorNode
-import org.vitrivr.cottontail.database.queries.QueryContext
+import org.vitrivr.cottontail.database.queries.*
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.UnaryPhysicalOperatorNode
@@ -31,11 +30,10 @@ class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Enti
     override val name: String
         get() = NODE_NAME
 
-    /** The physical [ColumnDef] accessed by this [EntityScanPhysicalOperatorNode]. */
-    override val physicalColumns: List<ColumnDef<*>> = this.fetch.map { it.second }
-
-    /** The [ColumnDef] produced by this [EntityScanPhysicalOperatorNode]. */
-    override val columns: List<ColumnDef<*>> = this.fetch.map { it.second.copy(name = it.first) }
+    /** The [ColumnPair] produced by this [EntityScanPhysicalOperatorNode]. */
+    override val columns: List<ColumnPair> = this.fetch.map {
+        it.second.copy(name = it.first) to it.second /* Logical --> physical column. */
+    }
 
     /** The number of rows returned by this [EntityScanPhysicalOperatorNode] equals to the number of rows in the [Entity]. */
     override val outputSize
@@ -48,17 +46,21 @@ class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Enti
     override val canBePartitioned: Boolean = true
 
     /** [ValueStatistics] are taken from the underlying [Entity]. The query planner uses statistics for [Cost] estimation. */
-    override val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
+    override val statistics by lazy {
+        val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
+        this.columns.forEach {
+            val physical = it.physical()
+            if (physical != null) {
+                statistics[it.logical()] = (this.entity.context.getTx(this.entity.columnForName(physical.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
+            }
+        }
+        statistics
+    }
 
     /** The estimated [Cost] of scanning the [Entity]. */
-    override val cost: Cost
-        get() = Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.columns.sumOf {
-            this.statistics[it]?.avgWidth ?: it.type.physicalSize
-        }
-
-    init {
-        this.entity.listColumns().forEach { columnDef ->
-            this.statistics[columnDef] = (this.entity.context.getTx(this.entity.columnForName(columnDef.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
+    override val cost: Cost by lazy {
+        Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.columns.sumOf {
+            this.statistics[it.logical()]?.avgWidth ?: it.logical().type.physicalSize
         }
     }
 
@@ -87,7 +89,7 @@ class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Enti
     override fun toOperator(ctx: QueryContext) = EntityScanOperator(this.groupId, this.entity, this.fetch, ctx.bindings,0, 1)
 
     /** Generates and returns a [String] representation of this [EntityScanPhysicalOperatorNode]. */
-    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.name.toString() }}]"
+    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.logical().name.toString() }}]"
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

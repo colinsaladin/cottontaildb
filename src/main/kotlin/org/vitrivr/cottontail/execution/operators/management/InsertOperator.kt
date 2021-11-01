@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.flow
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.database.queries.GroupId
 import org.vitrivr.cottontail.database.queries.binding.BindingContext
 import org.vitrivr.cottontail.database.queries.binding.EmptyBindingContext
@@ -31,9 +32,9 @@ import kotlin.time.measureTimedValue
 class InsertOperator(groupId: GroupId, val entity: EntityTx, val records: List<Record>) : Operator.SourceOperator(groupId) {
     companion object {
         /** The columns produced by the [InsertOperator]. */
-        val COLUMNS: List<ColumnDef<*>> = listOf(
-            ColumnDef(Name.ColumnName("tupleId"), Type.Long, false),
-            ColumnDef(Name.ColumnName("duration_ms"), Type.Double, false)
+        val COLUMNS: List<ColumnPair> = listOf(
+            ColumnDef(Name.ColumnName("tupleId"), Type.Long, false) to null,
+            ColumnDef(Name.ColumnName("duration_ms"), Type.Double, false) to null
         )
     }
 
@@ -41,7 +42,7 @@ class InsertOperator(groupId: GroupId, val entity: EntityTx, val records: List<R
     override val binding: BindingContext = EmptyBindingContext
 
     /** Columns produced by [InsertOperator]. */
-    override val columns: List<ColumnDef<*>> = COLUMNS
+    override val columns: List<ColumnDef<*>> = COLUMNS.map { it.first }
 
     /**
      * Converts this [InsertOperator] to a [Flow] and returns it.

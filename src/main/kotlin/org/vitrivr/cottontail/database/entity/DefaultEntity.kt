@@ -292,6 +292,8 @@ class DefaultEntity(override val name: Name.EntityName, override val parent: Def
                 StatisticsCatalogueEntry.write(entry = entry.copy(statistics = statistics[i]), catalogue = this@DefaultEntity.catalogue, transaction = this.context.xodusTx)
             }
 
+            this.indexes.forEach { (t, u) ->  u.rebuild() }
+
             /* Close all the opened cursors. */
             cursor.close()
         }

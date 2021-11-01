@@ -6,6 +6,7 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.binding.BindingContext
 import org.vitrivr.cottontail.database.queries.binding.EmptyBindingContext
+import org.vitrivr.cottontail.database.queries.planning.cost.Policy
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.NullaryLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.UnaryPhysicalOperatorNode
 import org.vitrivr.cottontail.execution.TransactionContext
@@ -27,7 +28,7 @@ import org.vitrivr.cottontail.model.values.types.Value
  * @author Ralph Gasser
  * @version 1.2.0
  */
-class ExplainQueryOperator(val candidates: Collection<OperatorNode.Physical>) : Operator.SourceOperator() {
+class ExplainQueryOperator(val candidates: Collection<OperatorNode.Physical>, val policy: Policy) : Operator.SourceOperator() {
     companion object {
         val COLUMNS: List<ColumnDef<*>> = listOf(
             ColumnDef(Name.ColumnName("path"), Type.String, false),
@@ -47,7 +48,7 @@ class ExplainQueryOperator(val candidates: Collection<OperatorNode.Physical>) : 
     override val columns: List<ColumnDef<*>> = COLUMNS
 
     override fun toFlow(context: TransactionContext): Flow<Record> {
-        val candidate = this.candidates.minByOrNull { it.totalCost }!!
+        val candidate = this.candidates.minByOrNull { policy.score(it.totalCost) }!!
         val columns = this.columns.toTypedArray()
         val values = Array<Value?>(this@ExplainQueryOperator.columns.size) { null }
         return flow {

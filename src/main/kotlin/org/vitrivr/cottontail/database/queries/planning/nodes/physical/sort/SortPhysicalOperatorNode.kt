@@ -3,6 +3,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.physical.sort
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
+import org.vitrivr.cottontail.database.queries.logical
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.UnaryPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
@@ -29,13 +30,13 @@ class SortPhysicalOperatorNode(input: Physical? = null, override val sortOn: Lis
         get() = NODE_NAME
 
     /** The [SortPhysicalOperatorNode] requires all [ColumnDef]s used on the ORDER BY clause. */
-    override val requires: List<ColumnDef<*>> = sortOn.map { it.first }
+    override val requires: List<ColumnDef<*>> = this.sortOn.map { it.first }
 
     /** The [Cost] incurred by this [SortPhysicalOperatorNode]. */
     override val cost: Cost
         get() = Cost(
             cpu = 2 * this.sortOn.size * Cost.COST_MEMORY_ACCESS,
-            memory = this.columns.sumOf { this.statistics[it]?.avgWidth ?: it.type.logicalSize }.toFloat()
+            memory = this.columns.sumOf { this.statistics[it.logical()]?.avgWidth ?: it.logical().type.logicalSize }.toFloat()
         ) * this.outputSize
 
     init {

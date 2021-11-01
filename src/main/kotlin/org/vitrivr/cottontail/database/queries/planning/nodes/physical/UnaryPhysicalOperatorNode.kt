@@ -58,12 +58,8 @@ abstract class UnaryPhysicalOperatorNode(input: Physical? = null) : OperatorNode
     override val canBePartitioned: Boolean
         get() = this.input?.canBePartitioned ?: false
 
-    /** By default, the [UnaryPhysicalOperatorNode] outputs the physical [ColumnDef] of its input. */
-    override val physicalColumns: List<ColumnDef<*>>
-        get() = (this.input?.physicalColumns ?: emptyList())
-
     /** By default, the [UnaryPhysicalOperatorNode] outputs the [ColumnDef] of its input. */
-    override val columns: List<ColumnDef<*>>
+    override val columns: List<Pair<ColumnDef<*>,ColumnDef<*>?>>
         get() = (this.input?.columns ?: emptyList())
 
     /** By default, the output size of a [UnaryPhysicalOperatorNode] is the same as its input's output size. */

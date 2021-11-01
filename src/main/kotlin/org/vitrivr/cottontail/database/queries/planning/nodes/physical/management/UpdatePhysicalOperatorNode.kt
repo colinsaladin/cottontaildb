@@ -3,6 +3,7 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.physical.manageme
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.Binding
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
@@ -14,7 +15,7 @@ import org.vitrivr.cottontail.execution.operators.management.UpdateOperator
  * A [UpdatePhysicalOperatorNode] that formalizes a UPDATE operation on an [Entity].
  *
  * @author Ralph Gasser
- * @version 2.2.1
+ * @version 2.4.0
  */
 class UpdatePhysicalOperatorNode(input: Physical? = null, val entity: EntityTx, val values: List<Pair<ColumnDef<*>, Binding>>) : UnaryPhysicalOperatorNode(input) {
     companion object {
@@ -26,7 +27,7 @@ class UpdatePhysicalOperatorNode(input: Physical? = null, val entity: EntityTx, 
         get() = NODE_NAME
 
     /** The [UpdatePhysicalOperatorNode] produces the [ColumnDef]s defined in the [UpdateOperator]. */
-    override val columns: List<ColumnDef<*>> = UpdateOperator.COLUMNS
+    override val columns: List<ColumnPair> = UpdateOperator.COLUMNS
 
     /** The [UpdatePhysicalOperatorNode] requires the [ColumnDef] that are being updated. */
     override val requires: List<ColumnDef<*>> = this.values.map { it.first }

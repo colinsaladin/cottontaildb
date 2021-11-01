@@ -38,12 +38,8 @@ abstract class NAryLogicalOperatorNode(vararg inputs: Logical) : OperatorNode.Lo
     final override val base: Collection<Logical>
         get() = this._inputs.flatMap { it.base }
 
-    /** By default, the [NAryLogicalOperatorNode] outputs the physical [ColumnDef] of its input. */
-    override val physicalColumns: List<ColumnDef<*>>
-        get() = (this.inputs.firstOrNull()?.physicalColumns ?: emptyList())
-
     /** By default, the [NAryLogicalOperatorNode] outputs the [ColumnDef] of its input. */
-    override val columns: List<ColumnDef<*>>
+    override val columns: List<Pair<ColumnDef<*>,ColumnDef<*>?>>
         get() = (this.inputs.firstOrNull()?.columns ?: emptyList())
 
     /** By default, a [NAryLogicalOperatorNode]'s output is unordered. */

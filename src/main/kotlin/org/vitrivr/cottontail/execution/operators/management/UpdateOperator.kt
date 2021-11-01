@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.flow
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.model.basics.Name
@@ -29,14 +30,14 @@ class UpdateOperator(parent: Operator, val entity: EntityTx, val values: List<Pa
 
     companion object {
         /** The columns produced by the [UpdateOperator]. */
-        val COLUMNS: List<ColumnDef<*>> = listOf(
-            ColumnDef(Name.ColumnName("updated"), Type.Long, false),
-            ColumnDef(Name.ColumnName("duration_ms"), Type.Double, false)
+        val COLUMNS: List<ColumnPair> = listOf(
+            ColumnDef(Name.ColumnName("updated"), Type.Long, false) to null,
+            ColumnDef(Name.ColumnName("duration_ms"), Type.Double, false) to null
         )
     }
 
     /** Columns produced by [UpdateOperator]. */
-    override val columns: List<ColumnDef<*>> = COLUMNS
+    override val columns: List<ColumnDef<*>> = COLUMNS.map { it.first }
 
     /** [UpdateOperator] does not act as a pipeline breaker. */
     override val breaker: Boolean = false

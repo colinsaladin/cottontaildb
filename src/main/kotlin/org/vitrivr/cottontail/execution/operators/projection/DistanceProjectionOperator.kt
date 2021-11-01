@@ -5,13 +5,13 @@ import kotlinx.coroutines.flow.map
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
+import org.vitrivr.cottontail.functions.math.distance.Distances
 import org.vitrivr.cottontail.functions.math.distance.basics.VectorDistance
 import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.types.Value
 import org.vitrivr.cottontail.model.values.types.VectorValue
-import org.vitrivr.cottontail.utilities.math.KnnUtilities
 
 /**
  * A [Operator.PipelineOperator] used during query execution. It calculates the distance of a specific [ColumnDef]
@@ -24,7 +24,7 @@ import org.vitrivr.cottontail.utilities.math.KnnUtilities
 class DistanceProjectionOperator(parent: Operator, val column: ColumnDef<*>, val distance: VectorDistance.Binary<*>) : Operator.PipelineOperator(parent) {
 
     /** The columns produced by this [DistanceProjectionOperator]. */
-    override val columns: List<ColumnDef<*>> = this.parent.columns + KnnUtilities.distanceColumnDef(this.column.name.entity())
+    override val columns: List<ColumnDef<*>> = this.parent.columns + Distances.DISTANCE_COLUMN_DEF
 
     /** The [DistanceProjectionOperator] is not a pipeline breaker. */
     override val breaker: Boolean = false

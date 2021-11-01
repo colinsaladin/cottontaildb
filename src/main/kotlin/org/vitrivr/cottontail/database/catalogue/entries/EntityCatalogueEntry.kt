@@ -77,18 +77,6 @@ data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, va
         private const val CATALOGUE_ENTITY_STORE_NAME: String = "ctt_cat_entities"
 
         /**
-         * Returns the [Store] for [EntityCatalogueEntry] entries.
-         *
-         * @param catalogue [DefaultCatalogue] to access [Store] for.
-         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
-         * @return [Store]
-         */
-        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction): Store {
-            return catalogue.environment.openStore(CATALOGUE_ENTITY_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, false)
-                ?: throw DatabaseException.DataCorruptionException("Failed to open store for entity catalogue.")
-        }
-
-        /**
          * Initializes the store used to store [EntityCatalogueEntry] in Cottontail DB.
          *
          * @param catalogue The [DefaultCatalogue] to initialize.
@@ -98,6 +86,17 @@ data class EntityCatalogueEntry(val name: Name.EntityName, val created: Long, va
             catalogue.environment.openStore(CATALOGUE_ENTITY_STORE_NAME, StoreConfig.WITHOUT_DUPLICATES_WITH_PREFIXING, transaction, true)
                 ?: throw DatabaseException.DataCorruptionException("Failed to create entity catalogue.")
         }
+
+        /**
+         * Returns the [Store] for [EntityCatalogueEntry] entries.
+         *
+         * @param catalogue [DefaultCatalogue] to access [Store] for.
+         * @param transaction The Xodus [Transaction] to use. If not set, a new [Transaction] will be created.
+         * @return [Store]
+         */
+        internal fun store(catalogue: DefaultCatalogue, transaction: Transaction): Store =
+            catalogue.environment.openStore(CATALOGUE_ENTITY_STORE_NAME, StoreConfig.USE_EXISTING, transaction, false)
+                ?: throw DatabaseException.DataCorruptionException("Failed to open store for entity catalogue.")
 
         /**
          * Reads the [EntityCatalogueEntry] for the given [Name.EntityName] from the given [DefaultCatalogue].

@@ -8,8 +8,7 @@ import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.basics.AbstractIndex
-import org.vitrivr.cottontail.database.queries.OperatorNode
-import org.vitrivr.cottontail.database.queries.QueryContext
+import org.vitrivr.cottontail.database.queries.*
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
@@ -39,16 +38,10 @@ class IndexScanPhysicalOperatorNode(override val groupId: Int, val index: IndexT
     override val name: String
         get() = NODE_NAME
 
-    /** The [ColumnDef]s accessed by this [IndexScanPhysicalOperatorNode] depends on the [ColumnDef]s produced by the [Index]. */
-    override val physicalColumns: List<ColumnDef<*>> = this.fetch.map {
-        require(this.index.dbo.produces.contains(it.second)) { "The given column $it is not produced by the selected index ${this.index.dbo}. This is a programmer's error!"}
-        it.second
-    }
-
     /** The [ColumnDef]s produced by this [IndexScanPhysicalOperatorNode] depends on the [ColumnDef]s produced by the [Index]. */
-    override val columns: List<ColumnDef<*>> = this.fetch.map {
+    override val columns: List<ColumnPair> = this.fetch.map {
         require(this.index.dbo.produces.contains(it.second)) { "The given column $it is not produced by the selected index ${this.index.dbo}. This is a programmer's error!"}
-        it.second.copy(name = it.first)
+        it.second.copy(name = it.first) to it.second /* Logical --> physical column. */
     }
 
     /** [IndexScanPhysicalOperatorNode] are always executable. */
@@ -58,7 +51,17 @@ class IndexScanPhysicalOperatorNode(override val groupId: Int, val index: IndexT
     override val canBePartitioned: Boolean = this.index.dbo.supportsPartitioning
 
     /** [ValueStatistics] are taken from the underlying [Entity]. The query planner uses statistics for [Cost] estimation. */
-    override val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
+    override val statistics by lazy {
+        val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
+        val entityTx = this.index.context.getTx(this.index.dbo.parent) as EntityTx
+        this.columns.forEach {
+            val physical = it.physical()
+            if (physical != null && entityTx.listColumns().contains(physical)) {
+                statistics[it.logical()] = (this.index.context.getTx(entityTx.columnForName(physical.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
+            }
+        }
+        statistics
+    }
 
     /** The number of rows returned by this [IndexScanPhysicalOperatorNode]. This is usually an estimate! */
     override val outputSize: Long
@@ -69,17 +72,7 @@ class IndexScanPhysicalOperatorNode(override val groupId: Int, val index: IndexT
         }
 
     /** Cost estimation for [IndexScanPhysicalOperatorNode]s is delegated to the [Index]. */
-    override val cost: Cost
-        get() = this.index.dbo.cost(this.predicate)
-
-    init {
-        /* Obtain statistics. */
-        val entityTx = this.index.context.getTx(this.index.dbo.parent) as EntityTx
-        entityTx.listColumns().forEach { columnDef ->
-            this.statistics[columnDef] = (this.index.context.getTx(entityTx.columnForName(columnDef.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
-        }
-    }
-
+    override val cost: Cost by lazy { this.index.dbo.cost(this.predicate) }
     /**
      * Creates and returns a copy of this [IndexScanPhysicalOperatorNode] without any children or parents.
      *

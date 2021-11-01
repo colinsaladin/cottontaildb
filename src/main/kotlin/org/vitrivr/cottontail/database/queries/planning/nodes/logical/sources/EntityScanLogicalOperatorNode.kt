@@ -3,6 +3,8 @@ package org.vitrivr.cottontail.database.queries.planning.nodes.logical.sources
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.queries.ColumnPair
+import org.vitrivr.cottontail.database.queries.logical
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.NullaryLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources.EntityScanPhysicalOperatorNode
 import org.vitrivr.cottontail.model.basics.Name
@@ -23,11 +25,10 @@ class EntityScanLogicalOperatorNode(override val groupId: Int, val entity: Entit
     override val name: String
         get() = NODE_NAME
 
-    /** The physical [ColumnDef] accessed by this [EntityScanPhysicalOperatorNode]. */
-    override val physicalColumns: List<ColumnDef<*>> = this.fetch.map { it.second }
-
     /** The [ColumnDef] produced by this [EntityScanPhysicalOperatorNode]. */
-    override val columns: List<ColumnDef<*>> = this.fetch.map { it.second.copy(name = it.first) }
+    override val columns: List<ColumnPair> = this.fetch.map {
+        it.second.copy(name = it.first) to it.second /* Physical to logical column. */
+    }
 
     /**
      * Creates and returns a copy of this [EntityScanLogicalOperatorNode] without any children or parents.
@@ -60,5 +61,5 @@ class EntityScanLogicalOperatorNode(override val groupId: Int, val entity: Entit
     }
 
     /** Generates and returns a [String] representation of this [EntitySampleLogicalOperatorNode]. */
-    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.name.toString() }}]"
+    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.logical().name.toString() }}]"
 }

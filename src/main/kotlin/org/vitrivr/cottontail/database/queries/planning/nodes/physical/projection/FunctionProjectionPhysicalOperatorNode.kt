@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.physical.projection
 
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.Binding
@@ -32,8 +33,8 @@ class FunctionProjectionPhysicalOperatorNode(input: Physical? = null, val functi
     )
 
     /** The column produced by this [FunctionProjectionPhysicalOperatorNode] is determined by the [Function]'s signature. */
-    override val columns: List<ColumnDef<*>>
-        get() = (this.input?.columns ?: emptyList()) + this.produces
+    override val columns: List<ColumnPair>
+        get() = (this.input?.columns ?: emptyList()) + (this.produces to null)
 
     /** The [FunctionProjectionPhysicalOperatorNode] requires all [ColumnDef] used in the [Function]. */
     override val requires: List<ColumnDef<*>>

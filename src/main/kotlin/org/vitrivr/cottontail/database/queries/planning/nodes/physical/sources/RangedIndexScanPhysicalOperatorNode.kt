@@ -7,7 +7,10 @@ import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx
+import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.database.queries.QueryContext
+import org.vitrivr.cottontail.database.queries.logical
+import org.vitrivr.cottontail.database.queries.physical
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
@@ -35,9 +38,6 @@ class RangedIndexScanPhysicalOperatorNode(override val groupId: Int, val index: 
     override val name: String
         get() = NODE_NAME
 
-    override val physicalColumns: List<ColumnDef<*>>
-        get() = TODO("Not yet implemented")
-
     /** [ValueStatistics] are taken from the underlying [Entity]. The query planner uses statistics for [Cost] estimation. */
     override val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
 
@@ -49,10 +49,10 @@ class RangedIndexScanPhysicalOperatorNode(override val groupId: Int, val index: 
             else -> this.index.dbo.parent.numberOfRows
         }
 
-    /** The [ColumnDef]s produced by this [IndexScanPhysicalOperatorNode] depends on the [ColumnDef]s produced by the [Index]. */
-    override val columns: List<ColumnDef<*>> = this.fetch.map {
-        require(this.index.dbo.produces.contains(it.second)) { "The given column $it is not produec by the selected index ${this.index.dbo}. This is a programmer's error!"}
-        it.second.copy(name = it.first)
+    /** The [ColumnPair]s produced by this [IndexScanPhysicalOperatorNode] depends on the [ColumnDef]s produced by the [Index]. */
+    override val columns: List<ColumnPair> = this.fetch.map {
+        require(this.index.dbo.produces.contains(it.second)) { "The given column $it is not produced by the selected index ${this.index.dbo}. This is a programmer's error!"}
+        it.second.copy(name = it.first) to it.second /* Logical --> physical. */
     }
 
     /** [RangedIndexScanPhysicalOperatorNode] are always executable. */
@@ -71,8 +71,11 @@ class RangedIndexScanPhysicalOperatorNode(override val groupId: Int, val index: 
 
         /* Obtain statistics. */
         val entityTx = this.index.context.getTx(this.index.dbo.parent) as EntityTx
-        entityTx.listColumns().forEach { columnDef ->
-            this.statistics[columnDef] = (this.index.context.getTx(entityTx.columnForName(columnDef.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
+        this.columns.forEach {
+            val physical = it.physical()
+            if (physical != null && entityTx.listColumns().contains(physical)) {
+                this.statistics[it.logical()] = (this.index.context.getTx(entityTx.columnForName(physical.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
+            }
         }
     }
 
