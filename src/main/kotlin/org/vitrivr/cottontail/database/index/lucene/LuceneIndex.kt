@@ -12,6 +12,7 @@ import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.general.Cursor
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.basics.IndexState
@@ -70,7 +71,7 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
     }
 
     /** The [Directory] containing the data for this [LuceneIndex]. */
-    private val directory: Directory = ExodusDirectory(this.catalogue.environment)
+    private val directory: Directory = TODO()
 
     /**
      * Checks if this [LuceneIndex] can process the given [Predicate].
@@ -299,15 +300,16 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
         }
 
         /**
-         * Performs a lookup through this [LuceneIndex.Tx] and returns a [Iterator] of
-         * all [TupleId]s that match the [Predicate]. Only supports [BooleanPredicate]s.
+         * Performs a lookup through this [LuceneIndex.Tx] and returns a [Cursor] of all [TupleId]s that match the [Predicate].
+         * Only supports [BooleanPredicate]s.
          *
-         * The [Iterator] is not thread safe!
+         * The [Cursor] is not thread safe!
          *
          * @param predicate The [Predicate] for the lookup*
          * @return The resulting [Iterator]
          */
-        override fun filter(predicate: Predicate) = object : Iterator<Record> {
+        override fun filter(predicate: Predicate) = object : Cursor<Record> {
+
             /** Cast [BooleanPredicate] (if such a cast is possible). */
             private val predicate = if (predicate !is BooleanPredicate) {
                 throw QueryException.UnsupportedPredicateException("Index '${this@LuceneIndex.name}' (lucene index) does not support predicates of type '${predicate::class.simpleName}'.")
@@ -335,20 +337,22 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
             /* Execute query and add results. */
             private val results = this.searcher.search(this.query, Integer.MAX_VALUE)
 
-            /**
-             * Returns `true` if the iteration has more elements.
-             */
-            override fun hasNext(): Boolean {
-                return this.returned < this.results.totalHits.value
+            override fun moveNext(): Boolean = this.returned < this.results.totalHits.value
+
+            override fun key(): TupleId {
+                val scores = this.results.scoreDocs[this.returned]
+                val doc = this.searcher.doc(scores.doc)
+                return doc[TID_COLUMN].toLong()
             }
 
-            /**
-             * Returns the next element in the iteration.
-             */
-            override fun next(): Record {
+            override fun value(): Record {
                 val scores = this.results.scoreDocs[this.returned++]
                 val doc = this.searcher.doc(scores.doc)
                 return StandaloneRecord(doc[TID_COLUMN].toLong(), this@LuceneIndex.produces, arrayOf(FloatValue(scores.score)))
+            }
+
+            override fun close() {
+                /* No op. */
             }
         }
 
@@ -358,9 +362,9 @@ class LuceneIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractIndex(n
          * @param predicate The [Predicate] for the lookup.
          * @param partitionIndex The [partitionIndex] for this [filterRange] call.
          * @param partitions The total number of partitions for this [filterRange] call.
-         * @return The resulting [Iterator].
+         * @return The resulting [Cursor].
          */
-        override fun filterRange(predicate: Predicate, partitionIndex: Int, partitions: Int): Iterator<Record> {
+        override fun filterRange(predicate: Predicate, partitionIndex: Int, partitions: Int): Cursor<Record> {
             throw UnsupportedOperationException("The LuceneIndex does not support ranged filtering!")
         }
 

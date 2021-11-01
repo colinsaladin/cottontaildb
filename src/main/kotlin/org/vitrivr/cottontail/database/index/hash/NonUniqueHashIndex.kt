@@ -2,12 +2,12 @@ package org.vitrivr.cottontail.database.index.hash
 
 import jetbrains.exodus.bindings.LongBinding
 import jetbrains.exodus.bindings.StringBinding
-import jetbrains.exodus.env.Cursor
 import jetbrains.exodus.env.StoreConfig
 import org.vitrivr.cottontail.database.catalogue.storeName
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.general.Cursor
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.basics.IndexConfig
@@ -209,15 +209,15 @@ class NonUniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : Abstract
         }
 
         /**
-         * Performs a lookup through this [NonUniqueHashIndex.Tx] and returns a [Iterator] of
-         * all [Record]s that match the [Predicate]. Only supports [ BooleanPredicate.AtomicBooleanPredicate]s.
+         * Performs a lookup through this [NonUniqueHashIndex.Tx] and returns a [Iterator] of all [Record]s that match the [Predicate].
+         * Only supports [BooleanPredicate.Atomic]s.
          *
          * The [Iterator] is not thread safe!
          *
          * @param predicate The [Predicate] for the lookup
          * @return The resulting [Iterator]
          */
-        override fun filter(predicate: Predicate) = object : Iterator<Record> {
+        override fun filter(predicate: Predicate) = object : Cursor<Record> {
             /** A [Queue] with values that should be queried. */
             private val queryValueQueue: Queue<Value> = LinkedList()
 
@@ -225,7 +225,7 @@ class NonUniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : Abstract
             private var queryValue: Value
 
             /** Internal cursor used for navigation. */
-            private var cursor: Cursor
+            private var cursor: jetbrains.exodus.env.Cursor
 
             /* Perform initial sanity checks. */
             init {
@@ -243,27 +243,17 @@ class NonUniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : Abstract
                 this.cursor.getSearchKey(StringBinding.BINDING.objectToEntry(this.queryValue))
             }
 
-            /**
-             * Returns `true` if the iteration has more elements.
-             */
-            override fun hasNext(): Boolean = this.cursor.nextDup || this.nextQueryValue()
-
-            /**
-             * Returns the next element in the iteration.
-             */
-            override fun next(): Record {
-                val value = this@Tx.binding.entryToValue(this.cursor.value)
-                val tid = LongBinding.compressedEntryToLong(this.cursor.key)
-                return StandaloneRecord(tid, this@NonUniqueHashIndex.produces, arrayOf(value))
-            }
-
-            /**
-             * Moves to next query value
-             */
-            private fun nextQueryValue(): Boolean {
+            override fun moveNext(): Boolean {
+                if (this.cursor.nextDup) return true
                 this.queryValue = this.queryValueQueue.poll() ?: return false
                 return this.cursor.getSearchKey(StringBinding.BINDING.objectToEntry(this.queryValue)) != null
             }
+
+            override fun key(): TupleId = LongBinding.compressedEntryToLong(this.cursor.key)
+
+            override fun value(): Record = StandaloneRecord(this.key(), this@NonUniqueHashIndex.produces, arrayOf(this@Tx.binding.entryToValue(this.cursor.value)))
+
+            override fun close() = this.cursor.close()
         }
 
         /**
@@ -272,9 +262,9 @@ class NonUniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : Abstract
          * @param predicate The [Predicate] for the lookup.
          * @param partitionIndex The [partitionIndex] for this [filterRange] call.
          * @param partitions The total number of partitions for this [filterRange] call.
-         * @return The resulting [Iterator].
+         * @return The resulting [Cursor].
          */
-        override fun filterRange(predicate: Predicate, partitionIndex: Int, partitions: Int): Iterator<Record> {
+        override fun filterRange(predicate: Predicate, partitionIndex: Int, partitions: Int): Cursor<Record> {
             throw UnsupportedOperationException("The NonUniqueHashIndex does not support ranged filtering!")
         }
     }

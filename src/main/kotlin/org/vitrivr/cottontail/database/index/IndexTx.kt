@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.index
 
 import org.vitrivr.cottontail.database.column.ColumnDef
+import org.vitrivr.cottontail.database.general.Cursor
 import org.vitrivr.cottontail.database.general.Tx
 import org.vitrivr.cottontail.database.index.basics.IndexConfig
 import org.vitrivr.cottontail.database.index.basics.IndexState
@@ -67,25 +68,23 @@ interface IndexTx : Tx, Filterable, Countable {
     fun clear()
 
     /**
-     * Performs a lookup through this [IndexTx] and returns a [Iterator] of
-     * all the [Record]s that match the [Predicate].
+     * Performs a lookup through this [IndexTx] and returns a [Cursor] of all the [Record]s that match the [Predicate].
      *
      * @param predicate The [Predicate] to perform the lookup.
-     * @return The resulting [Iterator].
+     * @return The resulting [Cursor].
      */
-    override fun filter(predicate: Predicate): Iterator<Record>
+    override fun filter(predicate: Predicate): Cursor<Record>
 
     /**
-     * Performs a lookup through this [IndexTx] and returns a [Iterator] of
-     * all the [Record]s that match the [Predicate] and fall within the specified data
-     * [LongRange], which must lie in 0..[count].
+     * Performs a lookup through this [IndexTx] and returns a [Cursor] of all the [Record]s that match the [Predicate]
+     * and fall within the specified data [LongRange], which must lie in 0..[count].
      *
      * Not all [Index] implementations support range filtering.
      *
      * @param predicate The [Predicate] to perform the lookup.
      * @param partitionIndex The [partitionIndex] for this [filterRange] call.
      * @param partitions The total number of partitions for this [filterRange] call.
-     * @return The resulting [Iterator].
+     * @return The resulting [Cursor].
      */
-    fun filterRange(predicate: Predicate, partitionIndex: Int, partitions: Int): Iterator<Record>
+    fun filterRange(predicate: Predicate, partitionIndex: Int, partitions: Int): Cursor<Record>
 }

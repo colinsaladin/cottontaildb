@@ -5,6 +5,7 @@ import org.vitrivr.cottontail.database.catalogue.entries.IndexCatalogueEntry
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.general.Cursor
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.basics.AbstractHDIndex
 import org.vitrivr.cottontail.database.index.basics.AbstractIndex
@@ -29,7 +30,6 @@ import org.vitrivr.cottontail.model.exceptions.QueryException
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
-import org.vitrivr.cottontail.utilities.math.KnnUtilities
 import org.vitrivr.cottontail.utilities.selection.ComparablePair
 import org.vitrivr.cottontail.utilities.selection.MinHeapSelection
 import org.vitrivr.cottontail.utilities.selection.MinSingleSelection
@@ -56,7 +56,7 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
     }
 
     /** The [PQIndex] implementation returns exactly the columns that is indexed. */
-    override val produces: Array<ColumnDef<*>> = arrayOf(KnnUtilities.distanceColumnDef(this.parent.name))
+    override val produces: Array<ColumnDef<*>> = arrayOf(Distances.DISTANCE_COLUMN_DEF)
 
     /** The type of [AbstractIndex]. */
     override val type = IndexType.GG
@@ -201,16 +201,15 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
         }
 
         /**
-         * Performs a lookup through this [PQIndex.Tx] and returns a [Iterator] of all [Record]s
-         * that match the [Predicate]. Only supports [KnnPredicate]s.
+         * Performs a lookup through this [PQIndex.Tx] and returns a [Cursor] of all [Record]s that match the [Predicate].
+         * Only supports [KnnPredicate]s.
          *
-         * <strong>Important:</strong> The [Iterator] is not thread safe! It remains to the
-         * caller to close the [Iterator]
+         * <strong>Important:</strong> The [Cursor] is not thread safe! It remains to the caller to close the [Cursor]
          *
          * @param predicate The [Predicate] for the lookup
          * @return The resulting [Iterator]
          */
-        override fun filter(predicate: Predicate): Iterator<Record> = object : Iterator<Record> {
+        override fun filter(predicate: Predicate): Cursor<Record> = object : Cursor<Record> {
 
             /** Cast [KnnPredicate] (if such a cast is possible).  */
             private val predicate = if (predicate is KnnPredicate && predicate.distance.signature.name == this@Tx.config.distance.functionName) {
@@ -231,9 +230,20 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
                 this.vector = value
             }
 
-            override fun hasNext(): Boolean = this.resultsQueue.isNotEmpty()
+            override fun moveNext(): Boolean = if (this.resultsQueue.isNotEmpty()) {
+                this.resultsQueue.removeFirst()
+                true
+            } else {
+                false
+            }
 
-            override fun next(): Record = this.resultsQueue.removeFirst()
+            override fun key(): TupleId = this.resultsQueue.first().tupleId
+
+            override fun value(): Record = this.resultsQueue.first()
+
+            override fun close() {
+                this.resultsQueue.clear()
+            }
 
             /**
              * Executes the kNN and prepares the results to return by this [Iterator].
@@ -291,9 +301,9 @@ class GGIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
          * @param predicate The [Predicate] for the lookup.
          * @param partitionIndex The [partitionIndex] for this [filterRange] call.
          * @param partitions The total number of partitions for this [filterRange] call.
-         * @return The resulting [Iterator].
+         * @return The resulting [Cursor].
          */
-        override fun filterRange(predicate: Predicate, partitionIndex: Int, partitions: Int): Iterator<Record> {
+        override fun filterRange(predicate: Predicate, partitionIndex: Int, partitions: Int): Cursor<Record> {
             throw UnsupportedOperationException("The UniqueHashIndex does not support ranged filtering!")
         }
     }

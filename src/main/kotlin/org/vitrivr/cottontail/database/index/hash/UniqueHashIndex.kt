@@ -2,12 +2,12 @@ package org.vitrivr.cottontail.database.index.hash
 
 import jetbrains.exodus.bindings.LongBinding
 import jetbrains.exodus.bindings.StringBinding
-import jetbrains.exodus.env.Cursor
 import jetbrains.exodus.env.StoreConfig
 import org.vitrivr.cottontail.database.catalogue.storeName
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.DefaultEntity
 import org.vitrivr.cottontail.database.entity.EntityTx
+import org.vitrivr.cottontail.database.general.Cursor
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.basics.AbstractIndex
 import org.vitrivr.cottontail.database.index.basics.IndexConfig
@@ -192,15 +192,15 @@ class UniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractInd
         }
 
         /**
-         * Performs a lookup through this [UniqueHashIndex.Tx] and returns a [Iterator] of
-         * all [Record]s that match the [Predicate]. Only supports [BooleanPredicate.Atomic]s.
+         * Performs a lookup through this [UniqueHashIndex.Tx] and returns a [Cursor] of all [Record]s that match the [Predicate].
+         * Only supports [BooleanPredicate.Atomic]s.
          *
-         * The [Iterator] is not thread safe!
-         **
+         * The [Cursor] is not thread safe!
+         *
          * @param predicate The [Predicate] for the lookup
-         * @return The resulting [Iterator]
+         * @return The resulting [Cursor]
          */
-        override fun filter(predicate: Predicate) = object : Iterator<Record> {
+        override fun filter(predicate: Predicate) = object : Cursor<Record> {
 
             /** Local [BooleanPredicate.Atomic] instance. */
             private val predicate: BooleanPredicate.Atomic
@@ -212,7 +212,7 @@ class UniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractInd
             private var queryValue: Value
 
             /** Internal cursor used for navigation. */
-            private var cursor: Cursor
+            private var cursor: jetbrains.exodus.env.Cursor
 
             /* Perform initial sanity checks. */
             init {
@@ -231,27 +231,16 @@ class UniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractInd
                 this.cursor.getSearchKey(StringBinding.BINDING.objectToEntry(this.queryValue))
             }
 
-            /**
-             * Returns `true` if the iteration has more elements.
-             */
-            override fun hasNext(): Boolean = this.nextQueryValue()
-
-            /**
-             * Returns the next element in the iteration.
-             */
-            override fun next(): Record {
-                val value = this@Tx.binding.entryToValue(this.cursor.value)
-                val tid = LongBinding.compressedEntryToLong(this.cursor.key)
-                return StandaloneRecord(tid, this@UniqueHashIndex.produces, arrayOf(value))
-            }
-
-            /**
-             * Moves to next query value
-             */
-            private fun nextQueryValue(): Boolean {
+            override fun moveNext(): Boolean {
                 this.queryValue = this.queryValueQueue.poll() ?: return false
                 return this.cursor.getSearchKey(StringBinding.BINDING.objectToEntry(this.queryValue)) != null
             }
+
+            override fun key(): TupleId = LongBinding.compressedEntryToLong(this.cursor.key)
+
+            override fun value(): Record = StandaloneRecord(this.key(), this@UniqueHashIndex.produces, arrayOf(this@Tx.binding.entryToValue(this.cursor.value)))
+
+            override fun close() = this.cursor.close()
         }
 
         /**
@@ -260,9 +249,9 @@ class UniqueHashIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractInd
          * @param predicate The [Predicate] for the lookup.
          * @param partitionIndex The [partitionIndex] for this [filterRange] call.
          * @param partitions The total number of partitions for this [filterRange] call.
-         * @return The resulting [Iterator].
+         * @return The resulting [Cursor].
          */
-        override fun filterRange(predicate: Predicate, partitionIndex: Int, partitions: Int): Iterator<Record> {
+        override fun filterRange(predicate: Predicate, partitionIndex: Int, partitions: Int): Cursor<Record> {
             throw UnsupportedOperationException("The UniqueHashIndex does not support ranged filtering!")
         }
     }
