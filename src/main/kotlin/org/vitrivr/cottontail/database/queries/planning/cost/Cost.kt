@@ -7,11 +7,11 @@ package org.vitrivr.cottontail.database.queries.planning.cost
  * @version 1.2.0
  */
 @JvmInline
-value class Cost private constructor(private val cost: FloatArray) : Comparable<Cost> {
+value class Cost private constructor(private val cost: FloatArray) {
 
     companion object {
-        val ZERO = Cost(0.0f, 0.0f, 0.0f)
-        val INVALID = Cost(Float.NaN, Float.NaN, Float.NaN)
+        val ZERO = Cost(0.0f, 0.0f, 0.0f, 0.0f)
+        val INVALID = Cost(Float.NaN, Float.NaN, Float.NaN, Float.NaN)
 
         /** Constant used to estimate, how much parallelization makes sense given CPU [Cost]s. This is a magic number :-) */
         private const val MAX_PARALLELISATION = 4
@@ -27,10 +27,6 @@ value class Cost private constructor(private val cost: FloatArray) : Comparable<
 
         /** Estimated cost of a floating point operation. */
         val COST_FLOP = AtomicCostEstimator.estimateAtomicFlopCost()
-    }
-
-    init {
-
     }
 
     /**
@@ -73,13 +69,4 @@ value class Cost private constructor(private val cost: FloatArray) : Comparable<
     operator fun minus(other: Number): Cost = Cost(this.io - other.toFloat(), this.cpu - other.toFloat(), this.memory - other.toFloat(), this.accuracy - other.toFloat())
     operator fun times(other: Number): Cost = Cost(this.io * other.toFloat(), this.cpu * other.toFloat(), this.memory * other.toFloat(), this.accuracy * other.toFloat())
     operator fun div(other: Number): Cost = Cost(this.io / other.toFloat(), this.cpu / other.toFloat(), this.memory / other.toFloat(), this.accuracy / other.toFloat())
-
-    /**
-     * Compares this [Cost] to another [Cost] based on the overall score and return a negative number, zero or a
-     * positive number of this [Cost] is smaller, equal or greater than the other [Cost].
-     *
-     * @param other The [Cost] to this [Cost] to.
-     */
-    override fun compareTo(other: Cost): Int
-        = (0.6f * (this.io - other.io) + 0.2f * (this.cpu - other.cpu) + 0.1f * (this.memory - other.memory) + 0.1f *  (this.accuracy - other.accuracy)).toInt()
 }

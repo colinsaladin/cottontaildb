@@ -39,5 +39,8 @@ data class Config(
         val execution: ExecutionConfig = ExecutionConfig(),
 
         /** Reference to [CacheConfig], which contains configuration regarding caches in Cottontail DB. */
-        val cache: CacheConfig = CacheConfig()
+        val cache: CacheConfig = CacheConfig(),
+
+        /** Reference to [CostConfig], which contains configuration regarding costs in Cottontail DB. */
+        val cost: CostConfig = CostConfig()
 )

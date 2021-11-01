@@ -20,16 +20,11 @@ data class XodusConfig (
      *
      * @return [EnvironmentConfig].
      */
-    fun toEnvironmentConfig(): EnvironmentConfig {
-        val config = EnvironmentConfig().setLogCachePageSize(this.logCachePageSize).setLogFileSize(this.logFileSize)
-            .setLogCacheReadAheadMultiple(this.logCacheReadAhead).setLogCacheOpenFilesCount(this.logCacheOpenFilesSize)
-            .setEnvStoreGetCacheSize(this.storeGetCacheSize).setTreeDupMaxPageSize(this.treeDupMaximumPageSize).setTreeMaxPageSize(this.treeMaximumPageSize)
-
-        return if (this.useCustomIO) {
-            SharedFileChannelCache.init(this.logCacheOpenFilesSize) /* Initialize SharedFileChannelCache. */
-            config.setLogDataReaderWriterProvider("org.vitrivr.cottontail.storage.io.FileChannelDataReaderWriterProvider")
-        } else {
-            config
-        }
-    }
+    fun toEnvironmentConfig(): EnvironmentConfig = EnvironmentConfig().setLogCachePageSize(this.logCachePageSize)
+        .setLogFileSize(this.logFileSize)
+        .setLogCacheReadAheadMultiple(this.logCacheReadAhead)
+        .setLogCacheOpenFilesCount(this.logCacheOpenFilesSize)
+        .setEnvStoreGetCacheSize(this.storeGetCacheSize)
+        .setTreeDupMaxPageSize(this.treeDupMaximumPageSize)
+        .setTreeMaxPageSize(this.treeMaximumPageSize)
 }

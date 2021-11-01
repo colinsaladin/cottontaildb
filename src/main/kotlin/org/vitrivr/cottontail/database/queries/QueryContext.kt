@@ -6,6 +6,7 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.queries.binding.BindingContext
 
 import org.vitrivr.cottontail.database.queries.binding.DefaultBindingContext
+import org.vitrivr.cottontail.database.queries.planning.cost.Policy
 import org.vitrivr.cottontail.database.queries.sort.SortOrder
 import org.vitrivr.cottontail.execution.TransactionManager
 import org.vitrivr.cottontail.execution.operators.basics.Operator
@@ -17,9 +18,9 @@ import org.vitrivr.cottontail.model.values.types.Value
  * and isolates different strands of execution within a query from one another.
  *
  * @author Ralph Gasser
- * @version 1.3.0
+ * @version 1.4.0
  */
-class QueryContext(val queryId: String, val catalogue: Catalogue, val txn: TransactionManager.TransactionImpl) {
+class QueryContext(val queryId: String, val catalogue: Catalogue, val policy: Policy, val txn: TransactionManager.TransactionImpl) {
 
     /** List of bound [Value]s for this [QueryContext]. */
     val bindings: BindingContext = DefaultBindingContext()
@@ -37,7 +38,7 @@ class QueryContext(val queryId: String, val catalogue: Catalogue, val txn: Trans
 
     /** Output [ColumnDef] for the query held by this [QueryContext] (as per canonical plan). */
     val output: List<ColumnDef<*>>?
-        get() = this.nodes[0]?.columns
+        get() = this.nodes[0]?.columns?.map { it.first }
 
     /** Output order for the query held by this [QueryContext] (as per canonical plan). */
     val order: List<Pair<ColumnDef<*>, SortOrder>>?
