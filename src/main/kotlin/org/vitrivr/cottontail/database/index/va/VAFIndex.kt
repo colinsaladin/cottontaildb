@@ -28,6 +28,7 @@ import org.vitrivr.cottontail.database.statistics.columns.FloatVectorValueStatis
 import org.vitrivr.cottontail.database.statistics.columns.IntVectorValueStatistics
 import org.vitrivr.cottontail.database.statistics.columns.LongVectorValueStatistics
 import org.vitrivr.cottontail.execution.TransactionContext
+import org.vitrivr.cottontail.functions.math.distance.Distances
 import org.vitrivr.cottontail.functions.math.distance.basics.MinkowskiDistance
 import org.vitrivr.cottontail.functions.math.distance.binary.EuclideanDistance
 import org.vitrivr.cottontail.functions.math.distance.binary.ManhattanDistance
@@ -42,10 +43,7 @@ import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.DoubleValue
 import org.vitrivr.cottontail.model.values.types.RealVectorValue
 import org.vitrivr.cottontail.model.values.types.VectorValue
-import org.vitrivr.cottontail.utilities.math.KnnUtilities
-import org.vitrivr.cottontail.utilities.selection.ComparablePair
 import org.vitrivr.cottontail.utilities.selection.MinHeapSelection
-import org.vitrivr.cottontail.utilities.selection.MinSingleSelection
 import java.lang.Math.floorDiv
 import kotlin.concurrent.withLock
 import kotlin.math.max
@@ -71,7 +69,7 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
     }
 
     /** The [VAFIndex] implementation returns exactly the columns that is indexed. */
-    override val produces: Array<ColumnDef<*>> = arrayOf(KnnUtilities.distanceColumnDef(this.parent.name))
+    override val produces: Array<ColumnDef<*>> = arrayOf(this.columns.first(), Distances.DISTANCE_COLUMN_DEF)
 
     /** The type of [AbstractIndex]. */
     override val type = IndexType.VAF
@@ -87,7 +85,7 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
     override val supportsIncrementalUpdate: Boolean = false
 
     /** True since [VAFIndex] supports partitioning. */
-    override val supportsPartitioning: Boolean = true
+    override val supportsPartitioning: Boolean = false
 
     /**
      * Calculates the cost estimate if this [VAFIndex] processing the provided [Predicate].
@@ -99,12 +97,9 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
         if (predicate !is KnnPredicate) return Cost.INVALID
         if (predicate.column != this.columns[0]) return Cost.INVALID
         if (predicate.distance !is MinkowskiDistance<*>) return Cost.INVALID
-        val count = this.count
-        val column = this.columns[0]
         return Cost(
-            count * column.type.logicalSize * Cost.COST_DISK_ACCESS_READ + 0.1f * (count * column.type.physicalSize * Cost.COST_DISK_ACCESS_READ),
-            count * column.type.logicalSize * (2 * Cost.COST_MEMORY_ACCESS + Cost.COST_FLOP) + 0.1f * count * predicate.atomicCpuCost,
-            predicate.k * this.produces.sumOf { it.type.physicalSize }.toFloat()
+            this.count * (0.9f * Cost.COST_DISK_ACCESS_READ + 0.1f * this.columns[0].type.physicalSize * Cost.COST_DISK_ACCESS_READ),
+            this.count * (0.9f * (2 * Cost.COST_MEMORY_ACCESS + Cost.COST_FLOP) + 0.1f * predicate.atomicCpuCost)
         )
     }
 
@@ -199,7 +194,7 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
             entityTx.cursor(this.columns).forEach { r ->
                 val value = r[this.columns[0]]
                 if (value is RealVectorValue<*>) {
-                    this.dataStore.put(this.context.xodusTx, r.tupleId.toKey(), VAFSignature.objectToEntry(this.marks.getSignature(value)))
+                    this.dataStore.put(this.context.xodusTx, r.tupleId.toKey(), VAFSignature.valueToEntry(this.marks.getSignature(value)))
                 }
             }
 
@@ -241,7 +236,7 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
          * @param partitions The total number of partitions for this [filterRange] call.
          * @return The resulting [Iterator].
          */
-        override fun filterRange(predicate: Predicate, partitionIndex: Int, partitions: Int) = object : Iterator<Record> {
+        override fun filterRange(predicate: Predicate, partitionIndex: Int, partitions: Int) = object : org.vitrivr.cottontail.database.general.Cursor<Record> {
 
             /** Cast  to [KnnPredicate] (if such a cast is possible).  */
             private val predicate = if (predicate is KnnPredicate) {
@@ -259,14 +254,29 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
             /** The [Bounds] objects used for filtering. */
             private val bounds: Bounds
 
-            /** The [ArrayDeque] of [StandaloneRecord] produced by this [VAFIndex]. Evaluated lazily! */
-            private val resultsQueue: ArrayDeque<StandaloneRecord> by lazy { prepareResults() }
+            /** Creates a read-only snapshot of the enclosing Tx. */
+            private val subTx = this@Tx.context.xodusTx.readonlySnapshot
 
             /** The [Cursor] used to read [VAFSignature]s. */
-            private val cursor: Cursor = this@Tx.dataStore.openCursor(this@Tx.context.xodusTx)
+            private val cursor: Cursor = this@Tx.dataStore.openCursor(this.subTx)
 
             /** The maximum [TupleId] to iterate to (as ArrayByteIterable). */
             private val endKey: ArrayByteIterable
+
+            /** Internal [EntityTx] used to access actual values. */
+            private val entityTx = this@Tx.context.getTx(this@VAFIndex.parent) as EntityTx
+
+            /** The number of entries read by this [Cursor] (i.e. the number of entries that have been accessed). */
+            private var read = 0L
+
+            /** */
+            private var distance: DoubleValue = DoubleValue(Double.MAX_VALUE)
+
+            /** */
+            private var value: VectorValue<*>? = null
+
+            /** */
+            private var selection = MinHeapSelection<Double>(this.predicate.k)
 
             init {
                 val value = this.predicate.query.value
@@ -285,48 +295,32 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
                 this.endKey = min(pSize * (partitionIndex + 1), this@Tx.count()).toKey()
             }
 
-            override fun hasNext(): Boolean = this.resultsQueue.isNotEmpty()
-
-            override fun next(): Record = this.resultsQueue.removeFirst()
-
             /**
-             * Executes the kNN and prepares the results to return by this [Iterator].
+             * Moves the internal cursor and return true, as long as new candidates appear.
              */
-            private fun prepareResults(): ArrayDeque<StandaloneRecord> {
-
-                /* Prepare txn and kNN data structures. */
-                val txn = this@Tx.context.getTx(this@VAFIndex.parent) as EntityTx
-                val knn = if (this.predicate.k == 1) {
-                    MinSingleSelection<ComparablePair<Long, DoubleValue>>()
-                } else {
-                    MinHeapSelection(this.predicate.k)
-                }
-
-                /* Iterate over all signatures. */
-                val query = this.predicate.query.value as VectorValue<*>
-                var read = 0L
-
+            override fun moveNext(): Boolean {
                 while (this.cursor.next && this.cursor.key < this.endKey) {
-                    val signature = VAFSignature.entryToObject(this.cursor.value) as VAFSignature
-                    if (knn.size < this.predicate.k || this.bounds.isVASSACandidate(signature, knn.peek()!!.second.value)) {
-                        val tupleId = LongBinding.compressedEntryToLong(this.cursor.key)
-                        val value = txn.read(tupleId, this@VAFIndex.columns)[this@VAFIndex.columns[0]]
-                        if (value is VectorValue<*>) {
-                            knn.offer(ComparablePair(tupleId, this.predicate.distance(query, value)))
-                        }
-                        read += 1
+                    if (this.selection.size < this.predicate.k || this.bounds.isVASSACandidate(VAFSignature.entryToValue(this.cursor.value), this.selection.peek()!!)) {
+                        val tupleId = this.key()
+                        this.value = this.entityTx.read(tupleId, this@VAFIndex.columns)[this@VAFIndex.columns[0]] as VectorValue<*>
+                        this.distance = this.predicate.distance(this.query, this.value!!)
+                        this.selection.offer(this.distance.value)
+                        return true
                     }
                 }
+                return false
+            }
 
-                val skipped = ((1.0 - (read.toDouble() / (this@Tx.count()))) * 100)
-                LOGGER.debug("VA-file scan: Skipped over $skipped% of entries.")
+            override fun key(): TupleId = LongBinding.compressedEntryToLong(this.cursor.key)
 
-                /* Prepare and return list of results. */
-                val queue = ArrayDeque<StandaloneRecord>(this.predicate.k)
-                for (i in 0 until knn.size) {
-                    queue.add(StandaloneRecord(knn[i].first, this@VAFIndex.produces, arrayOf(knn[i].second)))
-                }
-                return queue
+            override fun value(): Record = StandaloneRecord(this.key(), this@VAFIndex.produces, arrayOf(this.value, this.distance))
+
+            /**
+             * Closes this [Cursor]
+             */
+            override fun close() {
+                this.cursor.close()
+                this.subTx.abort()
             }
         }
     }

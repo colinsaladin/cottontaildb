@@ -1,7 +1,9 @@
 package org.vitrivr.cottontail.database.index.va.signature
 
+import jetbrains.exodus.ByteIterable
 import jetbrains.exodus.bindings.ComparableBinding
 import jetbrains.exodus.util.LightOutputStream
+import org.vitrivr.cottontail.model.values.DoubleVectorValue
 import org.xerial.snappy.Snappy
 import java.io.ByteArrayInputStream
 
@@ -22,12 +24,13 @@ value class VAFSignature(val cells: IntArray): Comparable<VAFSignature> {
      */
     operator fun get(index: Int): Int = this.cells[index]
 
-    companion object : ComparableBinding() {
-        override fun readObject(stream: ByteArrayInputStream) = VAFSignature(Snappy.uncompressIntArray(stream.readAllBytes()))
-        override fun writeObject(output: LightOutputStream, `object`: Comparable<Nothing>) {
-            require(`object` is VAFSignature) { "Cannot serialize object $`object` as VAFSignature." }
-            val bytes = Snappy.compress(`object`.cells)
-            output.write(bytes)
+    companion object {
+        fun entryToValue(entry: ByteIterable): VAFSignature = VAFSignature(Snappy.uncompressIntArray(entry.bytesUnsafe))
+        fun valueToEntry(signature: VAFSignature): ByteIterable {
+            val stream = LightOutputStream()
+            val compressed = Snappy.compress(signature.cells)
+            stream.write(compressed)
+            return stream.asArrayByteIterable()
         }
     }
 
