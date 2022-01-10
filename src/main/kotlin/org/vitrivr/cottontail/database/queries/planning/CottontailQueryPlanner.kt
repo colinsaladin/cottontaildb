@@ -179,7 +179,6 @@ class CottontailQueryPlanner(private val logicalRules: Collection<RewriteRule>, 
                 is NAryLogicalOperatorNode -> explore.enqueue(pointer.inputs.firstOrNull() ?: throw IllegalStateException("Encountered null node in logical operator node tree (node = $pointer). This is a programmer's error!"))
                 is BinaryLogicalOperatorNode -> explore.enqueue(pointer.left ?: throw IllegalStateException("Encountered null node in logical operator node tree (node = $pointer). This is a programmer's error!"))
                 is UnaryLogicalOperatorNode -> explore.enqueue(pointer.input ?: throw IllegalStateException("EEncountered null node in logical operator node tree (node = $pointer). This is a programmer's error!"))
-                else -> throw IllegalStateException("Encountered physical operator node in logical operator node tree. This is a programmer's error!")
             }
 
             /* Get next in line. */
@@ -216,7 +215,6 @@ class CottontailQueryPlanner(private val logicalRules: Collection<RewriteRule>, 
                 is NAryPhysicalOperatorNode -> explore.enqueue(pointer.inputs.firstOrNull() ?: throw IllegalStateException("Encountered null node in physical operator node tree (node = $pointer). This is a programmer's error!"))
                 is BinaryPhysicalOperatorNode -> explore.enqueue(pointer.left ?: throw IllegalStateException("Encountered null node in physical operator node tree (node = $pointer). This is a programmer's error!"))
                 is UnaryPhysicalOperatorNode -> explore.enqueue(pointer.input ?: throw IllegalStateException("Encountered null node in physical operator node tree (node = $pointer). This is a programmer's error!"))
-                else -> throw IllegalStateException("Encountered logical operator node in physical operator node tree. This is a programmer's error!")
             }
 
             /* Get next in line. */
