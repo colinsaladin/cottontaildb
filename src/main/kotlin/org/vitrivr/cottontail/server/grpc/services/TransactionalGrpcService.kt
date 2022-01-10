@@ -123,12 +123,12 @@ internal interface TransactionalGrpcService {
                 accumulatedSize += tuple.serializedSize
             }.onCompletion {
                 if (it == null) {
-                    if (results == 0 || responseBuilder.tuplesCount > 0) emit(responseBuilder.build()) /* Emit final response. */
                     if (context.txn.type.autoCommit) context.txn.commit() /* Handle auto-commit. */
                     LOGGER.info("[${context.txn.txId}, ${context.queryId}] Execution of ${context.physical?.name} completed successfully in ${m2.elapsedNow()}.")
+                    if (results == 0 || responseBuilder.tuplesCount > 0) emit(responseBuilder.build()) /* Emit final response. */
                 } else {
-                    val e = context.toStatusException(it)
                     if (context.txn.type.autoRollback) context.txn.rollback() /* Handle auto-rollback. */
+                    val e = context.toStatusException(it)
                     LOGGER.error("[${context.txn.txId}, ${context.queryId}] Execution of ${context.physical?.name} failed: ${e.message}")
                     throw e
                 }

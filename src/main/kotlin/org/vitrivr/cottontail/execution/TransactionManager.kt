@@ -180,16 +180,10 @@ class TransactionManager(private val catalogue: DefaultCatalogue, transactionTab
                     this@TransactionImpl.numberOfSuccess += 1
                     if (this@TransactionImpl.numberOfOngoing == 0 && this@TransactionImpl.state == TransactionStatus.RUNNING) {
                         this@TransactionImpl.state = TransactionStatus.IDLE
-                        if (this@TransactionImpl.type.autoCommit) {
-                            this@TransactionImpl.performCommit()
-                        }
                     }
                 } else {
                     this@TransactionImpl.numberOfError += 1
                     this@TransactionImpl.state = TransactionStatus.ERROR
-                    if (this@TransactionImpl.type.autoRollback) {
-                        this@TransactionImpl.performRollback()
-                    }
                 }
             }
         }.cancellable()
