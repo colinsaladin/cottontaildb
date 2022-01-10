@@ -12,6 +12,7 @@ import org.vitrivr.cottontail.database.queries.planning.nodes.physical.UnaryPhys
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import org.vitrivr.cottontail.execution.operators.sources.EntityScanOperator
 import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.Value
 
 /**
@@ -30,10 +31,11 @@ class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Enti
     override val name: String
         get() = NODE_NAME
 
-    /** The [ColumnPair] produced by this [EntityScanPhysicalOperatorNode]. */
-    override val columns: List<ColumnPair> = this.fetch.map {
-        it.second.copy(name = it.first) to it.second /* Logical --> physical column. */
-    }
+    /** The physical [ColumnDef] accessed by this [EntityScanPhysicalOperatorNode]. */
+    override val physicalColumns: List<ColumnDef<*>> = this.fetch.map { it.second }
+
+    /** The [ColumnDef] produced by this [EntityScanPhysicalOperatorNode]. */
+    override val columns: List<ColumnDef<*>> = this.fetch.map { it.second.copy(name = it.first) }
 
     /** The number of rows returned by this [EntityScanPhysicalOperatorNode] equals to the number of rows in the [Entity]. */
     override val outputSize
@@ -48,10 +50,10 @@ class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Enti
     /** [ValueStatistics] are taken from the underlying [Entity]. The query planner uses statistics for [Cost] estimation. */
     override val statistics by lazy {
         val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
-        this.columns.forEach {
-            val physical = it.physical()
-            if (physical != null) {
-                statistics[it.logical()] = (this.entity.context.getTx(this.entity.columnForName(physical.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
+        this.fetch.forEach {
+            val column = it.second.copy(name = it.first)
+            if (!statistics.containsKey(column)) {
+                statistics[column] = (this.entity.context.getTx(this.entity.columnForName(it.second.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
             }
         }
         statistics
@@ -59,8 +61,12 @@ class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Enti
 
     /** The estimated [Cost] of scanning the [Entity]. */
     override val cost: Cost by lazy {
-        Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.columns.sumOf {
-            this.statistics[it.logical()]?.avgWidth ?: it.logical().type.physicalSize
+        Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.fetch.sumOf {
+            if (it.second.type == Type.String) {
+                this.statistics[it.second]!!.avgWidth * Char.SIZE_BYTES
+            } else {
+                it.second.type.physicalSize
+            }
         }
     }
 
@@ -89,7 +95,7 @@ class EntityScanPhysicalOperatorNode(override val groupId: Int, val entity: Enti
     override fun toOperator(ctx: QueryContext) = EntityScanOperator(this.groupId, this.entity, this.fetch, ctx.bindings,0, 1)
 
     /** Generates and returns a [String] representation of this [EntityScanPhysicalOperatorNode]. */
-    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.logical().name.toString() }}]"
+    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.name.toString() }}]"
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

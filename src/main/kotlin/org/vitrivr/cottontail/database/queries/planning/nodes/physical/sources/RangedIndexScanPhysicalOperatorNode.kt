@@ -7,10 +7,7 @@ import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx
-import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.database.queries.QueryContext
-import org.vitrivr.cottontail.database.queries.logical
-import org.vitrivr.cottontail.database.queries.physical
 import org.vitrivr.cottontail.database.queries.planning.cost.Cost
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.predicates.Predicate
@@ -38,8 +35,17 @@ class RangedIndexScanPhysicalOperatorNode(override val groupId: Int, val index: 
     override val name: String
         get() = NODE_NAME
 
-    /** [ValueStatistics] are taken from the underlying [Entity]. The query planner uses statistics for [Cost] estimation. */
-    override val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
+    /** The [ColumnDef]s accessed by this [RangedIndexScanPhysicalOperatorNode] depends on the [ColumnDef]s produced by the [Index]. */
+    override val physicalColumns: List<ColumnDef<*>> = this.fetch.map {
+        require(this.index.dbo.produces.contains(it.second)) { "The given column $it is not produced by the selected index ${this.index.dbo}. This is a programmer's error!"}
+        it.second
+    }
+
+    /** The [ColumnDef]s produced by this [RangedIndexScanPhysicalOperatorNode] depends on the [ColumnDef]s produced by the [Index]. */
+    override val columns: List<ColumnDef<*>> = this.fetch.map {
+        require(this.index.dbo.produces.contains(it.second)) { "The given column $it is not produced by the selected index ${this.index.dbo}. This is a programmer's error!"}
+        it.second.copy(name = it.first)
+    }
 
     /** The number of rows returned by this [IndexScanPhysicalOperatorNode]. This is usually an estimate! */
     override val outputSize: Long
@@ -49,10 +55,17 @@ class RangedIndexScanPhysicalOperatorNode(override val groupId: Int, val index: 
             else -> this.index.dbo.parent.numberOfRows
         }
 
-    /** The [ColumnPair]s produced by this [IndexScanPhysicalOperatorNode] depends on the [ColumnDef]s produced by the [Index]. */
-    override val columns: List<ColumnPair> = this.fetch.map {
-        require(this.index.dbo.produces.contains(it.second)) { "The given column $it is not produced by the selected index ${this.index.dbo}. This is a programmer's error!"}
-        it.second.copy(name = it.first) to it.second /* Logical --> physical. */
+    /** [ValueStatistics] are taken from the underlying [Entity]. The query planner uses statistics for [Cost] estimation. */
+    override val statistics by lazy {
+        val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
+        val entityTx = this.index.context.getTx(this.index.dbo.parent) as EntityTx
+        this.fetch.forEach {
+            val column = it.second.copy(name = it.first)
+            if (!statistics.containsKey(column)) {
+                statistics[column] = (this.index.context.getTx(entityTx.columnForName(it.second.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
+            }
+        }
+        statistics
     }
 
     /** [RangedIndexScanPhysicalOperatorNode] are always executable. */
@@ -68,15 +81,6 @@ class RangedIndexScanPhysicalOperatorNode(override val groupId: Int, val index: 
     init {
         require(this.partitionIndex >= 0) { "The partitionIndex of a ranged index scan must be greater than zero." }
         require(this.partitions > 0) { "The number of partitions for a ranged index scan must be greater than zero." }
-
-        /* Obtain statistics. */
-        val entityTx = this.index.context.getTx(this.index.dbo.parent) as EntityTx
-        this.columns.forEach {
-            val physical = it.physical()
-            if (physical != null && entityTx.listColumns().contains(physical)) {
-                this.statistics[it.logical()] = (this.index.context.getTx(entityTx.columnForName(physical.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
-            }
-        }
     }
 
     /**

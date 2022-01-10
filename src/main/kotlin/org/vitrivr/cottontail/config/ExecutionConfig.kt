@@ -1,10 +1,10 @@
 package org.vitrivr.cottontail.config
 
-import kotlin.math.max
 import kotlinx.serialization.Serializable
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
+import kotlin.math.max
 
 /**
  * Config for Cottontail DB's task execution engine.

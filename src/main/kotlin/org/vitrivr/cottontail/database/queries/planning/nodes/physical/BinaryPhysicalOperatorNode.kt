@@ -13,7 +13,7 @@ import java.io.PrintStream
  * An abstract [OperatorNode.Physical] implementation that has exactly two [OperatorNode.Physical]s as input.
  *
  * @author Ralph Gasser
- * @version 2.4.0
+ * @version 2.5.0
  */
 abstract class BinaryPhysicalOperatorNode(left: Physical? = null, right: Physical? = null) : OperatorNode.Physical() {
 
@@ -69,8 +69,12 @@ abstract class BinaryPhysicalOperatorNode(left: Physical? = null, right: Physica
     /** By default, [BinaryPhysicalOperatorNode]s cannot be partitioned. */
     override val canBePartitioned: Boolean = false
 
+    /** By default, the [BinaryPhysicalOperatorNode] outputs the physical [ColumnDef] of its left input. */
+    override val physicalColumns: List<ColumnDef<*>>
+        get() = (this.left?.physicalColumns ?: emptyList())
+
     /** By default, the [BinaryPhysicalOperatorNode] outputs the [ColumnDef] of its left input. */
-    override val columns: List<Pair<ColumnDef<*>,ColumnDef<*>?>>
+    override val columns: List<ColumnDef<*>>
         get() = (this.left?.columns ?: emptyList())
 
     /** By default, the output size of a [UnaryPhysicalOperatorNode] is the same as its left input's output size. */
@@ -85,7 +89,7 @@ abstract class BinaryPhysicalOperatorNode(left: Physical? = null, right: Physica
     override val requires: List<ColumnDef<*>>
         get() = emptyList()
 
-    /** By default, a [BinaryPhysicalOperatorNode]'s statistics are retained from its left input. */
+    /** By default, a [BinaryPhysicalOperatorNode]'s inherited from its left input. */
     override val statistics: Map<ColumnDef<*>, ValueStatistics<*>>
         get() = this.left?.statistics ?: emptyMap()
 

@@ -14,7 +14,6 @@ import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPh
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.UnaryPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.rules.RewriteRule
 import org.vitrivr.cottontail.model.exceptions.QueryException
-import java.util.*
 
 /**
  * This is a rather simple query planner that optimizes a [OperatorNode] by recursively applying a set of [RewriteRule]s to get more
@@ -24,7 +23,7 @@ import java.util.*
  * 2. The candidate trees are "implemented", i.e., a physical tree is created for each logical tree .
  * 3. The physical tree is rewritten by replacing [OperatorNode.Physical]s by [OperatorNode.Physical] to arrive at an executable query plan.
  *
- * Finally, the best plan in terms of [Cost] is selected.
+ * Finally, the best plan in terms of a cost score is selected.
  *
  * @author Ralph Gasser
  * @version 2.2.0
@@ -79,7 +78,11 @@ class CottontailQueryPlanner(private val logicalRules: Collection<RewriteRule>, 
         for (d in decomposition) {
             val stage1 = this.optimizeLogical(d.value, context).map { it.implement() }
             val stage2 = stage1.flatMap { this.optimizePhysical(it, context) }
-            val candidate = stage2.minByOrNull { context.policy.score(it.totalCost) } ?: throw QueryException.QueryPlannerException("Failed to generate a physical execution plan for expression: $logical.")
+            val candidate = stage2.filter {
+                it.executable /* Filter-out plans that cannot be executed. */
+            }.minByOrNull {
+                context.policy.score(it.totalCost)
+            } ?: throw QueryException.QueryPlannerException("Failed to generate a physical execution plan for expression: $logical.")
             candidates[d.key] = candidate
         }
         return listOf(this.compose(0, candidates))
@@ -176,7 +179,7 @@ class CottontailQueryPlanner(private val logicalRules: Collection<RewriteRule>, 
                 is NAryLogicalOperatorNode -> explore.enqueue(pointer.inputs.firstOrNull() ?: throw IllegalStateException("Encountered null node in logical operator node tree (node = $pointer). This is a programmer's error!"))
                 is BinaryLogicalOperatorNode -> explore.enqueue(pointer.left ?: throw IllegalStateException("Encountered null node in logical operator node tree (node = $pointer). This is a programmer's error!"))
                 is UnaryLogicalOperatorNode -> explore.enqueue(pointer.input ?: throw IllegalStateException("EEncountered null node in logical operator node tree (node = $pointer). This is a programmer's error!"))
-                is OperatorNode.Physical -> throw IllegalStateException("Encountered physical operator node in logical operator node tree. This is a programmer's error!")
+                else -> throw IllegalStateException("Encountered physical operator node in logical operator node tree. This is a programmer's error!")
             }
 
             /* Get next in line. */
@@ -213,7 +216,7 @@ class CottontailQueryPlanner(private val logicalRules: Collection<RewriteRule>, 
                 is NAryPhysicalOperatorNode -> explore.enqueue(pointer.inputs.firstOrNull() ?: throw IllegalStateException("Encountered null node in physical operator node tree (node = $pointer). This is a programmer's error!"))
                 is BinaryPhysicalOperatorNode -> explore.enqueue(pointer.left ?: throw IllegalStateException("Encountered null node in physical operator node tree (node = $pointer). This is a programmer's error!"))
                 is UnaryPhysicalOperatorNode -> explore.enqueue(pointer.input ?: throw IllegalStateException("Encountered null node in physical operator node tree (node = $pointer). This is a programmer's error!"))
-                is OperatorNode.Logical -> throw IllegalStateException("Encountered logical operator node in physical operator node tree. This is a programmer's error!")
+                else -> throw IllegalStateException("Encountered logical operator node in physical operator node tree. This is a programmer's error!")
             }
 
             /* Get next in line. */

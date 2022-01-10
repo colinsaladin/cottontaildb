@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.locking
 
-import org.junit.jupiter.api.*
+import org.junit.jupiter.api.Assertions
+import org.junit.jupiter.api.RepeatedTest
 import java.util.*
 
 /**
@@ -101,50 +102,5 @@ class LockManagerTest {
         } else {
             Assertions.fail("Invalid schedule!")
         }
-    }
-
-    /**
-     * Provokes a deadlock situation and tests for the respective exception to be thrown.
-     */
-    @Test
-    fun testDeadlock() {
-        var exc: DeadlockException? = null
-        val t1 = Thread {
-            try {
-                println("w($tx1, $o1)")
-                this.lockManager.lock(tx1, o1, LockMode.EXCLUSIVE)
-                println("w($tx1, $o2)")
-                this.lockManager.lock(tx1, o2, LockMode.EXCLUSIVE)
-                println("w($tx1, $o3)")
-                this.lockManager.lock(tx1, o3, LockMode.EXCLUSIVE)
-            } catch (e: DeadlockException) {
-                exc = e
-            }
-        }
-        val t2 = Thread {
-            try {
-                println("w($tx2, $o3)")
-                this.lockManager.lock(tx2, o3, LockMode.EXCLUSIVE)
-                println("w($tx2, $o2)")
-                this.lockManager.lock(tx2, o2, LockMode.EXCLUSIVE)
-                println("w($tx2, $o1)")
-                this.lockManager.lock(tx2, o1, LockMode.EXCLUSIVE)
-            } catch (e: DeadlockException) {
-                exc = e
-            }
-        }
-
-        /* Start transactions. */
-        t1.start()
-        t2.start()
-
-        /* Wait for execution to finish. */
-        val start = System.currentTimeMillis()
-        while (exc == null && System.currentTimeMillis() - start < 5000) {
-            Thread.yield()
-        }
-
-        /* Check for exception. */
-        Assertions.assertTrue(exc is DeadlockException)
     }
 }

@@ -5,6 +5,7 @@ import kotlinx.coroutines.flow.Flow
 import org.vitrivr.cottontail.database.catalogue.Catalogue
 import org.vitrivr.cottontail.database.queries.binding.GrpcQueryBinder
 import org.vitrivr.cottontail.database.queries.planning.CottontailQueryPlanner
+import org.vitrivr.cottontail.database.queries.planning.cost.Policy
 import org.vitrivr.cottontail.database.queries.planning.rules.logical.*
 import org.vitrivr.cottontail.database.queries.planning.rules.physical.index.BooleanIndexScanRule
 import org.vitrivr.cottontail.database.queries.planning.rules.physical.index.FulltextIndexRule
@@ -22,7 +23,7 @@ import kotlin.time.ExperimentalTime
  * Implementation of [DQLGrpc.DQLImplBase], the gRPC endpoint for querying data in Cottontail DB.
  *
  * @author Ralph Gasser
- * @version 2.1.0
+ * @version 2.2.0
  */
 @ExperimentalTime
 class DQLService(override val catalogue: Catalogue, override val manager: TransactionManager) : DQLGrpcKt.DQLCoroutineImplBase(), TransactionalGrpcService {
@@ -44,34 +45,29 @@ class DQLService(override val catalogue: Catalogue, override val manager: Transa
     /**
      * gRPC endpoint for executing queries.
      */
-    override fun query(request: CottontailGrpc.QueryMessage): Flow<CottontailGrpc.QueryResponseMessage> {
-        /* Obtain query context */
-        val ctx = this.queryContext(request.metadata)
-
+    override fun query(request: CottontailGrpc.QueryMessage): Flow<CottontailGrpc.QueryResponseMessage> = prepareAndExecute(request.metadata) { ctx ->
         /* Bind query and create logical plan. */
         GrpcQueryBinder.bind(request.query, ctx)
 
         /* Plan query and create execution plan. */
         this.planner.planAndSelect(ctx)
 
-        /* Execute query in transaction context. */
-        return executeAndMaterialize(ctx, ctx.toOperatorTree())
+        /* Generate operator tree. */
+        ctx.toOperatorTree()
     }
 
     /**
      * gRPC endpoint for explaining queries.
      */
-    override fun explain(request: CottontailGrpc.QueryMessage): Flow<CottontailGrpc.QueryResponseMessage> {
-        val ctx = this.queryContext(request.metadata)
-
+    override fun explain(request: CottontailGrpc.QueryMessage): Flow<CottontailGrpc.QueryResponseMessage> = prepareAndExecute(request.metadata) { ctx ->
         /* Bind query and create logical plan. */
         GrpcQueryBinder.bind(request.query, ctx)
 
-        /* Plan query and create execution plan candidates. */
+        /* Plan query and create execution plan. */
         val candidates = this.planner.plan(ctx)
 
-        /* Return execution plans. */
-        return executeAndMaterialize(ctx, ExplainQueryOperator(candidates, ctx.policy))
+        /* Generate operator tree. */
+        ExplainQueryOperator(candidates, Policy()) /* TODO: Extract policy from query. */
     }
 
     /**

@@ -6,7 +6,6 @@ import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.basics.TupleId
 import org.vitrivr.cottontail.model.recordset.StandaloneRecord
 import org.vitrivr.cottontail.model.values.types.Value
-import java.lang.UnsupportedOperationException
 
 /**
  * A [Record] implementation that depends on the existence of [Binding]s for the [Value]s it contains.

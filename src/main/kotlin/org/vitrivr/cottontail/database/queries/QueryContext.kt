@@ -38,7 +38,7 @@ class QueryContext(val queryId: String, val catalogue: Catalogue, val policy: Po
 
     /** Output [ColumnDef] for the query held by this [QueryContext] (as per canonical plan). */
     val output: List<ColumnDef<*>>?
-        get() = this.nodes[0]?.columns?.map { it.first }
+        get() = this.nodes[0]?.columns
 
     /** Output order for the query held by this [QueryContext] (as per canonical plan). */
     val order: List<Pair<ColumnDef<*>, SortOrder>>?

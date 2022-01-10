@@ -53,8 +53,12 @@ abstract class BinaryLogicalOperatorNode(left: Logical? = null, right: Logical? 
     final override val base: Collection<Logical>
         get() = (this.left?.base ?: emptyList()) + (this.right?.base ?: emptyList())
 
+    /** By default, the [BinaryLogicalOperatorNode] outputs the physical [ColumnDef] of its input. */
+    override val physicalColumns: List<ColumnDef<*>>
+        get() = (this.left?.physicalColumns ?: emptyList())
+
     /** By default, the [BinaryLogicalOperatorNode] outputs the [ColumnDef] of its input. */
-    override val columns: List<Pair<ColumnDef<*>,ColumnDef<*>?>>
+    override val columns: List<ColumnDef<*>>
         get() = (this.left?.columns ?: emptyList())
 
     /** By default, a [BinaryLogicalOperatorNode]'s order is unspecified. */

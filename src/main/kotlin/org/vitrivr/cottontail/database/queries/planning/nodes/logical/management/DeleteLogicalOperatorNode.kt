@@ -24,8 +24,8 @@ class DeleteLogicalOperatorNode(input: Logical? = null, val entity: EntityTx) : 
     override val name: String
         get() = NODE_NAME
 
-    /** The [DeleteLogicalOperatorNode] produces the [ColumnPair]s defined in the [DeleteOperator] */
-    override val columns: List<ColumnPair> = DeleteOperator.COLUMNS
+    /** The [DeleteLogicalOperatorNode] produces the [ColumnDef]s defined in the [DeleteOperator] */
+    override val columns: List<ColumnDef<*>> = DeleteOperator.COLUMNS
 
     /** The [DeleteLogicalOperatorNode] does not require any [ColumnDef]. */
     override val requires: List<ColumnDef<*>> = emptyList()

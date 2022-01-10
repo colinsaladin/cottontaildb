@@ -18,5 +18,5 @@ abstract class AbstractProjectionPhysicalOperatorNode(input: Physical? = null, v
         get() = this.type.label()
 
     /** Generates and returns a [String] representation of this [AbstractProjectionPhysicalOperatorNode]. */
-    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.logical().name.toString() }}]"
+    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.name.toString() }}]"
 }

@@ -19,43 +19,49 @@ import kotlin.time.ExperimentalTime
  * @version 1.2.0
  */
 @ExperimentalTime
-class CottontailGrpcServer(config: Config, catalogue: DefaultCatalogue) {
+class CottontailGrpcServer(val config: Config) {
 
     /** The [ThreadPoolExecutor] used for handling gRPC calls and executing queries. */
-    private val executor = config.execution.newExecutor()
+    private val executor = this.config.execution.newExecutor()
+
+    /** The [DefaultCatalogue] instance used by this [CottontailGrpcServer]. */
+    private val catalogue = DefaultCatalogue(this.config)
 
     /** The [TransactionManager] used by this [CottontailGrpcServer] instance. */
-    private val transactionManager: TransactionManager = TransactionManager(catalogue, config.execution.transactionHistorySize, config.execution.transactionTableSize)
+    private val transactionManager: TransactionManager = TransactionManager(this.catalogue, this.config.execution.transactionTableSize, this.config.execution.transactionHistorySize)
 
-    /** Reference to the gRPC server. */
-    private val server = ServerBuilder.forPort(config.server.port)
+    /** The internal gRPC server; if building that server fails then the [DefaultCatalogue] is closed again! */
+    private val server = ServerBuilder.forPort(this.config.server.port)
         .executor(this.executor)
-        .addService(DDLService(catalogue, this.transactionManager))
-        .addService(DMLService(catalogue, this.transactionManager))
-        .addService(DQLService(catalogue, this.transactionManager))
-        .addService(TXNService(catalogue, this.transactionManager))
+        .addService(DDLService(this.catalogue, this.transactionManager))
+        .addService(DMLService(this.catalogue, this.transactionManager))
+        .addService(DQLService(this.catalogue, this.transactionManager))
+        .addService(TXNService(this.catalogue, this.transactionManager))
         .let {
-            if (config.server.useTls) {
-                val certFile = config.server.certFile!!.toFile()
-                val privateKeyFile = config.server.privateKey!!.toFile()
+            if (this.config.server.useTls) {
+                val certFile = this.config.server.certFile!!.toFile()
+                val privateKeyFile = this.config.server.privateKey!!.toFile()
                 it.useTransportSecurity(certFile, privateKeyFile)
             } else {
                 it
             }
         }.build()
 
+
+    /* Start server and close catalogue upon failure. */
+    init {
+        try {
+            this.server.start()
+        } catch (e: Throwable) {
+            this.catalogue.close()
+        }
+    }
+
     /**
      * Returns true if this [CottontailGrpcServer] is currently running, and false otherwise.
      */
     val isRunning: Boolean
         get() = !this.server.isShutdown
-
-    /**
-     * Starts this instance of [CottontailGrpcServer].
-     */
-    fun start() {
-        this.server.start()
-    }
 
     /**
      * Stops this instance of [CottontailGrpcServer].
@@ -68,5 +74,8 @@ class CottontailGrpcServer(config: Config, catalogue: DefaultCatalogue) {
         /* Shutdown thread pool executor. */
         this.executor.shutdown()
         this.executor.awaitTermination(5000, TimeUnit.MILLISECONDS)
+
+        /* Close catalogue. */
+        this.catalogue.close()
     }
 }

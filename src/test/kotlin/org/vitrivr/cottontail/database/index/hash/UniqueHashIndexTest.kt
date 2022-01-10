@@ -8,7 +8,7 @@ import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.AbstractIndexTest
 import org.vitrivr.cottontail.database.index.IndexTx
-import org.vitrivr.cottontail.database.index.basics.IndexType
+import org.vitrivr.cottontail.database.index.IndexType
 import org.vitrivr.cottontail.database.queries.binding.DefaultBindingContext
 import org.vitrivr.cottontail.database.queries.predicates.bool.BooleanPredicate
 import org.vitrivr.cottontail.database.queries.predicates.bool.ComparisonOperator
@@ -41,7 +41,7 @@ class UniqueHashIndexTest : AbstractIndexTest() {
         get() = this.entityName.index("idx_id_unique")
 
     override val indexType: IndexType
-        get() = IndexType.BTREE_UQ
+        get() = IndexType.HASH_UQ
 
     /** List of values stored in this [UniqueHashIndexTest]. */
     private var list = HashMap<StringValue, FloatVectorValue>(100)

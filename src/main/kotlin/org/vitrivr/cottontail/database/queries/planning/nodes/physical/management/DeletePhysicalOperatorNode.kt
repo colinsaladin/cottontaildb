@@ -28,7 +28,7 @@ class DeletePhysicalOperatorNode(input: Physical? = null, val entity: EntityTx) 
         get() = NODE_NAME
 
     /** The [DeletePhysicalOperatorNode] produces the [ColumnPair]s defined in the [DeleteOperator]. */
-    override val columns: List<ColumnPair> = DeleteOperator.COLUMNS
+    override val columns: List<ColumnDef<*>> = DeleteOperator.COLUMNS
 
     /** The [DeletePhysicalOperatorNode] does not require any [ColumnDef]. */
     override val requires: List<ColumnDef<*>> = emptyList()

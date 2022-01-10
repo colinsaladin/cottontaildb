@@ -11,6 +11,7 @@ import org.vitrivr.cottontail.database.queries.planning.nodes.physical.NullaryPh
 import org.vitrivr.cottontail.database.statistics.columns.ValueStatistics
 import org.vitrivr.cottontail.execution.operators.sources.EntitySampleOperator
 import org.vitrivr.cottontail.model.basics.Name
+import org.vitrivr.cottontail.model.basics.Type
 import org.vitrivr.cottontail.model.values.types.Value
 
 /**
@@ -33,10 +34,12 @@ class EntitySamplePhysicalOperatorNode(override val groupId: Int, val entity: En
     override val name: String
         get() = NODE_NAME
 
-    /** The [ColumnPair] produced by this [EntitySamplePhysicalOperatorNode]. */
-    override val columns: List<ColumnPair> = this.fetch.map {
-        it.second.copy(name = it.first) to it.second /* Logical --> physical column. */
-    }
+    /** The physical [ColumnDef] accessed by this [EntitySamplePhysicalOperatorNode]. */
+    override val physicalColumns: List<ColumnDef<*>> = this.fetch.map { it.second }
+
+    /** The [ColumnDef] produced by this [EntityScanPhysicalOperatorNode]. */
+    override val columns: List<ColumnDef<*>> = this.fetch.map { it.second.copy(name = it.first) }
+
     /** The output size of the [EntitySamplePhysicalOperatorNode] is actually limited by the size of the [Entity]s. */
     override val outputSize: Long = (this.entity.count() * this.p).toLong()
 
@@ -47,23 +50,26 @@ class EntitySamplePhysicalOperatorNode(override val groupId: Int, val entity: En
     override val canBePartitioned: Boolean = true
 
     /** [ValueStatistics] are taken from the underlying [Entity]. The query planner uses statistics for [Cost] estimation. */
-    override val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
+    override val statistics by lazy {
+        val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
+        this.fetch.forEach {
+            val column = it.second.copy(name = it.first)
+            if (!statistics.containsKey(column)) {
+                statistics[column] = (this.entity.context.getTx(this.entity.columnForName(it.second.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
+            }
+        }
+        statistics
+    }
 
     /** The estimated [Cost] of sampling the [Entity]. */
     override val cost: Cost
-        get() = Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.columns.sumOf {
-            this.statistics[it.logical()]?.avgWidth ?: it.logical().type.logicalSize
-        }
-
-    init {
-        /* Obtain statistics. */
-        this.columns.forEach {
-            val physical = it.physical()
-            if (physical != null) {
-                this.statistics[it.logical()] = (this.entity.context.getTx(this.entity.columnForName(physical.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
+        get() = Cost(Cost.COST_DISK_ACCESS_READ, Cost.COST_MEMORY_ACCESS) * this.outputSize * this.fetch.sumOf {
+            if (it.second.type == Type.String) {
+                this.statistics[it.second]!!.avgWidth * Char.SIZE_BYTES
+            } else {
+                it.second.type.physicalSize
             }
         }
-    }
 
     /**
      * Creates and returns a copy of this [EntityScanPhysicalOperatorNode] without any children or parents.
@@ -90,7 +96,7 @@ class EntitySamplePhysicalOperatorNode(override val groupId: Int, val entity: En
     override fun toOperator(ctx: QueryContext) = EntitySampleOperator(this.groupId, this.entity, this.fetch, ctx.bindings, this.p, this.seed)
 
     /** Generates and returns a [String] representation of this [EntitySamplePhysicalOperatorNode]. */
-    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.logical().name.toString() }}]"
+    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.name.toString() }}]"
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

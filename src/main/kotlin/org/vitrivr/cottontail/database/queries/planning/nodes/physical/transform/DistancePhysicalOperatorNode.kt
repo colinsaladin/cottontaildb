@@ -30,9 +30,9 @@ class DistancePhysicalOperatorNode(input: Physical? = null, val predicate: KnnPr
     override val name: String
         get() = NODE_NAME
 
-    /** The [DistancePhysicalOperatorNode] returns the [ColumnPair]s of its input + a distance column. */
-    override val columns: List<ColumnPair>
-        get() = super.columns + (Distances.DISTANCE_COLUMN_DEF to null)
+    /** The [DistancePhysicalOperatorNode] returns the [ColumnDef]s of its input + a distance column. */
+    override val columns: List<ColumnDef<*>>
+        get() = super.columns + Distances.DISTANCE_COLUMN_DEF
 
     /** The [DistancePhysicalOperatorNode] requires all [ColumnDef]s used in the [KnnPredicate]. */
     override val requires: List<ColumnDef<*>> = this.predicate.columns.toList()

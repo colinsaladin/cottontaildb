@@ -25,8 +25,8 @@ class UpdateLogicalOperatorNode(input: Logical? = null, val entity: EntityTx, va
     override val name: String
         get() = NODE_NAME
 
-    /** The [UpdateLogicalOperatorNode] does produce the [ColumnPair] defined in the [UpdateOperator]. */
-    override val columns: List<ColumnPair> = UpdateOperator.COLUMNS
+    /** The [UpdateLogicalOperatorNode] does produce the [ColumnDef] defined in the [UpdateOperator]. */
+    override val columns: List<ColumnDef<*>> = UpdateOperator.COLUMNS
 
     /** The [UpdateLogicalOperatorNode] requires the [ColumnDef] that are being updated. */
     override val requires: List<ColumnDef<*>> = this.values.map { it.first }

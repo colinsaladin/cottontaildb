@@ -22,7 +22,7 @@ abstract class NAryLogicalOperatorNode(vararg inputs: Logical) : OperatorNode.Lo
     val inputs: List<Logical>
         get() = Collections.unmodifiableList(this._inputs)
 
-    /** A [BinaryLogicalOperatorNode]'s index is always the [depth] of its [left] input + 1. */
+    /** A [NAryLogicalOperatorNode]'s index is always the [depth] of its first input + 1. */
     final override var depth: Int = 0
         private set
 
@@ -38,8 +38,12 @@ abstract class NAryLogicalOperatorNode(vararg inputs: Logical) : OperatorNode.Lo
     final override val base: Collection<Logical>
         get() = this._inputs.flatMap { it.base }
 
+    /** By default, the [NAryLogicalOperatorNode] outputs the physical [ColumnDef] of its input. */
+    override val physicalColumns: List<ColumnDef<*>>
+        get() = (this.inputs.firstOrNull()?.physicalColumns ?: emptyList())
+
     /** By default, the [NAryLogicalOperatorNode] outputs the [ColumnDef] of its input. */
-    override val columns: List<Pair<ColumnDef<*>,ColumnDef<*>?>>
+    override val columns: List<ColumnDef<*>>
         get() = (this.inputs.firstOrNull()?.columns ?: emptyList())
 
     /** By default, a [NAryLogicalOperatorNode]'s output is unordered. */

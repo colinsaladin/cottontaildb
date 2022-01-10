@@ -4,7 +4,6 @@ import org.vitrivr.cottontail.database.queries.logical
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.UnaryLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.transform.DistanceLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.projection.Projection
-import org.vitrivr.cottontail.model.basics.Name
 
 /**
  * An abstract [UnaryLogicalOperatorNode] that represents a projection operation involving.
@@ -18,5 +17,5 @@ abstract class AbstractProjectionLogicalOperatorOperator(input: Logical? = null,
         get() = this.type.label()
 
     /** Generates and returns a [String] representation of this [SelectProjectionLogicalOperatorNode]. */
-    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.logical().name.toString() }}]"
+    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.name.toString() }}]"
 }

@@ -1,7 +1,6 @@
 package org.vitrivr.cottontail.database.queries.planning.nodes.logical.transform
 
 import org.vitrivr.cottontail.database.column.ColumnDef
-import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.logical.UnaryLogicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.transform.DistancePhysicalOperatorNode
@@ -29,8 +28,8 @@ class DistanceLogicalOperatorNode(input: OperatorNode.Logical? = null, val predi
         get() = NODE_NAME
 
     /** The [DistanceLogicalOperatorNode] returns the [ColumnDef] of its input + a distance column. */
-    override val columns: List<ColumnPair>
-        get() = (this.input?.columns ?: emptyList()) + (Distances.DISTANCE_COLUMN_DEF to null)
+    override val columns: List<ColumnDef<*>>
+        get() = (this.input?.columns ?: emptyList()) + (Distances.DISTANCE_COLUMN_DEF)
 
     /** The [DistanceLogicalOperatorNode] requires all [ColumnDef]s used in the [KnnPredicate]. */
     override val requires: List<ColumnDef<*>> = listOf(this.predicate.column)

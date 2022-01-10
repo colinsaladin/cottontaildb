@@ -2,14 +2,12 @@ package org.vitrivr.cottontail.database.locking
 
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet
 import org.vitrivr.cottontail.model.basics.TransactionId
-import org.vitrivr.cottontail.utilities.extensions.toLong
 import java.util.*
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.locks.Condition
 import java.util.concurrent.locks.ReentrantLock
 import java.util.concurrent.locks.ReentrantReadWriteLock
-
 import kotlin.concurrent.write
 
 /**

@@ -38,10 +38,16 @@ class IndexScanPhysicalOperatorNode(override val groupId: Int, val index: IndexT
     override val name: String
         get() = NODE_NAME
 
-    /** The [ColumnDef]s produced by this [IndexScanPhysicalOperatorNode] depends on the [ColumnDef]s produced by the [Index]. */
-    override val columns: List<ColumnPair> = this.fetch.map {
+    /** The [ColumnDef]s accessed by this [IndexScanPhysicalOperatorNode] depends on the [ColumnDef]s produced by the [Index]. */
+    override val physicalColumns: List<ColumnDef<*>> = this.fetch.map {
         require(this.index.dbo.produces.contains(it.second)) { "The given column $it is not produced by the selected index ${this.index.dbo}. This is a programmer's error!"}
-        it.second.copy(name = it.first) to it.second /* Logical --> physical column. */
+        it.second
+    }
+
+    /** The [ColumnDef]s produced by this [IndexScanPhysicalOperatorNode] depends on the [ColumnDef]s produced by the [Index]. */
+    override val columns: List<ColumnDef<*>> = this.fetch.map {
+        require(this.index.dbo.produces.contains(it.second)) { "The given column $it is not produced by the selected index ${this.index.dbo}. This is a programmer's error!"}
+        it.second.copy(name = it.first)
     }
 
     /** [IndexScanPhysicalOperatorNode] are always executable. */
@@ -54,10 +60,10 @@ class IndexScanPhysicalOperatorNode(override val groupId: Int, val index: IndexT
     override val statistics by lazy {
         val statistics = Object2ObjectLinkedOpenHashMap<ColumnDef<*>,ValueStatistics<*>>()
         val entityTx = this.index.context.getTx(this.index.dbo.parent) as EntityTx
-        this.columns.forEach {
-            val physical = it.physical()
-            if (physical != null && entityTx.listColumns().contains(physical)) {
-                statistics[it.logical()] = (this.index.context.getTx(entityTx.columnForName(physical.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
+        this.fetch.forEach {
+            val column = it.second.copy(name = it.first)
+            if (!statistics.containsKey(column)) {
+                statistics[column] = (this.index.context.getTx(entityTx.columnForName(it.second.name)) as ColumnTx<*>).statistics() as ValueStatistics<Value>
             }
         }
         statistics

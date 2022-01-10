@@ -34,11 +34,11 @@ class FetchPhysicalOperatorNode(input: Physical? = null, val entity: EntityTx, v
     override val name: String
         get() = NODE_NAME
 
-    /** The [FetchPhysicalOperatorNode] returns the [ColumnPair] of its input + the columns to be fetched. */
-    override val columns: List<ColumnPair>
-       get() = (this.input?.columns ?: emptyList()) + this.fetch.map {
-           it.second.copy(name = it.first) to it.second /* Renamed-column --> physical column. */
-       }
+    /** The [FetchPhysicalOperatorNode] accesses the [ColumnDef] of its input + the columns to be fetched. */
+    override val physicalColumns: List<ColumnDef<*>> = super.physicalColumns + this.fetch.map { it.second }
+
+    /** The [FetchPhysicalOperatorNode] returns the [ColumnDef] of its input + the columns to be fetched. */
+    override val columns: List<ColumnDef<*>> = super.columns + this.fetch.map { it.second.copy(name = it.first) }
 
     /** The map of [ValueStatistics] employed by this [FetchPhysicalOperatorNode]. */
     override val statistics: Map<ColumnDef<*>, ValueStatistics<*>>

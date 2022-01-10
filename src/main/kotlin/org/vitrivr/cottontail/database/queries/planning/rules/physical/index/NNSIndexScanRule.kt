@@ -4,7 +4,6 @@ import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.Binding
-import org.vitrivr.cottontail.database.queries.logical
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.projection.FunctionProjectionPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.sort.SortPhysicalOperatorNode
 import org.vitrivr.cottontail.database.queries.planning.nodes.physical.sources.EntityScanPhysicalOperatorNode
@@ -38,7 +37,7 @@ object NNSIndexScanRule : RewriteRule {
                 val physicalQueryColumn = scan.fetch.singleOrNull { it.first == queryColumn.name }?.second ?: return null
                 val sort = node.output
                 if (sort is SortPhysicalOperatorNode) {
-                    if (sort.sortOn.first().first != node.columns.last().logical()) return null /* Sort on distance column is required. */
+                    if (sort.sortOn.first().first != node.columns.last()) return null /* Sort on distance column is required. */
                     val limit = sort.output
                     if (limit is LimitPhysicalOperatorNode) {
                         /* Column produced by the kNN. */

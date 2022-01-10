@@ -16,7 +16,7 @@ apply plugin: 'com.github.johnrengelman.shadow'
 
 /* Group and SNAPSHOT version. Update version for each major and minor release. */
 group 'org.vitrivr'
-version '0.13.0-SNAPSHOT'
+version '0.13.3'
 
 /* General application attributes. */
 mainClassName = 'org.vitrivr.cottontail.CottontailKt'
@@ -132,7 +132,7 @@ dependencies {
     implementation group: 'org.xerial.snappy', name: 'snappy-java', version: version_snappy
 
     ///// Google Guava
-    implementation group: 'com.google.guava', name: 'guava', version: '30.1-jre'
+    implementation group: 'com.google.guava', name: 'guava', version: version_guava
 
     ////// Log4j2 & SLF4j
     implementation group: 'org.apache.logging.log4j', name: 'log4j-api', version: version_log4j2

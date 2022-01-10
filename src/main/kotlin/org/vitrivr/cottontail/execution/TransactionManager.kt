@@ -29,6 +29,7 @@ import org.vitrivr.cottontail.model.basics.Record
 import org.vitrivr.cottontail.model.basics.TransactionId
 import java.util.*
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.collections.HashSet
 import kotlin.coroutines.CoroutineContext
 
 /**
@@ -79,7 +80,6 @@ class TransactionManager(private val catalogue: DefaultCatalogue, transactionTab
         override var state: TransactionStatus = TransactionStatus.IDLE
             private set
 
-
         /** The Xodus [Transaction] associated with this [TransactionContext]. */
         override val xodusTx: jetbrains.exodus.env.Transaction = this@TransactionManager.catalogue.environment.beginTransaction()
 
@@ -88,7 +88,6 @@ class TransactionManager(private val catalogue: DefaultCatalogue, transactionTab
 
         /** A [Mutex] data structure used for synchronisation on the [TransactionImpl]. */
         private val mutex = Mutex()
-
 
         /** Number of [Tx] held by this [TransactionImpl]. */
         val numberOfTxs: Int
@@ -167,8 +166,7 @@ class TransactionManager(private val catalogue: DefaultCatalogue, transactionTab
          * @param operator The [Operator.SinkOperator] that should be executed.
          */
         override fun execute(operator: Operator): Flow<Record> = operator.toFlow(this).onStart {
-            /* Update transaction state; synchronise with ongoing COMMITS or ROLLBACKS. */
-            this@TransactionImpl.mutex.withLock {
+            this@TransactionImpl.mutex.withLock {  /* Update transaction state; synchronise with ongoing COMMITS or ROLLBACKS. */
                 check(this@TransactionImpl.state.canExecute) {
                     "Cannot start execution of transaction ${this@TransactionImpl.txId} because it is in the wrong state (s = ${this@TransactionImpl.state})."
                 }
@@ -176,8 +174,7 @@ class TransactionManager(private val catalogue: DefaultCatalogue, transactionTab
                 this@TransactionImpl.activeContexts.add(currentCoroutineContext())
             }
         }.onCompletion {
-            /* Update transaction state; synchronise with ongoing COMMITS or ROLLBACKS. */
-            this@TransactionImpl.mutex.withLock {
+            this@TransactionImpl.mutex.withLock { /* Update transaction state; synchronise with ongoing COMMITS or ROLLBACKS. */
                 this@TransactionImpl.activeContexts.remove(currentCoroutineContext())
                 if (it == null) {
                     this@TransactionImpl.numberOfSuccess += 1
@@ -243,6 +240,23 @@ class TransactionManager(private val catalogue: DefaultCatalogue, transactionTab
         }
 
         /**
+         * Kills this [TransactionImpl] interrupting all running queries and rolling it back.
+         */
+        override fun kill() = runBlocking {
+            this@TransactionImpl.mutex.withLock {
+                if (this@TransactionImpl.state === TransactionStatus.RUNNING) {
+                    this@TransactionImpl.activeContexts.forEach {
+                        it.cancel(CancellationException("Transaction ${this@TransactionImpl.txId} was killed by user."))
+                    }
+                } else if (this@TransactionImpl.state.canRollback) {
+                    this@TransactionImpl.performRollback()
+                } else {
+                    throw IllegalStateException( "Unable to kill transaction ${this@TransactionImpl.txId} because it is in wrong state (s = ${this@TransactionImpl.state}).")
+                }
+            }
+        }
+
+        /**
          * Actually performs transaction rollback.
          */
         private fun performRollback() {
@@ -258,23 +272,6 @@ class TransactionManager(private val catalogue: DefaultCatalogue, transactionTab
                 this.xodusTx.abort()
             } finally {
                 this@TransactionImpl.finalize(false)
-            }
-        }
-
-        /**
-         * Kills this [TransactionImpl] interrupting all running queries and rolling it back.
-         */
-        override fun kill() = runBlocking {
-            this@TransactionImpl.mutex.withLock {
-                if (this@TransactionImpl.state === TransactionStatus.RUNNING) {
-                    this@TransactionImpl.activeContexts.forEach {
-                        it.cancel(CancellationException("Transaction ${this@TransactionImpl.txId} was killed by user."))
-                    }
-                } else if (this@TransactionImpl.state.canRollback) {
-                    this@TransactionImpl.performRollback()
-                } else {
-                    throw IllegalStateException( "Unable to kill transaction ${this@TransactionImpl.txId} because it is in wrong state (s = ${this@TransactionImpl.state}).")
-                }
             }
         }
 

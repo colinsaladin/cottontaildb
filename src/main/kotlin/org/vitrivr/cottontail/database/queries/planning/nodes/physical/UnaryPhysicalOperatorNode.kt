@@ -14,7 +14,7 @@ import java.io.PrintStream
  * An abstract [OperatorNode.Physical] implementation that has a single [OperatorNode] as input.
  *
  * @author Ralph Gasser
- * @version 2.4.0
+ * @version 2.5.0
  */
 abstract class UnaryPhysicalOperatorNode(input: Physical? = null) : OperatorNode.Physical() {
 
@@ -58,8 +58,12 @@ abstract class UnaryPhysicalOperatorNode(input: Physical? = null) : OperatorNode
     override val canBePartitioned: Boolean
         get() = this.input?.canBePartitioned ?: false
 
+    /** By default, the [UnaryPhysicalOperatorNode] outputs the physical [ColumnDef] of its input. */
+    override val physicalColumns: List<ColumnDef<*>>
+        get() = (this.input?.physicalColumns ?: emptyList())
+
     /** By default, the [UnaryPhysicalOperatorNode] outputs the [ColumnDef] of its input. */
-    override val columns: List<Pair<ColumnDef<*>,ColumnDef<*>?>>
+    override val columns: List<ColumnDef<*>>
         get() = (this.input?.columns ?: emptyList())
 
     /** By default, the output size of a [UnaryPhysicalOperatorNode] is the same as its input's output size. */
@@ -70,8 +74,8 @@ abstract class UnaryPhysicalOperatorNode(input: Physical? = null) : OperatorNode
     override val sortOn: List<Pair<ColumnDef<*>, SortOrder>>
         get() = this.input?.sortOn ?: emptyList()
 
-    /** By default, a [UnaryPhysicalOperatorNode]'s are retained from its input.*/
-    override val statistics: Map<ColumnDef<*>,ValueStatistics<*>>
+    /** By default, a [UnaryPhysicalOperatorNode]'s statistics map is inherited from its input.*/
+    override val statistics: Map<ColumnDef<*>, ValueStatistics<*>>
         get() = this.input?.statistics ?: emptyMap()
 
     init {
@@ -139,4 +143,3 @@ abstract class UnaryPhysicalOperatorNode(input: Physical? = null) : OperatorNode
         super.printTo(p)
     }
 }
-

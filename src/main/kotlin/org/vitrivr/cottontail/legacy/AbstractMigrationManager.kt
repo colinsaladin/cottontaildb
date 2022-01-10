@@ -40,7 +40,7 @@ import kotlin.time.measureTime
  * @version 2.0.0
  */
 @ExperimentalTime
-abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : MigrationManager {
+abstract class AbstractMigrationManager(private val batchSize: Int, logFile: Path) : MigrationManager {
 
     /** The internal [TransactionId] counter. */
     private val transactionIdCounter = AtomicLong(0L)
@@ -140,7 +140,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
         /* Migrate schemas. */
         val schemas = srcCatalogueTx.listSchemas()
         for ((s, srcSchemaName) in schemas.withIndex()) {
-            this.log("+ Migrating schema ${srcSchemaName} (${s + 1} / ${schemas.size}):\n")
+            this.log("+ Migrating schema $srcSchemaName (${s + 1} / ${schemas.size}):\n")
 
             val schema = dstCatalogueTx.createSchema(srcSchemaName)
             val dstSchemaTx = destinationContext.getTx(schema) as SchemaTx
@@ -274,7 +274,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
             private set
 
         /** Map of all [Tx] that have been created as part of this [MigrationManager]. Used for final COMMIT or ROLLBACK. */
-        protected val txns: MutableMap<DBO, Tx> = Object2ObjectMaps.synchronize(Object2ObjectLinkedOpenHashMap())
+        private val txns: MutableMap<DBO, Tx> = Object2ObjectMaps.synchronize(Object2ObjectLinkedOpenHashMap())
 
         /**
          * Returns the [Tx] for the provided [DBO]. Creating [Tx] through this method makes sure,
@@ -350,7 +350,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
 
 
         /** Map of all [Tx] that have been created as part of this [MigrationManager]. Used for final COMMIT or ROLLBACK. */
-        protected val txns: MutableMap<DBO, Tx> = Object2ObjectMaps.synchronize(Object2ObjectLinkedOpenHashMap())
+        private val txns: MutableMap<DBO, Tx> = Object2ObjectMaps.synchronize(Object2ObjectLinkedOpenHashMap())
 
         /**
          * Returns the [Tx] for the provided [DBO]. Creating [Tx] through this method makes sure,
@@ -375,7 +375,6 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
             throw UnsupportedOperationException("Operation execute() not supported for MigrationContext.")
         }
 
-
         /**
          * Commits this [MigrationContext] thus finalizing and persisting all operations executed so far.
          */
@@ -383,7 +382,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
             check(this.state === TransactionStatus.IDLE) { "Cannot commit transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
             this.state = TransactionStatus.FINALIZING
             try {
-                this.txns.values.reversed().forEachIndexed { i, txn ->
+                for (txn in this.txns.values.reversed()) {
                     try {
                         txn.beforeCommit()
                     } catch (e: Throwable) {
@@ -405,7 +404,7 @@ abstract class AbstractMigrationManager(val batchSize: Int, logFile: Path) : Mig
             check(this.state === TransactionStatus.IDLE || this.state === TransactionStatus.ERROR) { "Cannot rollback transaction ${this.txId} because it is in wrong state (s = ${this.state})." }
             this.state = TransactionStatus.FINALIZING
             try {
-                this.txns.values.reversed().forEachIndexed { i, txn ->
+                for (txn in this.txns.values.reversed()) {
                     try {
                         txn.beforeRollback()
                     } catch (e: Throwable) {

@@ -29,5 +29,12 @@ class LimitOperator(parent: Operator, val skip: Long, val limit: Long) : Operato
      * @param context The [TransactionContext] used for execution
      * @return [Flow] representing this [LimitOperator]
      */
-    override fun toFlow(context: TransactionContext): Flow<Record> = this.parent.toFlow(context).drop(this.skip).take(this.limit)
+    override fun toFlow(context: TransactionContext): Flow<Record> {
+        var ret = this.parent.toFlow(context)
+        if (this.skip > 0)
+            ret = ret.drop(this.skip)
+        if (this.limit > 0)
+            ret = ret.take(this.limit)
+        return ret
+    }
 }

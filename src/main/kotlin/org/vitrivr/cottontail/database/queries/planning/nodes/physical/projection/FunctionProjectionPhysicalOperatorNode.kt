@@ -33,8 +33,8 @@ class FunctionProjectionPhysicalOperatorNode(input: Physical? = null, val functi
     )
 
     /** The column produced by this [FunctionProjectionPhysicalOperatorNode] is determined by the [Function]'s signature. */
-    override val columns: List<ColumnPair>
-        get() = (this.input?.columns ?: emptyList()) + (this.produces to null)
+    override val columns: List<ColumnDef<*>>
+        get() = (this.input?.columns ?: emptyList()) + this.produces
 
     /** The [FunctionProjectionPhysicalOperatorNode] requires all [ColumnDef] used in the [Function]. */
     override val requires: List<ColumnDef<*>>

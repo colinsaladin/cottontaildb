@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.flow
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.entity.Entity
 import org.vitrivr.cottontail.database.entity.EntityTx
-import org.vitrivr.cottontail.database.queries.ColumnPair
 import org.vitrivr.cottontail.execution.TransactionContext
 import org.vitrivr.cottontail.execution.operators.basics.Operator
 import org.vitrivr.cottontail.model.basics.Name
@@ -30,14 +29,14 @@ class UpdateOperator(parent: Operator, val entity: EntityTx, val values: List<Pa
 
     companion object {
         /** The columns produced by the [UpdateOperator]. */
-        val COLUMNS: List<ColumnPair> = listOf(
-            ColumnDef(Name.ColumnName("updated"), Type.Long, false) to null,
-            ColumnDef(Name.ColumnName("duration_ms"), Type.Double, false) to null
+        val COLUMNS: List<ColumnDef<*>> = listOf(
+            ColumnDef(Name.ColumnName("updated"), Type.Long, false),
+            ColumnDef(Name.ColumnName("duration_ms"), Type.Double, false)
         )
     }
 
     /** Columns produced by [UpdateOperator]. */
-    override val columns: List<ColumnDef<*>> = COLUMNS.map { it.first }
+    override val columns: List<ColumnDef<*>> = COLUMNS
 
     /** [UpdateOperator] does not act as a pipeline breaker. */
     override val breaker: Boolean = false
@@ -52,18 +51,16 @@ class UpdateOperator(parent: Operator, val entity: EntityTx, val values: List<Pa
     override fun toFlow(context: TransactionContext): Flow<Record> {
         var updated = 0L
         val parent = this.parent.toFlow(context)
-        val columns = this.columns.toTypedArray()
+        val c = this.values.map { it.first }.toTypedArray()
+        val v = this.values.map { it.second }.toTypedArray()
         return flow {
             val time = measureTime {
                 parent.collect { record ->
-                    for (value in this@UpdateOperator.values) {
-                        record[value.first] = value.second
-                    }
-                    this@UpdateOperator.entity.update(record) /* Safe, cause tuple IDs are retained for simple queries. */
+                    this@UpdateOperator.entity.update(StandaloneRecord(record.tupleId, c, v)) /* Safe, cause tuple IDs are retained for simple queries. */
                     updated += 1
                 }
             }
-            emit(StandaloneRecord(0L, columns, arrayOf(LongValue(updated), DoubleValue(time.inWholeMilliseconds))))
+            emit(StandaloneRecord(0L, this@UpdateOperator.columns.toTypedArray(), arrayOf(LongValue(updated), DoubleValue(time.inWholeMilliseconds))))
         }
     }
 }

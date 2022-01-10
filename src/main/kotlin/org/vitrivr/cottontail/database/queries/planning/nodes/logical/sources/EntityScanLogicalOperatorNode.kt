@@ -25,10 +25,11 @@ class EntityScanLogicalOperatorNode(override val groupId: Int, val entity: Entit
     override val name: String
         get() = NODE_NAME
 
+    /** The physical [ColumnDef] accessed by this [EntityScanPhysicalOperatorNode]. */
+    override val physicalColumns: List<ColumnDef<*>> = this.fetch.map { it.second }
+
     /** The [ColumnDef] produced by this [EntityScanPhysicalOperatorNode]. */
-    override val columns: List<ColumnPair> = this.fetch.map {
-        it.second.copy(name = it.first) to it.second /* Physical to logical column. */
-    }
+    override val columns: List<ColumnDef<*>> = this.fetch.map { it.second.copy(name = it.first) }
 
     /**
      * Creates and returns a copy of this [EntityScanLogicalOperatorNode] without any children or parents.
@@ -61,5 +62,5 @@ class EntityScanLogicalOperatorNode(override val groupId: Int, val entity: Entit
     }
 
     /** Generates and returns a [String] representation of this [EntitySampleLogicalOperatorNode]. */
-    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.logical().name.toString() }}]"
+    override fun toString() = "${super.toString()}[${this.columns.joinToString(",") { it.name.toString() }}]"
 }
