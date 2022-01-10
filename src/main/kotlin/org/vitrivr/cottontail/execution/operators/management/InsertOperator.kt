@@ -49,7 +49,7 @@ class InsertOperator(groupId: GroupId, val entity: EntityTx, val records: List<R
      * @param context The [TransactionContext] used for execution
      * @return [Flow] representing this [InsertOperator]
      */
-    @ExperimentalTime
+    @OptIn(ExperimentalTime::class)
     override fun toFlow(context: TransactionContext): Flow<Record> {
         val columns = this.columns.toTypedArray()
         return flow {

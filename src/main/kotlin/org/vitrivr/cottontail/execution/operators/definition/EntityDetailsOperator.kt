@@ -45,7 +45,7 @@ class EntityDetailsOperator(val catalogue: DefaultCatalogue, val name: Name.Enti
 
     override val columns: List<ColumnDef<*>> = COLUMNS
 
-    @ExperimentalTime
+    @OptIn(ExperimentalTime::class)
     override fun toFlow(context: TransactionContext): Flow<Record> {
         val catTxn = context.getTx(this.catalogue) as CatalogueTx
         val schemaTxn = context.getTx(catTxn.schemaForName(this.name.schema())) as SchemaTx

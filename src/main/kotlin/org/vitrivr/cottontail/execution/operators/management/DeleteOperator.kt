@@ -46,7 +46,7 @@ class DeleteOperator(parent: Operator, val entity: EntityTx) : Operator.Pipeline
      * @param context The [TransactionContext] used for execution
      * @return [Flow] representing this [FilterOperator]
      */
-    @ExperimentalTime
+    @OptIn(ExperimentalTime::class)
     override fun toFlow(context: TransactionContext): Flow<Record> {
         var deleted = 0L
         val parent = this.parent.toFlow(context)

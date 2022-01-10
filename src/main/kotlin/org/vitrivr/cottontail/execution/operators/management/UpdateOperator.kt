@@ -47,7 +47,7 @@ class UpdateOperator(parent: Operator, val entity: EntityTx, val values: List<Pa
      * @param context The [TransactionContext] used for execution
      * @return [Flow] representing this [UpdateOperator]
      */
-    @ExperimentalTime
+    @OptIn(ExperimentalTime::class)
     override fun toFlow(context: TransactionContext): Flow<Record> {
         var updated = 0L
         val parent = this.parent.toFlow(context)
