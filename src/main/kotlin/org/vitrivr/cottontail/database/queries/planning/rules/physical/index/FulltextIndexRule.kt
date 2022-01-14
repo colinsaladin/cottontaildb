@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.queries.planning.rules.physical.index
 
 import org.vitrivr.cottontail.database.index.IndexTx
+import org.vitrivr.cottontail.database.index.basics.IndexState
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.Binding
@@ -21,7 +22,7 @@ import org.vitrivr.cottontail.functions.math.score.FulltextScore
  * - Function: Executed function must be the [FulltextScore] function.
  *
  * @author Ralph Gasser
- * @version 1.0.0
+ * @version 1.0.1
  */
 object FulltextIndexRule : RewriteRule {
 
@@ -51,7 +52,7 @@ object FulltextIndexRule : RewriteRule {
                 val candidate = scan.entity.listIndexes().map {
                     scan.entity.indexForName(it)
                 }.find {
-                    it.canProcess(predicate)
+                    it.state != IndexState.DIRTY && it.canProcess(predicate)
                 }
                 if (candidate != null) {
                     val indexScan = IndexScanPhysicalOperatorNode(scan.groupId, ctx.txn.getTx(candidate) as IndexTx, predicate, listOf(Pair(node.produces.name, candidate.produces[0])))

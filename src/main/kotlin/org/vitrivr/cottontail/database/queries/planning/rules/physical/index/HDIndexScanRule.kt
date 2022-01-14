@@ -1,6 +1,7 @@
 package org.vitrivr.cottontail.database.queries.planning.rules.physical.index
 
 import org.vitrivr.cottontail.database.index.IndexTx
+import org.vitrivr.cottontail.database.index.basics.IndexState
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.Binding
@@ -16,18 +17,17 @@ import org.vitrivr.cottontail.functions.math.distance.Distances
 import org.vitrivr.cottontail.functions.math.distance.basics.VectorDistance
 
 /**
- * A [RewriteRule] that replaces a very specific operator constellation that indicates a Nearest Neighbor Search (NNS)
+ * A [RewriteRule] that replaces a specific operator constellation, that indicates the execution of a Proximity Based Query,
  * by an index scan. The constellation can be described as follows:
  *
- * - Operators: Scan -> Function -> Sort by Distance -> Limit => NNS.
+ * - Operators: Scan -> Function -> Sort by Distance -> Limit => Proximity Based Query.
  * - The function needs to be a VectorDistance operating on a column (vector) and a literal (query)
  *
  * @author Ralph Gasser
- * @version 1.3.0
+ * @version 1.4.0
  */
-object NNSIndexScanRule : RewriteRule {
+object HDIndexScanRule : RewriteRule {
     override fun canBeApplied(node: OperatorNode): Boolean = node is FunctionProjectionPhysicalOperatorNode
-
     override fun apply(node: OperatorNode, ctx: QueryContext): OperatorNode? {
         if (node is FunctionProjectionPhysicalOperatorNode && node.function is VectorDistance.Binary<*>) {
             val queryColumn = node.arguments.filterIsInstance<Binding.Column>().singleOrNull()?.column ?: return null
@@ -42,7 +42,11 @@ object NNSIndexScanRule : RewriteRule {
                     if (limit is LimitPhysicalOperatorNode) {
                         /* Column produced by the kNN. */
                         val predicate = KnnPredicate(physicalQueryColumn, limit.limit.toInt(), node.function, vectorLiteral)
-                        val candidate = scan.entity.listIndexes().map { scan.entity.indexForName(it) }.find { it.canProcess(predicate) }
+                        val candidate = scan.entity.listIndexes().map {
+                            scan.entity.indexForName(it)
+                        }.find {
+                            it.state != IndexState.DIRTY && it.canProcess(predicate)
+                        }
                         if (candidate != null) {
                             when {
                                 /* Case 1: Index produces distance, hence no distance calculation required! */

@@ -2,6 +2,7 @@ package org.vitrivr.cottontail.database.queries.planning.rules.physical.index
 
 import org.vitrivr.cottontail.database.column.ColumnDef
 import org.vitrivr.cottontail.database.index.IndexTx
+import org.vitrivr.cottontail.database.index.basics.IndexState
 import org.vitrivr.cottontail.database.queries.OperatorNode
 import org.vitrivr.cottontail.database.queries.QueryContext
 import org.vitrivr.cottontail.database.queries.binding.Binding
@@ -21,7 +22,7 @@ import org.vitrivr.cottontail.model.basics.Name
  * [EntityScanLogicalOperatorNode] through a single [IndexScanPhysicalOperatorNode].
  *
  * @author Ralph Gasser
- * @version 1.2.1
+ * @version 1.2.2
  */
 object BooleanIndexScanRule : RewriteRule {
     override fun canBeApplied(node: OperatorNode): Boolean =
@@ -37,7 +38,7 @@ object BooleanIndexScanRule : RewriteRule {
                 val candidate = indexes.map {
                     parent.entity.indexForName(it)
                 }.find {
-                    it.canProcess(normalizedPredicate)
+                    it.state != IndexState.DIRTY && it.canProcess(normalizedPredicate)
                 }
                 if (candidate != null) {
                     val newFetch = parent.fetch.filter { candidate.produces.contains(it.second) }
