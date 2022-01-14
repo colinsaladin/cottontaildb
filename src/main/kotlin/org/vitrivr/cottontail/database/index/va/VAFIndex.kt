@@ -13,6 +13,8 @@ import org.vitrivr.cottontail.database.entity.EntityTx
 import org.vitrivr.cottontail.database.index.Index
 import org.vitrivr.cottontail.database.index.IndexTx
 import org.vitrivr.cottontail.database.index.basics.*
+import org.vitrivr.cottontail.database.index.basics.AbstractHDIndex
+import org.vitrivr.cottontail.database.index.basics.avc.AuxiliaryValueCollection
 import org.vitrivr.cottontail.database.index.va.bounds.Bounds
 import org.vitrivr.cottontail.database.index.va.bounds.L1Bounds
 import org.vitrivr.cottontail.database.index.va.bounds.L2Bounds
@@ -46,7 +48,6 @@ import org.vitrivr.cottontail.model.values.types.VectorValue
 import org.vitrivr.cottontail.utilities.selection.MinHeapSelection
 import java.lang.Math.floorDiv
 import kotlin.concurrent.withLock
-import kotlin.math.max
 import kotlin.math.min
 
 /**
@@ -126,14 +127,6 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
         /** Internal [VAFMarks] reference. */
         private var marks: VAFMarks
 
-        init {
-            val rawMarksEntry = this.dataStore.get(this.context.xodusTx, MARKS_ENTRY_KEY)
-            if (rawMarksEntry == null) {
-                this.marks = VAFMarks.getEquidistantMarks(DoubleArray(this.dimension), DoubleArray(this.dimension), IntArray(this.dimension) { this.config.marksPerDimension })
-            } else {
-                this.marks = VAFMarks.entryToObject(rawMarksEntry) as VAFMarks
-            }
-        }
 
         /** The configuration map used for the [Index] that underpins this [IndexTx]. */
         override val config: VAFIndexConfig
@@ -142,21 +135,29 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
                 return VAFIndexConfig.fromParamMap(entry.config)
             }
 
-        /**
-         * (Re-)builds the [VAFIndex] from scratch.
-         */
-        override fun rebuild() = this.txLatch.withLock {
-            LOGGER.debug("Rebuilding VAF index {}", this@VAFIndex.name)
+        /** The [AuxiliaryValueCollection] used by this [VAFIndex.Tx]. */
+        protected override val auxiliary: AuxiliaryValueCollection
+            get() = TODO("Not yet implemented")
+
+        /** The component-wise minimum vector covered by the [VAFIndex] underpinning this [VAFIndex.Tx]. */
+        private val min = DoubleArray(columns[0].type.logicalSize)
+
+        /** The component-wise maximum vector covered by the [VAFIndex] underpinning this [VAFIndex.Tx]. */
+        private val max = DoubleArray(columns[0].type.logicalSize)
+
+        init {
+            /* Load marks entry object. */
+            val rawMarksEntry = this.dataStore.get(this.context.xodusTx, MARKS_ENTRY_KEY)
+            if (rawMarksEntry == null) {
+                this.marks = VAFMarks.getEquidistantMarks(DoubleArray(this@VAFIndex.dimension), DoubleArray(this@VAFIndex.dimension), IntArray(this@VAFIndex.dimension) { this.config.marksPerDimension })
+            } else {
+                this.marks = VAFMarks.entryToObject(rawMarksEntry) as VAFMarks
+            }
 
             /* Prepare transaction for entity. */
             val entityTx = this.context.getTx(this@VAFIndex.parent) as EntityTx
             val columnTx = this.context.getTx(entityTx.columnForName(this.columns[0].name)) as ColumnTx<*>
-
-            /* Obtain minimum and maximum per dimension. */
-            val stat = columnTx.statistics()
-            val min = DoubleArray(columns[0].type.logicalSize)
-            val max = DoubleArray(columns[0].type.logicalSize)
-            when (stat) {
+            when (val stat = columnTx.statistics()) {
                 is FloatVectorValueStatistics -> repeat(min.size) {
                     min[it] = stat.min.data[it].toDouble()
                     max[it] = stat.max.data[it].toDouble()
@@ -173,24 +174,23 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
                     min[it] = stat.min.data[it].toDouble()
                     max[it] = stat.max.data[it].toDouble()
                 }
-                else -> {
-                    /* Brute force :-( This may take a while. */
-                    entityTx.cursor(this.columns).forEach { r ->
-                        val value = r[this.columns[0]] as VectorValue<*>
-                        for (i in 0 until value.logicalSize) {
-                            min[i] = min(min[i], value[i].asDouble().value)
-                            max[i] = max(max[i], value[i].asDouble().value)
-                        }
-                    }
-                }
+                else -> throw DatabaseException.DataCorruptionException("Unsupported statistics type.")
             }
+        }
+
+        /**
+         * (Re-)builds the [VAFIndex] from scratch.
+         */
+        override fun rebuild() = this.txLatch.withLock {
+            LOGGER.debug("Rebuilding VAF index {}", this@VAFIndex.name)
 
             /* Calculate and update marks. */
-            this.marks = VAFMarks.getEquidistantMarks(min, max, IntArray(this.columns[0].type.logicalSize) { this.config.marksPerDimension })
+            this.marks = VAFMarks.getEquidistantMarks(this.min, this.max, IntArray(this.columns[0].type.logicalSize) { this.config.marksPerDimension })
             this.dataStore.put(this.context.xodusTx, MARKS_ENTRY_KEY, VAFMarks.objectToEntry(this.marks))
 
             /* Calculate and update signatures. */
             this.clear()
+            val entityTx = this.context.getTx(this@VAFIndex.parent) as EntityTx
             entityTx.cursor(this.columns).forEach { r ->
                 val value = r[this.columns[0]]
                 if (value is RealVectorValue<*>) {
@@ -203,14 +203,40 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
         }
 
         /**
-         * Updates this [VAFIndex] with a new [Operation.DataManagementOperation]. Currently sets the [VAFIndex] to stale.
+         * Tries to apply the change applied by this [Operation.DataManagementOperation] to the [VAFIndex] underlying this [VAFIndex.Tx]. This method
+         * implements the [VAFIndex]'es write model:
          *
-         * TODO: Implement write model for [VAFIndex].
+         * - INSERTS can be applied, if inserted vector lies within the grid obtained upon creation of the index.
+         * - UPDATES can be applied, if updated vector lies within the grid obtained upon creation of the index.
+         * - DELETES can always be applied.
          *
-         * @param event The [Operation.DataManagementOperation] to process.
+         * @param event The [Operation.DataManagementOperation] to apply.
+         * @return True if change could be applied, false otherwise.
          */
-        override fun update(event: Operation.DataManagementOperation) = this.txLatch.withLock {
-            this.updateState(IndexState.STALE)
+        override fun tryApplyToIndex(event: Operation.DataManagementOperation): Boolean {
+            when (event) {
+                is Operation.DataManagementOperation.DeleteOperation -> {
+                    return this.dataStore.delete(this.context.xodusTx, event.tupleId.toKey())
+                }
+                is Operation.DataManagementOperation.InsertOperation -> {
+                    val value = event.inserts[this@VAFIndex.column]
+                    require(value is RealVectorValue<*>) { "Only real vector values can be stored in a VAFIndex. This is a programmer's error!" }
+                    for (i in value.indices) {
+                        if (value[i].value.toDouble() < this.min[i] || value[i].value.toDouble() > this.max[i])
+                            return false
+                    }
+                    return this.dataStore.add(this.context.xodusTx, event.tupleId.toKey(), VAFSignature.valueToEntry(this.marks.getSignature(value)))
+                }
+                is Operation.DataManagementOperation.UpdateOperation -> {
+                    val value = event.updates[this@VAFIndex.column]?.second
+                    require(value is RealVectorValue<*>) { "Only real vector values can be stored in a VAFIndex. This is a programmer's error!" }
+                    for (i in value.indices) {
+                        if (value[i].value.toDouble() < this.min[i] || value[i].value.toDouble() > this.max[i])
+                            return false
+                    }
+                    return this.dataStore.put(this.context.xodusTx, event.tupleId.toKey(), VAFSignature.valueToEntry(this.marks.getSignature(value)))
+                }
+            }
         }
 
         /**
@@ -260,6 +286,9 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
             /** The [Cursor] used to read [VAFSignature]s. */
             private val cursor: Cursor = this@Tx.dataStore.openCursor(this.subTx)
 
+            /** The minimum [TupleId] to iterate to (as ArrayByteIterable). */
+            private val startKey: ArrayByteIterable
+
             /** The maximum [TupleId] to iterate to (as ArrayByteIterable). */
             private val endKey: ArrayByteIterable
 
@@ -269,14 +298,20 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
             /** The number of entries read by this [Cursor] (i.e. the number of entries that have been accessed). */
             private var read = 0L
 
-            /** */
-            private var distance: DoubleValue = DoubleValue(Double.MAX_VALUE)
+            /** The [TupleId] this [Cursor] is currently pointing to. */
+            private var tupleId: TupleId = -1L
 
-            /** */
+            /** The [VectorValue] this [Cursor] is currently pointing to. */
             private var value: VectorValue<*>? = null
 
-            /** */
+            /** The distance value this [Cursor] is currently pointing to. */
+            private var distance: DoubleValue = DoubleValue(Double.MAX_VALUE)
+
+            /** The [MinHeapSelection] use for finding the top k entries. */
             private var selection = MinHeapSelection<Double>(this.predicate.k)
+
+            /** The [Cursor] representing the INSERT set of the [AuxiliaryValueCollection]. */
+            private val insertSet = this@Tx.auxiliary.insertSet.iterator()
 
             init {
                 val value = this.predicate.query.value
@@ -291,29 +326,55 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
 
                 /* Calculate partition size. */
                 val pSize = floorDiv(this@Tx.count(), partitions) + 1
-                this.cursor.getSearchKey((pSize * partitionIndex).toKey())
+                this.startKey = (pSize * partitionIndex).toKey()
                 this.endKey = min(pSize * (partitionIndex + 1), this@Tx.count()).toKey()
+                this.cursor.getSearchKey((pSize * partitionIndex).toKey())
             }
 
             /**
              * Moves the internal cursor and return true, as long as new candidates appear.
              */
             override fun moveNext(): Boolean {
+                /* Stage 1: Scan main index. */
                 while (this.cursor.next && this.cursor.key < this.endKey) {
-                    if (this.selection.size < this.predicate.k || this.bounds.isVASSACandidate(VAFSignature.entryToValue(this.cursor.value), this.selection.peek()!!)) {
-                        val tupleId = this.key()
-                        this.value = this.entityTx.read(tupleId, this@VAFIndex.columns)[this@VAFIndex.columns[0]] as VectorValue<*>
-                        this.distance = this.predicate.distance(this.query, this.value!!)
-                        this.selection.offer(this.distance.value)
+                    val key = LongBinding.compressedEntryToLong(this.cursor.key)
+                    if (!this@Tx.auxiliary.deleteSet.contains(key)) {
+                        this.tupleId = key
+                        if (this.selection.size < this.predicate.k
+                            || this@Tx.auxiliary.updateSet.contains(key)
+                            || this.bounds.isVASSACandidate(VAFSignature.entryToValue(this.cursor.value), this.selection.peek()!!)
+                        ) {
+                            this.processNext()
+                            return true
+                        }
+                    }
+                }
+
+                /* Stage 2: Scan auxiliary value collection. */
+                while (this.insertSet.hasNext()) {
+                    this.tupleId = this.insertSet.next()
+                    if (this.tupleId.toKey() >= this.startKey) {
+                        if (this.tupleId.toKey() > this.endKey) return false
+                        this.processNext()
                         return true
                     }
                 }
                 return false
             }
 
-            override fun key(): TupleId = LongBinding.compressedEntryToLong(this.cursor.key)
+            /**
+             * Returns the current [TupleId] this [Cursor] is pointing to.
+             *
+             * @return [TupleId]
+             */
+            override fun key(): TupleId = this.tupleId
 
-            override fun value(): Record = StandaloneRecord(this.key(), this@VAFIndex.produces, arrayOf(this.value, this.distance))
+            /**
+             * Returns the current [Record] this [Cursor] is pointing to.
+             *
+             * @return [TupleId]
+             */
+            override fun value(): Record = StandaloneRecord(this.tupleId, this@VAFIndex.produces, arrayOf(this.value, this.distance))
 
             /**
              * Closes this [Cursor]
@@ -321,6 +382,16 @@ class VAFIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
             override fun close() {
                 this.cursor.close()
                 this.subTx.abort()
+            }
+
+            /**
+             * Processes the next vector. This is an internal method.
+             */
+            private fun processNext() {
+                this.read += 1
+                this.value = this.entityTx.read(this.tupleId, this@VAFIndex.columns)[this@VAFIndex.columns[0]] as VectorValue<*>
+                this.distance = this.predicate.distance(this.query, this.value!!)
+                this.selection.offer(this.distance.value)
             }
         }
     }
