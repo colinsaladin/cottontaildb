@@ -18,7 +18,8 @@ import kotlin.time.measureTime
  * @version 1.0.0
  */
 @ExperimentalTime
-class EvaluateSIMDCommand : AbstractCottontailCommand.System(name = "simd", help = "Evaluate your system's SIMD performance for various dimensions with different SPECIES. Usage: system simd") {
+class EvaluateSIMDCommand : AbstractCottontailCommand.System(name = "simd", help = "Evaluate your system's SIMD " +
+        "performance for various dimensions with different SPECIES. Usage: system simd") {
 
     private val randomVector = JDKRandomGenerator(123456789)
     private val randomQuery = JDKRandomGenerator(987654321)
