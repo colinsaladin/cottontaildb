@@ -15,7 +15,6 @@ import kotlin.time.measureTime
  * Command to start the Vector-API SPECIES-Evaluation for various dimensions.
  *
  * @author Colin Saladin
- * @version 1.0.0
  */
 @ExperimentalTime
 class EvaluateSIMDCommand : AbstractCottontailCommand.System(name = "simd", help = "Evaluate your system's SIMD " +
@@ -30,6 +29,9 @@ class EvaluateSIMDCommand : AbstractCottontailCommand.System(name = "simd", help
     private val vectorList = mutableListOf<FloatVectorValue>()
     private val queryList = mutableListOf<FloatVectorValue>()
 
+    /**
+     * This method is used to initialize the vectors that will function as in-memory feature-vectors.
+     */
     private fun vectorInit(dimension: Int) {
         vectorList.clear()
         for (i in 0 until numberOfVectors) {
@@ -37,6 +39,9 @@ class EvaluateSIMDCommand : AbstractCottontailCommand.System(name = "simd", help
         }
     }
 
+    /**
+     * This method creates the query vectors that are compared to the in-memory feature-vectors.
+     */
     private fun queryInit(dimension: Int) {
         queryList.clear()
         for (i in 0 until numberOfNNSQueries) {
@@ -44,6 +49,9 @@ class EvaluateSIMDCommand : AbstractCottontailCommand.System(name = "simd", help
         }
     }
 
+    /**
+     * Short warm-up sequence to initialize caches.
+     */
     private fun warmUp() {
 
         vectorInit(2048)
@@ -55,6 +63,11 @@ class EvaluateSIMDCommand : AbstractCottontailCommand.System(name = "simd", help
         }
     }
 
+    /**
+     * This method will be called when the command "system simd" is entered into the cli.
+     * It start the whole procedure of calculating the performance for various dimensions for
+     * a given Distance-Function Version.
+     */
     override fun exec() {
         warmUp()
 

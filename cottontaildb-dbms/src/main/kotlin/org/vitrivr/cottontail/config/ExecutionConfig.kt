@@ -15,6 +15,7 @@ data class ExecutionConfig(
     val keepAliveMs: Long = 10000L,
     val queueSize: Int = 100,
     val simd: Boolean = false,
+    val simdDimension: Int = 2048,
     val transactionTableSize: Int = 100,
     val transactionHistorySize: Int = 500
 )

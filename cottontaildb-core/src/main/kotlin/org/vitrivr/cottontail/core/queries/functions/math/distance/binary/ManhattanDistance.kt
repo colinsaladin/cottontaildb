@@ -161,7 +161,7 @@ sealed class ManhattanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
      */
     class FloatVectorVectorized(type: Types.Vector<FloatVectorValue,*>): ManhattanDistance<FloatVectorValue>(type) {
         override val name: Name.FunctionName = FUNCTION_NAME
-        private val minIndex = determineOptimalSpecies(type)
+        // private val minIndex = determineOptimalSpecies(type)
 
         private fun determineOptimalSpecies(type: Types.Vector<FloatVectorValue, *>): Int {
             val elementSize: Int = type.physicalSize / type.logicalSize
@@ -182,11 +182,12 @@ sealed class ManhattanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
         }
 
         override fun invoke(vararg arguments: Value?): DoubleValue {
-            val species: VectorSpecies<Float> = when (minIndex) {
+            /*val species: VectorSpecies<Float> = when (minIndex) {
                 0 -> jdk.incubator.vector.FloatVector.SPECIES_512
                 1 -> jdk.incubator.vector.FloatVector.SPECIES_256
                 else -> jdk.incubator.vector.FloatVector.SPECIES_128
-            }
+            }*/
+            val species: VectorSpecies<Float> = jdk.incubator.vector.FloatVector.SPECIES_PREFERRED
             val probing = arguments[0] as FloatVectorValue
             val query = arguments[1] as FloatVectorValue
             var vectorSum = jdk.incubator.vector.FloatVector.zero(species)

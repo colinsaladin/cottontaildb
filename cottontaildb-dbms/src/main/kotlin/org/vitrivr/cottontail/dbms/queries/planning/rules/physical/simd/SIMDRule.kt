@@ -14,6 +14,9 @@ import org.vitrivr.cottontail.dbms.queries.planning.rules.RewriteRule
  * @version 1.0.0
  */
 object SIMDRule : RewriteRule {
+
+
+
     override fun canBeApplied(node: OperatorNode, ctx: QueryContext): Boolean = node is FunctionPhysicalOperatorNode &&
     node.function.function is VectorDistance<*>
 
