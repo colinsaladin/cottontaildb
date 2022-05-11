@@ -4,7 +4,6 @@ import org.apache.commons.math3.random.JDKRandomGenerator
 import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.core.database.ColumnDef
 import org.vitrivr.cottontail.core.database.Name
 import org.vitrivr.cottontail.core.recordset.StandaloneRecord
@@ -15,6 +14,7 @@ import org.vitrivr.cottontail.dbms.entity.EntityTx
 import org.vitrivr.cottontail.dbms.execution.transactions.TransactionType
 import org.vitrivr.cottontail.dbms.schema.Schema
 import org.vitrivr.cottontail.dbms.schema.SchemaTx
+import org.vitrivr.cottontail.test.TestConstants
 
 /**
  * An abstract class that tests [Index] structures in Cottontail DB.
@@ -132,7 +132,7 @@ abstract class AbstractIndexTest: AbstractDatabaseTest() {
      * Populates the test database with data.
      */
     protected fun populateDatabase() {
-        log("Inserting data (${TestConstants.collectionSize} items).")
+        log("Inserting data (${TestConstants.TEST_COLLECTION_SIZE} items).")
         val txn = this.manager.TransactionImpl(TransactionType.SYSTEM)
         val catalogueTx = txn.getTx(this.catalogue) as CatalogueTx
         val schema = catalogueTx.schemaForName(this.schemaName)
@@ -141,7 +141,7 @@ abstract class AbstractIndexTest: AbstractDatabaseTest() {
         val entityTx = txn.getTx(entity) as EntityTx
 
         /* Insert data and track how many entries have been stored for the test later. */
-        for (i in 0..TestConstants.collectionSize) {
+        for (i in 0..TestConstants.TEST_COLLECTION_SIZE) {
             entityTx.insert(nextRecord())
         }
         txn.commit()
