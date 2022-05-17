@@ -3,6 +3,7 @@ package org.vitrivr.cottontail.core.queries.functions.math.distance.binary
 import org.vitrivr.cottontail.core.database.Name
 import org.vitrivr.cottontail.core.queries.functions.Function
 import org.vitrivr.cottontail.core.queries.functions.Signature
+import org.vitrivr.cottontail.core.queries.functions.VectorizableFunction
 import org.vitrivr.cottontail.core.values.DoubleValue
 import org.vitrivr.cottontail.core.values.types.Types
 import org.vitrivr.cottontail.core.values.types.VectorValue
@@ -16,13 +17,13 @@ import org.vitrivr.cottontail.core.values.types.VectorValue
  * @author Ralph Gasser
  * @version 1.2.0
  */
-sealed class VectorDistance<T: VectorValue<*>>(val type: Types.Vector<T,*>): Function<DoubleValue> {
+sealed class VectorDistance<T: VectorValue<*>>(val type: Types.Vector<T,*>): VectorizableFunction<T> {
 
     /** The [Types.Vector] accepted by this [VectorDistance]. */
-    abstract val name: Name.FunctionName
+    abstract override val name: Name.FunctionName
 
     /** The dimensionality of this [VectorDistance]. */
-    val d: Int
+    override val d: Int
         get() = this.type.logicalSize
 
     /** Signature of a [VectorDistance] is defined by the argument type it accepts. */
@@ -41,12 +42,12 @@ sealed class VectorDistance<T: VectorValue<*>>(val type: Types.Vector<T,*>): Fun
      *
      * @return Copy of this [VectorDistance]
      */
-    abstract fun copy(d: Int): VectorDistance<T>
+    abstract override fun copy(d: Int): VectorDistance<T>
 
     /**
      * Returns the vectorized Version of the [VectorDistance].
      *
      * @return Vectorized [VectorDistance]
      */
-    abstract fun vectorized(): VectorDistance<T>
+    abstract override fun vectorized(): VectorDistance<T>
 }

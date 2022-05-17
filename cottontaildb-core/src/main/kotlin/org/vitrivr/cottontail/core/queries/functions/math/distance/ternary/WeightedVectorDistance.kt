@@ -3,6 +3,7 @@ package org.vitrivr.cottontail.core.queries.functions.math.distance.ternary
 import org.vitrivr.cottontail.core.database.Name
 import org.vitrivr.cottontail.core.queries.functions.Function
 import org.vitrivr.cottontail.core.queries.functions.Signature
+import org.vitrivr.cottontail.core.queries.functions.math.distance.binary.VectorDistance
 import org.vitrivr.cottontail.core.values.types.NumericValue
 import org.vitrivr.cottontail.core.values.types.Types
 import org.vitrivr.cottontail.core.values.types.VectorValue
@@ -41,4 +42,11 @@ abstract class WeightedVectorDistance<R: NumericValue<*>, T : VectorValue<*>>(va
      * @return Copy of this [WeightedVectorDistance]
      */
     abstract fun copy(d: Int): WeightedVectorDistance<R, T>
+
+    /**
+     * Returns the vectorized Version of the [VectorDistance].
+     *
+     * @return Vectorized [VectorDistance]
+     */
+    abstract fun vectorized(): WeightedVectorDistance<R, T>
 }

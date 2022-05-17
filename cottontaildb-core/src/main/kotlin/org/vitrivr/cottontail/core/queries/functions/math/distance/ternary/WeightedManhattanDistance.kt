@@ -7,6 +7,8 @@ import org.vitrivr.cottontail.core.queries.functions.Argument
 import org.vitrivr.cottontail.core.queries.functions.FunctionGenerator
 import org.vitrivr.cottontail.core.queries.functions.Signature
 import org.vitrivr.cottontail.core.queries.functions.exception.FunctionNotSupportedException
+import org.vitrivr.cottontail.core.queries.functions.math.distance.binary.ManhattanDistance
+import org.vitrivr.cottontail.core.queries.functions.math.distance.binary.VectorDistance
 import org.vitrivr.cottontail.core.queries.planning.cost.Cost
 import org.vitrivr.cottontail.core.values.DoubleValue
 import org.vitrivr.cottontail.core.values.DoubleVectorValue
@@ -77,6 +79,10 @@ sealed class WeightedManhattanDistance<R: NumericValue<*>, T : VectorValue<*>>(t
             return DoubleValue(sum)
         }
         override fun copy(d: Int) = DoubleVector(Types.DoubleVector(d))
+
+        override fun vectorized(): WeightedVectorDistance<DoubleValue, DoubleVectorValue> {
+            TODO("@Colin Not yet implemented")
+        }
     }
 
     /**
@@ -95,6 +101,10 @@ sealed class WeightedManhattanDistance<R: NumericValue<*>, T : VectorValue<*>>(t
             return FloatValue(sum)
         }
         override fun copy(d: Int) = FloatVector(Types.FloatVector(d))
+
+        override fun vectorized(): WeightedVectorDistance<FloatValue, FloatVectorValue> {
+            return FloatVectorVectorized(type)
+        }
     }
 
 
@@ -128,5 +138,11 @@ sealed class WeightedManhattanDistance<R: NumericValue<*>, T : VectorValue<*>>(t
             return FloatValue(sum)
         }
         override fun copy(d: Int) = FloatVector(Types.FloatVector(d))
+
+        override fun vectorized(): WeightedVectorDistance<FloatValue, FloatVectorValue> {
+            return this
+        }
+
+
     }
 }
