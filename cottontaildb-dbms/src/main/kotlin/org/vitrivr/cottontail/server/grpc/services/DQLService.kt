@@ -39,7 +39,7 @@ class DQLService(override val catalogue: Catalogue, override val manager: Transa
             DeferFetchOnFetchRewriteRule
         ),
 
-        physicalRules = listOf(BooleanIndexScanRule, NNSIndexScanRule, FulltextIndexRule, CountPushdownRule, LimitingSortMergeRule, SIMDRule(catalogue)),
+        physicalRules = listOf(BooleanIndexScanRule, NNSIndexScanRule, FulltextIndexRule, CountPushdownRule, LimitingSortMergeRule),
         this.catalogue.config.cache.planCacheSize
     )
 

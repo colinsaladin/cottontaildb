@@ -8,9 +8,14 @@ import org.vitrivr.cottontail.core.queries.binding.Binding
 import org.vitrivr.cottontail.core.queries.functions.Argument
 import org.vitrivr.cottontail.core.queries.functions.Signature
 import org.vitrivr.cottontail.core.queries.functions.exception.FunctionNotFoundException
+import org.vitrivr.cottontail.core.queries.functions.exception.FunctionNotSupportedException
+import org.vitrivr.cottontail.core.queries.functions.math.distance.binary.*
+import org.vitrivr.cottontail.core.queries.functions.math.distance.ternary.WeightedManhattanDistance
 import org.vitrivr.cottontail.core.queries.predicates.BooleanPredicate
 import org.vitrivr.cottontail.core.queries.predicates.ComparisonOperator
 import org.vitrivr.cottontail.core.queries.sort.SortOrder
+import org.vitrivr.cottontail.core.values.FloatValue
+import org.vitrivr.cottontail.core.values.FloatVectorValue
 import org.vitrivr.cottontail.core.values.StringValue
 import org.vitrivr.cottontail.core.values.pattern.LikePatternValue
 import org.vitrivr.cottontail.core.values.types.Types
@@ -477,7 +482,35 @@ object GrpcQueryBinder {
         /* Try to resolve signature and obtain function object. */
         val signature = Signature.SemiClosed(function.name.fqn(), arguments.map { Argument.Typed(it.type) }.toTypedArray())
         val functionInstance = try {
-            context.catalogue.functions.obtain(signature)
+            //TODO @Colin manually select either vectorized or scalar version of the function with if statement
+            val type = signature.arguments[0].type
+            if (type is Types.FloatVector || type is Types.Float) {
+                /*when(signature.name.components[1]) {
+                    "manhattan" -> ManhattanDistance.FloatVectorVectorized(type)
+                    "euclidean" -> EuclideanDistance.FloatVectorVectorized(type)
+                    "chisquared" -> ChisquaredDistance.FloatVectorVectorized(type)
+                    "hamming" -> HammingDistance.FloatVectorVectorized(type)
+                    "squaredeuclidean" -> SquaredEuclideanDistance.FloatVectorVectorized(type)
+                    "dotp" -> InnerProductDistance.FloatVectorVectorized(type)
+                    "cosine" -> CosineDistance.FloatVectorVectorized(type)
+                    else -> throw FunctionNotSupportedException("Function generator ${ManhattanDistance.signature} cannot generate function with signature $signature.")
+                }*/
+
+                //For the scalar versions.
+                when(signature.name.functionName) {
+                    "manhattan" -> ManhattanDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
+                    "euclidean" -> EuclideanDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
+                    "chisquared" -> ChisquaredDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
+                    "hamming" -> HammingDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
+                    "squaredeuclidean" -> SquaredEuclideanDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
+                    "dotp" -> InnerProductDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
+                    "cosine" -> CosineDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
+                    else -> throw FunctionNotSupportedException("Function generator ${ManhattanDistance.signature} cannot generate function with signature $signature.")
+                }
+
+            } else {
+                context.catalogue.functions.obtain(signature)
+            }
         } catch (e: FunctionNotFoundException) {
             throw QueryException.QueryBindException("Desired function $signature could not be found.")
         }
