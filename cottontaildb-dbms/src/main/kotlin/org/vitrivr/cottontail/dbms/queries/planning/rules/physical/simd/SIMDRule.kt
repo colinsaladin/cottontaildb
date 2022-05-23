@@ -37,7 +37,5 @@ class SIMDRule(val catalogue: Catalogue) : RewriteRule {
         return null
     }
 
-    fun recursive(function: Function<*>) {
 
-    }
 }

@@ -485,19 +485,19 @@ object GrpcQueryBinder {
             //TODO @Colin manually select either vectorized or scalar version of the function with if statement
             val type = signature.arguments[0].type
             if (type is Types.FloatVector || type is Types.Float) {
-                /*when(signature.name.components[1]) {
-                    "manhattan" -> ManhattanDistance.FloatVectorVectorized(type)
-                    "euclidean" -> EuclideanDistance.FloatVectorVectorized(type)
-                    "chisquared" -> ChisquaredDistance.FloatVectorVectorized(type)
-                    "hamming" -> HammingDistance.FloatVectorVectorized(type)
-                    "squaredeuclidean" -> SquaredEuclideanDistance.FloatVectorVectorized(type)
-                    "dotp" -> InnerProductDistance.FloatVectorVectorized(type)
-                    "cosine" -> CosineDistance.FloatVectorVectorized(type)
+                when(signature.name.functionName) {
+                    "manhattan" -> ManhattanDistance.FloatVectorVectorized(type as Types.Vector<FloatVectorValue, *>)
+                    "euclidean" -> EuclideanDistance.FloatVectorVectorized(type as Types.Vector<FloatVectorValue, *>)
+                    "chisquared" -> ChisquaredDistance.FloatVectorVectorized(type as Types.Vector<FloatVectorValue, *>)
+                    "hamming" -> HammingDistance.FloatVectorVectorized(type as Types.Vector<FloatVectorValue, *>)
+                    "squaredeuclidean" -> SquaredEuclideanDistance.FloatVectorVectorized(type as Types.Vector<FloatVectorValue, *>)
+                    "dotp" -> InnerProductDistance.FloatVectorVectorized(type as Types.Vector<FloatVectorValue, *>)
+                    "cosine" -> CosineDistance.FloatVectorVectorized(type as Types.Vector<FloatVectorValue, *>)
                     else -> throw FunctionNotSupportedException("Function generator ${ManhattanDistance.signature} cannot generate function with signature $signature.")
-                }*/
+                }
 
                 //For the scalar versions.
-                when(signature.name.functionName) {
+                /* when(signature.name.functionName) {
                     "manhattan" -> ManhattanDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
                     "euclidean" -> EuclideanDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
                     "chisquared" -> ChisquaredDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
@@ -506,7 +506,7 @@ object GrpcQueryBinder {
                     "dotp" -> InnerProductDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
                     "cosine" -> CosineDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
                     else -> throw FunctionNotSupportedException("Function generator ${ManhattanDistance.signature} cannot generate function with signature $signature.")
-                }
+                }*/
 
             } else {
                 context.catalogue.functions.obtain(signature)

@@ -2,7 +2,6 @@ package org.vitrivr.cottontail.math.knn
 
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
-import org.vitrivr.cottontail.TestConstants
 import org.vitrivr.cottontail.core.queries.functions.math.distance.binary.*
 import org.vitrivr.cottontail.core.queries.functions.math.distance.ternary.HyperplaneDistance
 import org.vitrivr.cottontail.core.queries.functions.math.distance.ternary.WeightedManhattanDistance
@@ -161,7 +160,7 @@ class FloatVectorDistanceTest : AbstractDistanceTest() {
     @MethodSource("dimensions")
     fun testCosineDistance(dimension: Int) {
         val query = FloatVectorValueGenerator.random(dimension, RANDOM)
-        val collection = VectorUtility.randomFloatVectorSequence(dimension, TestConstants.collectionSize, RANDOM)
+        val collection = VectorUtility.randomFloatVectorSequence(dimension, TestConstants.TEST_COLLECTION_SIZE, RANDOM)
 
         var sum1 = 0.0f
         var sum2 = 0.0f
@@ -193,7 +192,7 @@ class FloatVectorDistanceTest : AbstractDistanceTest() {
             }
         }
 
-        println("Calculating Cosine distance for collection (s=${TestConstants.collectionSize}, d=$dimension) took ${time1 / TestConstants.collectionSize} (optimized) resp. ${time2 / TestConstants.collectionSize} per vector on average.")
+        println("Calculating Cosine distance for collection (s=${TestConstants.TEST_COLLECTION_SIZE}, d=$dimension) took ${time1 / TestConstants.TEST_COLLECTION_SIZE} (optimized) resp. ${time2 / TestConstants.TEST_COLLECTION_SIZE} per vector on average.")
 
         if (time1 > time2) {
             LOGGER.warn("Optimized version of Cosine is slower than default version!")
@@ -211,7 +210,7 @@ class FloatVectorDistanceTest : AbstractDistanceTest() {
     @MethodSource("dimensions")
     fun testChisquaredDistance(dimension: Int) {
         val query = FloatVectorValueGenerator.random(dimension, RANDOM)
-        val collection = VectorUtility.randomFloatVectorSequence(dimension, TestConstants.collectionSize, RANDOM)
+        val collection = VectorUtility.randomFloatVectorSequence(dimension, TestConstants.TEST_COLLECTION_SIZE, RANDOM)
 
         var sum1 = 0.0f
         var sum2 = 0.0f
@@ -234,7 +233,7 @@ class FloatVectorDistanceTest : AbstractDistanceTest() {
             }
         }
 
-        println("Calculating Chisquared distance for collection (s=${TestConstants.collectionSize}, d=$dimension) took ${time1 / TestConstants.collectionSize} (optimized) resp. ${time2 / TestConstants.collectionSize} per vector on average.")
+        println("Calculating Chisquared distance for collection (s=${TestConstants.TEST_COLLECTION_SIZE}, d=$dimension) took ${time1 / TestConstants.TEST_COLLECTION_SIZE} (optimized) resp. ${time2 / TestConstants.TEST_COLLECTION_SIZE} per vector on average.")
 
         if (time1 > time2) {
             LOGGER.warn("Optimized version of Chisquared is slower than default version!")
@@ -252,7 +251,7 @@ class FloatVectorDistanceTest : AbstractDistanceTest() {
     @MethodSource("dimensions")
     fun testHammingDistance(dimension: Int) {
         val query = FloatVectorValueGenerator.random(dimension, RANDOM)
-        val collection = VectorUtility.randomFloatVectorSequence(dimension, TestConstants.collectionSize, RANDOM)
+        val collection = VectorUtility.randomFloatVectorSequence(dimension, TestConstants.TEST_COLLECTION_SIZE, RANDOM)
 
         var sum1 = 0.0
         var sum2 = 0.0
@@ -279,7 +278,7 @@ class FloatVectorDistanceTest : AbstractDistanceTest() {
             }
         }
 
-        println("Calculating Hamming distance for collection (s=${TestConstants.collectionSize}, d=$dimension) took ${time1 / TestConstants.collectionSize} (optimized) resp. ${time2 / TestConstants.collectionSize} per vector on average.")
+        println("Calculating Hamming distance for collection (s=${TestConstants.TEST_COLLECTION_SIZE}, d=$dimension) took ${time1 / TestConstants.TEST_COLLECTION_SIZE} (optimized) resp. ${time2 / TestConstants.TEST_COLLECTION_SIZE} per vector on average.")
 
         if (time1 > time2) {
             LOGGER.warn("Optimized version of Hamming is slower than default version!")
@@ -297,7 +296,7 @@ class FloatVectorDistanceTest : AbstractDistanceTest() {
     @MethodSource("dimensions")
     fun testInnerProductDistance(dimension: Int) {
         val query = FloatVectorValueGenerator.random(dimension, RANDOM)
-        val collection = VectorUtility.randomFloatVectorSequence(dimension, TestConstants.collectionSize, RANDOM)
+        val collection = VectorUtility.randomFloatVectorSequence(dimension, TestConstants.TEST_COLLECTION_SIZE, RANDOM)
 
         var sum1 = 0.0f
         var sum2 = 0.0f
@@ -320,7 +319,7 @@ class FloatVectorDistanceTest : AbstractDistanceTest() {
             }
         }
 
-        println("Calculating Innerproduct distance for collection (s=${TestConstants.collectionSize}, d=$dimension) took ${time1 / TestConstants.collectionSize} (optimized) resp. ${time2 / TestConstants.collectionSize} per vector on average.")
+        println("Calculating Innerproduct distance for collection (s=${TestConstants.TEST_COLLECTION_SIZE}, d=$dimension) took ${time1 / TestConstants.TEST_COLLECTION_SIZE} (optimized) resp. ${time2 / TestConstants.TEST_COLLECTION_SIZE} per vector on average.")
 
         if (time1 > time2) {
             LOGGER.warn("Optimized version of Innerproduct is slower than default version!")
@@ -338,7 +337,7 @@ class FloatVectorDistanceTest : AbstractDistanceTest() {
     @MethodSource("dimensions")
     fun testHyperplaneDistance(dimension: Int) {
         val query = FloatVectorValueGenerator.random(dimension, RANDOM)
-        val collection = VectorUtility.randomFloatVectorSequence(dimension, TestConstants.collectionSize, RANDOM)
+        val collection = VectorUtility.randomFloatVectorSequence(dimension, TestConstants.TEST_COLLECTION_SIZE, RANDOM)
 
         var sum1 = 0.0f
         var sum2 = 0.0f
@@ -358,7 +357,7 @@ class FloatVectorDistanceTest : AbstractDistanceTest() {
             }
         }
 
-        println("Calculating Hyperplane distance for collection (s=${TestConstants.collectionSize}, d=$dimension) took ${time1 / TestConstants.collectionSize} (optimized) resp. ${time2 / TestConstants.collectionSize} per vector on average.")
+        println("Calculating Hyperplane distance for collection (s=${TestConstants.TEST_COLLECTION_SIZE}, d=$dimension) took ${time1 / TestConstants.TEST_COLLECTION_SIZE} (optimized) resp. ${time2 / TestConstants.TEST_COLLECTION_SIZE} per vector on average.")
 
         if (time1 > time2) {
             LOGGER.warn("Optimized version of Hyperplane is slower than default version!")
@@ -374,7 +373,7 @@ class FloatVectorDistanceTest : AbstractDistanceTest() {
     @MethodSource("dimensions")
     fun testWeightedL1(dimension: Int) {
         val query = FloatVectorValueGenerator.random(dimension, RANDOM)
-        val collection = VectorUtility.randomFloatVectorSequence(dimension, TestConstants.collectionSize, RANDOM)
+        val collection = VectorUtility.randomFloatVectorSequence(dimension, TestConstants.TEST_COLLECTION_SIZE, RANDOM)
 
         var sum1 = 0.0f
         var sum2 = 0.0f
@@ -399,7 +398,7 @@ class FloatVectorDistanceTest : AbstractDistanceTest() {
             }
         }
 
-        println("Calculating WeightedL1 distance for collection (s=${TestConstants.collectionSize}, d=$dimension) took ${time1 / TestConstants.collectionSize} (optimized) resp. ${time2 / TestConstants.collectionSize} per vector on average.")
+        println("Calculating WeightedL1 distance for collection (s=${TestConstants.TEST_COLLECTION_SIZE}, d=$dimension) took ${time1 / TestConstants.TEST_COLLECTION_SIZE} (optimized) resp. ${time2 / TestConstants.TEST_COLLECTION_SIZE} per vector on average.")
 
         if (time1 > time2) {
             LOGGER.warn("Optimized version of WeightedL1 is slower than default version!")
