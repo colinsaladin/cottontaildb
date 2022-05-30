@@ -115,7 +115,8 @@ sealed class ChisquaredDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Ve
             for (i in 0 until species.loopBound(this.d) step species.length()) {
                 val vp = jdk.incubator.vector.FloatVector.fromArray(species, probing.data, i)
                 val vq = jdk.incubator.vector.FloatVector.fromArray(species, query.data, i)
-                vectorSum = vectorSum.lanewise(VectorOperators.ADD, vp.lanewise(VectorOperators.SUB, vq).pow(2f)
+                vectorSum = vectorSum.lanewise(VectorOperators.ADD, vp.lanewise(VectorOperators.SUB, vq)
+                    .mul(vp.lanewise(VectorOperators.SUB, vq))
                     .div(vp.lanewise(VectorOperators.ADD, vq)))
             }
 

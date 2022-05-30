@@ -126,8 +126,8 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
                 val vq = jdk.incubator.vector.FloatVector.fromArray(species, query.data, i)
 
                 vectorDotp = vp.fma(vq, vectorDotp)
-                vectorNormq = vectorNormq.lanewise(VectorOperators.ADD, vq.pow(2f))
-                vectorNormv = vectorNormv.lanewise(VectorOperators.ADD, vp.pow(2f))
+                vectorNormq = vectorNormq.lanewise(VectorOperators.ADD, vq.mul(vq))
+                vectorNormv = vectorNormv.lanewise(VectorOperators.ADD, vp.mul(vp))
             }
 
             var dotp = vectorDotp.reduceLanes(VectorOperators.ADD)

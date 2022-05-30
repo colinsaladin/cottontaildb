@@ -119,7 +119,7 @@ sealed class HyperplaneDistance<T: VectorValue<*>>(val type: Types.Vector<T,*>):
                 val vq = jdk.incubator.vector.FloatVector.fromArray(species, query.data, i)
 
                 vectorDotp = vp.fma(vq, vectorDotp)
-                vectorNorm = vectorNorm.lanewise(VectorOperators.ADD, vq.pow(2f))
+                vectorNorm = vectorNorm.lanewise(VectorOperators.ADD, vq.mul(vq))
             }
 
             var dotp = vectorDotp.reduceLanes(VectorOperators.ADD)
