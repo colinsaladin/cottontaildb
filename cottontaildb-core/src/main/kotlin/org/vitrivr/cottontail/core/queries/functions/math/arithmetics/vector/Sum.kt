@@ -1,10 +1,8 @@
 package org.vitrivr.cottontail.core.queries.functions.math.arithmetics.vector
 
 import org.vitrivr.cottontail.core.database.Name
-import org.vitrivr.cottontail.core.queries.functions.Argument
+import org.vitrivr.cottontail.core.queries.functions.*
 import org.vitrivr.cottontail.core.queries.functions.Function
-import org.vitrivr.cottontail.core.queries.functions.FunctionGenerator
-import org.vitrivr.cottontail.core.queries.functions.Signature
 import org.vitrivr.cottontail.core.queries.functions.exception.FunctionNotSupportedException
 import org.vitrivr.cottontail.core.queries.planning.cost.Cost
 import org.vitrivr.cottontail.core.values.*
@@ -19,7 +17,7 @@ import org.vitrivr.cottontail.core.values.types.VectorValue
  * @author Ralph Gasser
  * @version 1.0.0
  */
-sealed class Sum<T : NumericValue<*>>(val type: Types.Vector<*,T>): Function<T> {
+sealed class Sum<T : NumericValue<*>>(val type: Types.Vector<*,T>): VectorizableFunction<T> {
 
     companion object : FunctionGenerator<NumericValue<*>> {
         private val FUNCTION_NAME = Name.FunctionName("vsum")
@@ -57,7 +55,7 @@ sealed class Sum<T : NumericValue<*>>(val type: Types.Vector<*,T>): Function<T> 
     override val signature = Signature.Closed(FUNCTION_NAME, arrayOf(this.type), this.type.elementType)
 
     /** The dimensionality of this vector [Sum]. */
-    val d: Int
+    override val d: Int
         get() = this.type.logicalSize
 
     /**
@@ -67,6 +65,14 @@ sealed class Sum<T : NumericValue<*>>(val type: Types.Vector<*,T>): Function<T> 
         override fun invoke(vararg arguments: Value?): IntValue {
             val argument = arguments[0] as IntVectorValue
             return IntValue(argument.data.sum())
+        }
+
+        override fun copy(d: Int): VectorizableFunction<IntValue> {
+            TODO("Not yet implemented")
+        }
+
+        override fun vectorized(): VectorizableFunction<IntValue> {
+            TODO("Not yet implemented")
         }
     }
 
@@ -78,6 +84,14 @@ sealed class Sum<T : NumericValue<*>>(val type: Types.Vector<*,T>): Function<T> 
             val argument = arguments[0] as LongVectorValue
             return LongValue(argument.data.sum())
         }
+
+        override fun copy(d: Int): VectorizableFunction<LongValue> {
+            TODO("Not yet implemented")
+        }
+
+        override fun vectorized(): VectorizableFunction<LongValue> {
+            TODO("Not yet implemented")
+        }
     }
 
     /**
@@ -88,6 +102,14 @@ sealed class Sum<T : NumericValue<*>>(val type: Types.Vector<*,T>): Function<T> 
             val argument = arguments[0] as FloatVectorValue
             return FloatValue(argument.data.sum())
         }
+
+        override fun copy(d: Int): VectorizableFunction<FloatValue> {
+            TODO("Not yet implemented")
+        }
+
+        override fun vectorized(): VectorizableFunction<FloatValue> {
+            TODO("Not yet implemented")
+        }
     }
 
     /**
@@ -97,6 +119,14 @@ sealed class Sum<T : NumericValue<*>>(val type: Types.Vector<*,T>): Function<T> 
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val argument = arguments[0] as DoubleVectorValue
             return DoubleValue(argument.data.sum())
+        }
+
+        override fun copy(d: Int): VectorizableFunction<DoubleValue> {
+            TODO("Not yet implemented")
+        }
+
+        override fun vectorized(): VectorizableFunction<DoubleValue> {
+            TODO("Not yet implemented")
         }
     }
 }

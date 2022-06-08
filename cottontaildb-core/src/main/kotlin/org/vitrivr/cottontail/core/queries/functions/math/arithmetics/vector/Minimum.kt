@@ -1,10 +1,8 @@
 package org.vitrivr.cottontail.core.queries.functions.math.arithmetics.vector
 
 import org.vitrivr.cottontail.core.database.Name
-import org.vitrivr.cottontail.core.queries.functions.Argument
+import org.vitrivr.cottontail.core.queries.functions.*
 import org.vitrivr.cottontail.core.queries.functions.Function
-import org.vitrivr.cottontail.core.queries.functions.FunctionGenerator
-import org.vitrivr.cottontail.core.queries.functions.Signature
 import org.vitrivr.cottontail.core.queries.functions.exception.FunctionNotSupportedException
 import org.vitrivr.cottontail.core.queries.planning.cost.Cost
 import org.vitrivr.cottontail.core.values.DoubleVectorValue
@@ -22,7 +20,7 @@ import kotlin.math.min
  * @author Ralph Gasser
  * @version 1.0.0
  */
-sealed class Minimum<T : VectorValue<*>>(val type: Types.Vector<T,*>): Function<T> {
+sealed class Minimum<T : VectorValue<*>>(val type: Types.Vector<T,*>): VectorizableFunction<T> {
 
     companion object : FunctionGenerator<VectorValue<*>> {
         private val FUNCTION_NAME = Name.FunctionName("vmin")
@@ -60,7 +58,7 @@ sealed class Minimum<T : VectorValue<*>>(val type: Types.Vector<T,*>): Function<
     override val signature = Signature.Closed(FUNCTION_NAME, arrayOf(this.type, this.type), this.type)
 
     /** The dimensionality of this [Minimum]. */
-    val d: Int
+    override val d: Int
         get() = this.type.logicalSize
 
     /**
@@ -73,6 +71,14 @@ sealed class Minimum<T : VectorValue<*>>(val type: Types.Vector<T,*>): Function<
             return IntVectorValue(IntArray(this.d) {
                 min(left.data[it], right.data[it])
             })
+        }
+
+        override fun copy(d: Int): VectorizableFunction<IntVectorValue> {
+            TODO("Not yet implemented")
+        }
+
+        override fun vectorized(): VectorizableFunction<IntVectorValue> {
+            TODO("Not yet implemented")
         }
     }
 
@@ -87,6 +93,14 @@ sealed class Minimum<T : VectorValue<*>>(val type: Types.Vector<T,*>): Function<
                 min(left.data[it], right.data[it])
             })
         }
+
+        override fun copy(d: Int): VectorizableFunction<LongVectorValue> {
+            TODO("Not yet implemented")
+        }
+
+        override fun vectorized(): VectorizableFunction<LongVectorValue> {
+            TODO("Not yet implemented")
+        }
     }
 
     /**
@@ -100,6 +114,14 @@ sealed class Minimum<T : VectorValue<*>>(val type: Types.Vector<T,*>): Function<
                 min(left.data[it], right.data[it])
             })
         }
+
+        override fun copy(d: Int): VectorizableFunction<FloatVectorValue> {
+            TODO("Not yet implemented")
+        }
+
+        override fun vectorized(): VectorizableFunction<FloatVectorValue> {
+            TODO("Not yet implemented")
+        }
     }
 
     /**
@@ -112,6 +134,14 @@ sealed class Minimum<T : VectorValue<*>>(val type: Types.Vector<T,*>): Function<
             return DoubleVectorValue(DoubleArray(this.d) {
                 min(left.data[it], right.data[it])
             })
+        }
+
+        override fun copy(d: Int): VectorizableFunction<DoubleVectorValue> {
+            TODO("Not yet implemented")
+        }
+
+        override fun vectorized(): VectorizableFunction<DoubleVectorValue> {
+            TODO("Not yet implemented")
         }
     }
 }

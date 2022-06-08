@@ -52,6 +52,11 @@ sealed class ChisquaredDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Ve
         }
     }
 
+    /** Signature of a [VectorDistance] is defined by the argument type it accepts. */
+    override val signature: Signature.Closed<DoubleValue>
+        get() = Signature.Closed(FUNCTION_NAME, arrayOf(this.type, this.type), Types.Double)
+
+
     /** The [Cost] of applying this [ChisquaredDistance]. */
     override val cost: Cost
         get() = (Cost.FLOP * 5.0f + Cost.MEMORY_ACCESS * 4.0f) * this.d
@@ -60,7 +65,6 @@ sealed class ChisquaredDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Ve
      * [ChisquaredDistance] for a [DoubleVectorValue].
      */
     class DoubleVector(type: Types.Vector<DoubleVectorValue,*>): ChisquaredDistance<DoubleVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as DoubleVectorValue
             val query = arguments[1] as DoubleVectorValue
@@ -82,7 +86,6 @@ sealed class ChisquaredDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Ve
      * [ChisquaredDistance] for a [FloatVectorValue].
      */
     class FloatVector(type: Types.Vector<FloatVectorValue,*>): ChisquaredDistance<FloatVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as FloatVectorValue
             val query = arguments[1] as FloatVectorValue
@@ -103,7 +106,6 @@ sealed class ChisquaredDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Ve
      * SIMD implementation: [ChisquaredDistance] for a [FloatVectorValue]
      */
     class FloatVectorVectorized(type: Types.Vector<FloatVectorValue,*>): EuclideanDistance<FloatVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             // Changing SPECIES to SPECIES.PREFERRED results in a HUGE performance decrease
             val species: VectorSpecies<Float> = jdk.incubator.vector.FloatVector.SPECIES_PREFERRED
@@ -140,7 +142,6 @@ sealed class ChisquaredDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Ve
      * [ChisquaredDistance] for a [LongVectorValue].
      */
     class LongVector(type: Types.Vector<LongVectorValue,*>): ChisquaredDistance<LongVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as LongVectorValue
             val query = arguments[1] as LongVectorValue
@@ -162,7 +163,6 @@ sealed class ChisquaredDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Ve
      * [ChisquaredDistance] for a [IntVectorValue].
      */
     class IntVector(type: Types.Vector<IntVectorValue,*>): ChisquaredDistance<IntVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing =  arguments[0] as IntVectorValue
             val query = arguments[1] as IntVectorValue

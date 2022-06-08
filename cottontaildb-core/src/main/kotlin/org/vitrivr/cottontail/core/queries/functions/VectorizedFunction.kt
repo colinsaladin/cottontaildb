@@ -4,8 +4,8 @@ import org.vitrivr.cottontail.core.database.Name
 import org.vitrivr.cottontail.core.queries.functions.math.distance.binary.VectorDistance
 import org.vitrivr.cottontail.core.values.DoubleValue
 import org.vitrivr.cottontail.core.values.types.Types
-import org.vitrivr.cottontail.core.values.types.Value
 import org.vitrivr.cottontail.core.values.types.VectorValue
+import kotlin.Function
 
 /**
  * A binary, vectorizable [Function] used for distance calculations between a query [VectorValue] and other [VectorValue]s.
@@ -16,32 +16,35 @@ import org.vitrivr.cottontail.core.values.types.VectorValue
  * @author Colin Saladin
  * @version 1.0.0
  */
-interface VectorizableFunction<R: Value> : Function<R> {
+interface VectorizedFunction<T: VectorValue<*>> : Function<VectorValue<*>> {
+
+    /** The [Types.Vector] accepted by this [VectorDistance]. */
+    val name: Name.FunctionName
 
     /** The dimensionality of this [VectorDistance]. */
     val d: Int
 
     /** Signature of a [VectorDistance] is defined by the argument type it accepts. */
-    override val signature: Signature.Closed<R>
+    val signature: Signature.Closed<out VectorValue<*>>
 
     /**
      * Creates a copy of this [VectorizableFunction].
      *
      * @return Copy of this [VectorizableFunction]
      */
-    override fun copy(): VectorizableFunction<R> = copy(this.d)
+    fun copy(): VectorizableFunction<T> = copy(this.d)
 
     /**
      * Creates a reshaped copy of this [VectorizableFunction].
      *
      * @return Copy of this [VectorizableFunction]
      */
-    fun copy(d: Int): VectorizableFunction<R>
+    fun copy(d: Int): VectorizableFunction<T>
 
     /**
      * Returns the vectorized Version of the [VectorizableFunction].
      *
      * @return Vectorized [VectorizableFunction]
      */
-    fun vectorized(): VectorizableFunction<R>
+    fun vectorized(): VectorizableFunction<T>
 }

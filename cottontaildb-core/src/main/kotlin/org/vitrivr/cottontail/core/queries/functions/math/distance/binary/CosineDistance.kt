@@ -31,9 +31,9 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
             get() = Signature.Open(FUNCTION_NAME, arrayOf(Argument.Vector, Argument.Vector))
 
         override fun obtain(signature: Signature.SemiClosed): Function<DoubleValue> {
-            check(Companion.signature.collides(signature)) { "Provided signature $signature is incompatible with generator signature ${Companion.signature}. This is a programmer's error!"  }
+            check(Companion.signature.collides(signature)) { "Provided signature $signature is incompatible with generator signature ${Companion.signature}. This is a programmer's error!" }
             if (signature.arguments.any { it != signature.arguments[0] }) throw FunctionNotSupportedException("Function generator ${HaversineDistance.signature} cannot generate function with signature $signature.")
-            return when(val type = signature.arguments[0].type) {
+            return when (val type = signature.arguments[0].type) {
                 is Types.DoubleVector -> DoubleVector(type)
                 is Types.FloatVector -> FloatVector(type)
                 is Types.LongVector -> LongVector(type)
@@ -53,6 +53,11 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
         }
     }
 
+    /** Signature of a [VectorDistance] is defined by the argument type it accepts. */
+    override val signature: Signature.Closed<DoubleValue>
+        get() = Signature.Closed(FUNCTION_NAME, arrayOf(this.type, this.type), Types.Double)
+
+
     /** The [Cost] of applying this [CosineDistance]. */
     override val cost: Cost
         get() = ((Cost.FLOP * 6.0f + Cost.MEMORY_ACCESS * 4.0f) * this.d) + Cost.FLOP * 4.0f + Cost.MEMORY_ACCESS * 3.0f
@@ -61,7 +66,6 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
      * [CosineDistance] for a [DoubleVectorValue].
      */
     class DoubleVector(type: Types.Vector<DoubleVectorValue,*>): CosineDistance<DoubleVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as DoubleVectorValue
             val query = arguments[1] as DoubleVectorValue
@@ -87,7 +91,6 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
      * [CosineDistance] for a [FloatVectorValue].
      */
     class FloatVector(type: Types.Vector<FloatVectorValue,*>): CosineDistance<FloatVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as FloatVectorValue
             val query = arguments[1] as FloatVectorValue
@@ -112,7 +115,6 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
      * [CosineDistance] for a [FloatVectorValue].
      */
     class FloatVectorVectorized(type: Types.Vector<FloatVectorValue,*>): CosineDistance<FloatVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val species: VectorSpecies<Float> = jdk.incubator.vector.FloatVector.SPECIES_PREFERRED
             val probing = arguments[0] as FloatVectorValue
@@ -153,7 +155,6 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
      * [CosineDistance] for a [LongVectorValue].
      */
     class LongVector(type: Types.Vector<LongVectorValue,*>): CosineDistance<LongVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as LongVectorValue
             val query = arguments[1] as LongVectorValue
@@ -179,7 +180,6 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
      * [CosineDistance] for a [IntVectorValue].
      */
     class IntVector(type: Types.Vector<IntVectorValue,*>): CosineDistance<IntVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as IntVectorValue
             val query = arguments[1] as IntVectorValue

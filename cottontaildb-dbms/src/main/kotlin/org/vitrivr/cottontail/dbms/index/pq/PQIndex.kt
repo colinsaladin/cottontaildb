@@ -182,7 +182,7 @@ class PQIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(nam
         override fun costFor(predicate: Predicate): Cost = this.txLatch.withLock {
             if (predicate !is ProximityPredicate) return Cost.INVALID
             if (predicate.column != this.columns[0]) return Cost.INVALID
-            if (predicate.distance.name != this.config.distance) return Cost.INVALID
+            if (predicate.distance.functionName != this.config.distance) return Cost.INVALID
             val count = this.count()
             val subspaces = this.config.numSubspaces ?: ProductQuantizer.defaultNumberOfSubspaces(predicate.column.type.logicalSize)
             return Cost(

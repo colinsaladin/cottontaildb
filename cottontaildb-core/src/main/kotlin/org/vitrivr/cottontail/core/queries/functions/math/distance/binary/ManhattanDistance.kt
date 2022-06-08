@@ -58,6 +58,10 @@ sealed class ManhattanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
         }
     }
 
+    /** Signature of a [VectorDistance] is defined by the argument type it accepts. */
+    override val signature: Signature.Closed<DoubleValue>
+        get() = Signature.Closed(EuclideanDistance.FUNCTION_NAME, arrayOf(this.type, this.type), Types.Double)
+
     /** The [Cost] of applying this [ManhattanDistance]. */
     override val cost: Cost
         get() = ((Cost.FLOP * 2.0f + Cost.MEMORY_ACCESS * 2.0f) * this.d) + Cost.MEMORY_ACCESS
@@ -70,7 +74,6 @@ sealed class ManhattanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
      * [ManhattanDistance] for a [Complex64VectorValue].
      */
     class Complex64Vector(type: Types.Vector<Complex64VectorValue,*>): ManhattanDistance<Complex64VectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as Complex64VectorValue
             val query = arguments[1] as Complex64VectorValue
@@ -94,7 +97,6 @@ sealed class ManhattanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
      * [ManhattanDistance] for a [Complex32VectorValue].
      */
     class Complex32Vector(type: Types.Vector<Complex32VectorValue,*>): ManhattanDistance<Complex32VectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as Complex32VectorValue
             val query = arguments[1] as Complex32VectorValue
@@ -118,7 +120,6 @@ sealed class ManhattanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
      * [ManhattanDistance] for a [DoubleVectorValue].
      */
     class DoubleVector(type: Types.Vector<DoubleVectorValue,*>): ManhattanDistance<DoubleVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as DoubleVectorValue
             val query = arguments[1] as DoubleVectorValue
@@ -139,7 +140,6 @@ sealed class ManhattanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
      * [ManhattanDistance] for a [FloatVectorValue].
      */
     class FloatVector(type: Types.Vector<FloatVectorValue,*>): ManhattanDistance<FloatVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as FloatVectorValue
             val query = arguments[1] as FloatVectorValue
@@ -160,8 +160,6 @@ sealed class ManhattanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
      * SIMD implementation: [ManhattanDistance] for a [FloatVectorValue].
      */
     class FloatVectorVectorized(type: Types.Vector<FloatVectorValue,*>): ManhattanDistance<FloatVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
-
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val species: VectorSpecies<Float> = jdk.incubator.vector.FloatVector.SPECIES_PREFERRED
             val probing = arguments[0] as FloatVectorValue
@@ -194,7 +192,6 @@ sealed class ManhattanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
      * [ManhattanDistance] for a [LongVectorValue].
      */
     class LongVector(type: Types.Vector<LongVectorValue,*>): ManhattanDistance<LongVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as LongVectorValue
             val query = arguments[1] as LongVectorValue
@@ -216,7 +213,6 @@ sealed class ManhattanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
      * [ManhattanDistance] for a [IntVectorValue].
      */
     class IntVector(type: Types.Vector<IntVectorValue,*>): ManhattanDistance<IntVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as IntVectorValue
             val query = arguments[1] as IntVectorValue

@@ -24,7 +24,7 @@ class EvaluateSIMDCommand : AbstractCottontailCommand.System(name = "simd", help
     private val randomQuery = JDKRandomGenerator(987654321)
     private val numberOfNNSQueries = 10
     private val numberOfVectors = 500000
-    private val toBeEvaluated = "Manhattan_Vectorized_Optimized"
+    private val toBeEvaluated = "Manhattan_Vectorized"
 
     private val vectorList = mutableListOf<FloatVectorValue>()
     private val queryList = mutableListOf<FloatVectorValue>()
@@ -53,6 +53,8 @@ class EvaluateSIMDCommand : AbstractCottontailCommand.System(name = "simd", help
      * Short warm-up sequence to initialize caches.
      */
     private fun warmUp() {
+
+        print("Warm up...")
 
         vectorInit(2048)
         queryInit(2048)

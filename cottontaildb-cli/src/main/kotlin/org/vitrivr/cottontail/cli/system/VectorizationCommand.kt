@@ -69,67 +69,73 @@ class VectorizationCommand : AbstractCottontailCommand.System(name = "vectorize"
         }
     }
 
+
     /**
-     * Calculates a couple of Nearest Neighbor Searches for various dimensions and stores the average
-     * time needed for both the scalar and the vectorized version inside a Map.
+     * Calculates a couple of Nearest Neighbor Searches for various dimensions and determines
+     * the dimension at which it is beneficial to use the vectorized implementation
+     *
+     * This method calculates the dimension roughly in a first step and later on in more detail
      */
-    private fun evaluate(vectorize: Boolean) {
+    private fun determineVectDistance(startingDimension: Int, endDimension: Int, stepSize: Int): Int? {
 
-        val label = if (vectorize) "Vectorized" else "Scalar"
+        if (startingDimension == 0 || startingDimension == null) {
+            return null
+        }
 
-        for (i in 2 until 500 step 5) {
-            vectorInit(i)
-            queryInit(i)
+        // Variable to reduce possibility of having an outlier leading to a flawed break-even-point
+        var vectorizedWasFasterBefore = false
+        var returnDimension: Int? = null
+        val times = mutableListOf<Double>()
+        var time: Duration
 
-            var time: Duration
-            val times = mutableListOf<Double>()
+        for (dimension in startingDimension until endDimension step stepSize) {
+            vectorInit(dimension)
+            queryInit(dimension)
 
-            val distanceFunction = if (vectorize) {
-                ManhattanDistance.FloatVectorVectorized(queryList[0].type as Types.FloatVector)
-            } else {
-                ManhattanDistance.FloatVector(queryList[0].type as Types.FloatVector)
-            }
+            val distanceFunctionVect = ManhattanDistance.FloatVectorVectorized(queryList[0].type as Types.FloatVector)
 
             for (j in 0 until queryList.size) {
                 time = measureTime {
                     vectorList.forEach { vector ->
-                        distanceFunction(queryList[j], vector)
+                        distanceFunctionVect(queryList[j], vector)
                     }
                 }
 
                 times.add(time.toDouble(DurationUnit.SECONDS))
             }
 
-            if (timeMap[i].isNullOrEmpty()) {
-                timeMap[i] = mutableMapOf(label to times.average())
-            } else {
-                timeMap[i]?.put(label, times.average())
-            }
+            val vectorizedTime = times.average()
+            times.clear()
 
-        }
-    }
+            val distanceFunctionScalar = ManhattanDistance.FloatVector(queryList[0].type as Types.FloatVector)
 
-    /**
-     * This comparison function determines the dimension of feature-vectors where the vectorized version is
-     * beneficial compared to the scalar version.
-     */
-    private fun compareVersions(valueMap: Map<Int, MutableMap<String, Double>>): Int? {
-        valueMap.forEach { (dimension, map) ->
-            var vectorizedTime = 0.0
-            var scalarTime = 0.0
-            map.forEach {(version, time) ->
-                if (version == "Vectorized") {
-                    vectorizedTime = time
-                } else {
-                    scalarTime = time
+            for (j in 0 until queryList.size) {
+                time = measureTime {
+                    vectorList.forEach { vector ->
+                        distanceFunctionScalar(queryList[j], vector)
+                    }
                 }
+
+                times.add(time.toDouble(DurationUnit.SECONDS))
             }
 
-            if (vectorizedTime / scalarTime <= 0.9) {
-                return dimension
+            val scalarTime = times.average()
+            times.clear()
+
+            if (vectorizedWasFasterBefore && vectorizedTime / scalarTime <= 0.9) {
+                println("Vect is better again at $dimension")
+                return returnDimension
+            } else if (vectorizedTime / scalarTime <= 0.9) {
+                println("Vect is better at $dimension")
+                vectorizedWasFasterBefore = true
+                returnDimension = dimension
+            } else {
+                println("Scalar still better at $dimension")
+                vectorizedWasFasterBefore = false
             }
         }
-        return null
+
+        return returnDimension
     }
 
     override fun exec() {
@@ -140,16 +146,23 @@ class VectorizationCommand : AbstractCottontailCommand.System(name = "vectorize"
             directory.mkdir()
         }
 
-        evaluate(true)
-        evaluate(false)
+        var breakEvenDimension = determineVectDistance(2, 2048, 50)
 
-        if (compareVersions(timeMap) != null) {
-            //TODO
+        if (breakEvenDimension == null) {
+            println("Break-even dimension was null" )
+        } else if (breakEvenDimension == 2) {
+            println("Always vectorizing? ")
+        } else {
+            println("Fine tuning begins...")
+            breakEvenDimension = determineVectDistance(breakEvenDimension - 50, breakEvenDimension, 1)
         }
 
-        val gson = GsonBuilder().setPrettyPrinting().create()
+        println(breakEvenDimension)
+        // TODO : Write value to config file
+
+        /*val gson = GsonBuilder().setPrettyPrinting().create()
         val outputString = gson.toJson(timeMap)
-        File("$path/performance.json").writeText(outputString)
+        File("$path/performance.json").writeText(outputString)*/
 
     }
 }

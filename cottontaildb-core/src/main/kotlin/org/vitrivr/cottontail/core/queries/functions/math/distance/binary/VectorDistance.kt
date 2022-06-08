@@ -17,18 +17,11 @@ import org.vitrivr.cottontail.core.values.types.VectorValue
  * @author Ralph Gasser
  * @version 1.2.0
  */
-sealed class VectorDistance<T: VectorValue<*>>(val type: Types.Vector<T,*>): VectorizableFunction<T> {
-
-    /** The [Types.Vector] accepted by this [VectorDistance]. */
-    abstract override val name: Name.FunctionName
+sealed class VectorDistance<T: VectorValue<*>>(val type: Types.Vector<T,*>): VectorizableFunction<DoubleValue> {
 
     /** The dimensionality of this [VectorDistance]. */
     override val d: Int
         get() = this.type.logicalSize
-
-    /** Signature of a [VectorDistance] is defined by the argument type it accepts. */
-    override val signature: Signature.Closed<DoubleValue>
-        get() = Signature.Closed(name, arrayOf(this.type, this.type), Types.Double)
 
     /**
      * Creates a copy of this [VectorDistance].

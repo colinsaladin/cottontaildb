@@ -1,5 +1,6 @@
 package org.vitrivr.cottontail.core.queries.functions
 
+import org.vitrivr.cottontail.core.database.Name
 import org.vitrivr.cottontail.core.queries.Digest
 import org.vitrivr.cottontail.core.queries.nodes.Node
 import org.vitrivr.cottontail.core.queries.nodes.NodeWithCost
@@ -19,6 +20,9 @@ interface Function<out R: Value>: NodeWithCost {
     /** Flag indicating, that this [Function] can be executed. Defaults to true. */
     val executable: Boolean
         get() = true
+
+    val functionName: Name.FunctionName
+        get() = this.signature.name
 
     /**
      * Create a copy of this [Function]. Since by default, [Function]s are stateless,

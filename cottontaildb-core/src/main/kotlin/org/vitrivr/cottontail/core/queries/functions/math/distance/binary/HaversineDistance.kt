@@ -52,6 +52,11 @@ sealed class HaversineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vec
         }
     }
 
+    /** Signature of a [VectorDistance] is defined by the argument type it accepts. */
+    override val signature: Signature.Closed<DoubleValue>
+        get() = Signature.Closed(EuclideanDistance.FUNCTION_NAME, arrayOf(this.type, this.type), Types.Double)
+
+
     /** The [Cost] of applying this [HaversineDistance]. */
     override val cost: Cost
         get() = (Cost.FLOP * 27.0f + Cost.MEMORY_ACCESS * 22.0f) * this.d
@@ -78,7 +83,6 @@ sealed class HaversineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vec
      * [HaversineDistance] for a [DoubleVectorValue].
      */
     class DoubleVector(type: Types.Vector<DoubleVectorValue,*>): HaversineDistance<DoubleVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as DoubleVectorValue
             val query = arguments[1] as DoubleVectorValue
@@ -96,7 +100,6 @@ sealed class HaversineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vec
      * [HaversineDistance] for a [FloatVectorValue].
      */
     class FloatVector(type: Types.Vector<FloatVectorValue,*>): HaversineDistance<FloatVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as FloatVectorValue
             val query = arguments[1] as FloatVectorValue
@@ -113,7 +116,6 @@ sealed class HaversineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vec
      * [HaversineDistance] for a [LongVectorValue].
      */
     class LongVector(type: Types.Vector<LongVectorValue,*>): HaversineDistance<LongVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as LongVectorValue
             val query = arguments[1] as LongVectorValue
@@ -131,7 +133,6 @@ sealed class HaversineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vec
      * [HaversineDistance] for a [IntVectorValue].
      */
     class IntVector(type: Types.Vector<IntVectorValue,*>): HaversineDistance<IntVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as IntVectorValue
             val query = arguments[1] as IntVectorValue

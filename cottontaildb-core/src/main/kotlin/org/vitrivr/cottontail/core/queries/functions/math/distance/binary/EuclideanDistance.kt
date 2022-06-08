@@ -57,6 +57,10 @@ sealed class EuclideanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
         }
     }
 
+    /** Signature of a [VectorDistance] is defined by the argument type it accepts. */
+    override val signature: Signature.Closed<DoubleValue>
+        get() = Signature.Closed(FUNCTION_NAME, arrayOf(this.type, this.type), Types.Double)
+
     /** The [Cost] of applying this [EuclideanDistance]. */
     override val cost: Cost
         get() = ((Cost.FLOP * 3.0f + Cost.MEMORY_ACCESS * 2.0f) * this.d) + Cost.OP_SQRT
@@ -69,7 +73,6 @@ sealed class EuclideanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
      * [EuclideanDistance] for a [Complex64VectorValue].
      */
     class Complex64Vector(type: Types.Vector<Complex64VectorValue,*>): EuclideanDistance<Complex64VectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as Complex64VectorValue
             val query = arguments[1] as Complex64VectorValue
@@ -91,7 +94,6 @@ sealed class EuclideanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
      * [EuclideanDistance] for a [Complex32VectorValue].
      */
     class Complex32Vector(type: Types.Vector<Complex32VectorValue,*>): EuclideanDistance<Complex32VectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as Complex32VectorValue
             val query = arguments[1] as Complex32VectorValue
@@ -113,7 +115,6 @@ sealed class EuclideanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
      * [EuclideanDistance] for a [DoubleVectorValue].
      */
     class DoubleVector(type: Types.Vector<DoubleVectorValue,*>): EuclideanDistance<DoubleVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as DoubleVectorValue
             val query = arguments[1] as DoubleVectorValue
@@ -135,7 +136,6 @@ sealed class EuclideanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
      * [EuclideanDistance] for a [FloatVectorValue].
      */
     class FloatVector(type: Types.Vector<FloatVectorValue,*>): EuclideanDistance<FloatVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as FloatVectorValue
             val query = arguments[1] as FloatVectorValue
@@ -156,9 +156,7 @@ sealed class EuclideanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
      * SIMD implementation: [EuclideanDistance] for a [FloatVectorValue]
      */
     class FloatVectorVectorized(type: Types.Vector<FloatVectorValue,*>): EuclideanDistance<FloatVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
-            // Changing SPECIES to SPECIES.PREFERRED results in a HUGE performance decrease
             val species: VectorSpecies<Float> = jdk.incubator.vector.FloatVector.SPECIES_PREFERRED
             val probing = arguments[0] as FloatVectorValue
             val query = arguments[1] as FloatVectorValue
@@ -168,8 +166,9 @@ sealed class EuclideanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
             for (i in 0 until species.loopBound(this.d) step species.length()) {
                 val vp = jdk.incubator.vector.FloatVector.fromArray(species, probing.data, i)
                 val vq = jdk.incubator.vector.FloatVector.fromArray(species, query.data, i)
-                vectorSum = vectorSum.lanewise(VectorOperators.ADD, vq.lanewise(VectorOperators.SUB, vp)
-                    .mul(vq.lanewise(VectorOperators.SUB, vp)))
+                vectorSum = vectorSum.lanewise(VectorOperators.ADD,
+                    vq.lanewise(VectorOperators.SUB, vp)
+                        .mul(vq.lanewise(VectorOperators.SUB, vp)))
             }
 
             var sum = vectorSum.reduceLanes(VectorOperators.ADD)
@@ -192,7 +191,6 @@ sealed class EuclideanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
      * [EuclideanDistance] for a [LongVectorValue].
      */
     class LongVector(type: Types.Vector<LongVectorValue,*>): EuclideanDistance<LongVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as LongVectorValue
             val query = arguments[1] as LongVectorValue
@@ -214,7 +212,6 @@ sealed class EuclideanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
      * [EuclideanDistance] for a [IntVectorValue].
      */
     class IntVector(type: Types.Vector<IntVectorValue,*>): EuclideanDistance<IntVectorValue>(type) {
-        override val name: Name.FunctionName = FUNCTION_NAME
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val probing = arguments[0] as IntVectorValue
             val query = arguments[1] as IntVectorValue

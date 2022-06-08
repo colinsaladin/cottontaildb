@@ -338,7 +338,7 @@ class LSHIndex(name: Name.IndexName, parent: DefaultEntity) : AbstractHDIndex(na
             /* Performs some sanity checks. */
             init {
                 val config = this@Tx.config
-                if (this.predicate.columns.first() != this@Tx.columns[0] || this.predicate.distance.name != config.distance) {
+                if (this.predicate.columns.first() != this@Tx.columns[0] || this.predicate.distance.functionName != config.distance) {
                     throw QueryException.UnsupportedPredicateException("Index '${this@LSHIndex.name}' (lsh-index) does not support the provided predicate.")
                 }
 
