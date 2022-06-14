@@ -4,6 +4,7 @@ import org.vitrivr.cottontail.core.database.Name
 import org.vitrivr.cottontail.core.queries.functions.Function
 import org.vitrivr.cottontail.core.queries.functions.Signature
 import org.vitrivr.cottontail.core.queries.functions.VectorizableFunction
+import org.vitrivr.cottontail.core.queries.functions.VectorizedFunction
 import org.vitrivr.cottontail.core.values.DoubleValue
 import org.vitrivr.cottontail.core.values.types.Types
 import org.vitrivr.cottontail.core.values.types.VectorValue
@@ -42,5 +43,5 @@ sealed class VectorDistance<T: VectorValue<*>>(val type: Types.Vector<T,*>): Vec
      *
      * @return Vectorized [VectorDistance]
      */
-    abstract override fun vectorized(): VectorDistance<T>
+    abstract override fun vectorized(): VectorizedFunction<DoubleValue>
 }

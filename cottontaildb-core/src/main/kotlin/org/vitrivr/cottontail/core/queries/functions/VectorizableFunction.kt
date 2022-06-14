@@ -43,5 +43,5 @@ interface VectorizableFunction<R: Value> : Function<R> {
      *
      * @return Vectorized [VectorizableFunction]
      */
-    fun vectorized(): VectorizableFunction<R>
+    fun vectorized(): VectorizedFunction<R>
 }

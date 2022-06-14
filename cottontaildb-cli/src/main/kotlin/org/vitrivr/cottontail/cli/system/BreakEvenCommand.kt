@@ -1,9 +1,8 @@
 package org.vitrivr.cottontail.cli.system
 
-import com.google.gson.GsonBuilder
 import org.apache.commons.math3.random.JDKRandomGenerator
 import org.vitrivr.cottontail.cli.AbstractCottontailCommand
-import org.vitrivr.cottontail.core.queries.functions.math.distance.binary.ManhattanDistance
+import org.vitrivr.cottontail.core.queries.functions.math.distance.binary.EuclideanDistance
 import org.vitrivr.cottontail.core.values.FloatVectorValue
 import org.vitrivr.cottontail.core.values.generators.FloatVectorValueGenerator
 import org.vitrivr.cottontail.core.values.types.Types
@@ -20,10 +19,10 @@ import kotlin.time.measureTime
  * @author Colin Saladin
  */
 @ExperimentalTime
-class VectorizationCommand : AbstractCottontailCommand.System(name = "vectorize", help = "CottontailDB allows for " +
+class BreakEvenCommand : AbstractCottontailCommand.System(name = "break-even", help = "CottontailDB allows for " +
         "vectorization implemented through SIMD instructions with the Java Vector API. With this command you can " +
         "determine from what feature-vector dimension onwards it makes sense to use a vectorized approach " +
-        "compared to the default scalar version. Usage: system vectorize") {
+        "compared to the default scalar version. Usage: system break-even") {
 
     private val randomVector = JDKRandomGenerator(123456789)
     private val randomQuery = JDKRandomGenerator(987654321)
@@ -33,7 +32,6 @@ class VectorizationCommand : AbstractCottontailCommand.System(name = "vectorize"
 
     private val vectorList = mutableListOf<FloatVectorValue>()
     private val queryList = mutableListOf<FloatVectorValue>()
-    private var timeMap = mutableMapOf<Int, MutableMap<String, Double>>()
 
     /**
      * This method is used to initialize the vectors that will function as in-memory feature-vectors.
@@ -64,7 +62,7 @@ class VectorizationCommand : AbstractCottontailCommand.System(name = "vectorize"
         queryInit(2048)
 
         for (i in 0 until 2) {
-            val distanceFunction = ManhattanDistance.FloatVectorVectorized(queryList[0].type as Types.FloatVector)
+            val distanceFunction = EuclideanDistance.FloatVectorVectorized(queryList[0].type as Types.FloatVector)
             distanceFunction(queryList[i], vectorList[i])
         }
     }
@@ -92,7 +90,7 @@ class VectorizationCommand : AbstractCottontailCommand.System(name = "vectorize"
             vectorInit(dimension)
             queryInit(dimension)
 
-            val distanceFunctionVect = ManhattanDistance.FloatVectorVectorized(queryList[0].type as Types.FloatVector)
+            val distanceFunctionVect = EuclideanDistance.FloatVectorVectorized(queryList[0].type as Types.FloatVector)
 
             for (j in 0 until queryList.size) {
                 time = measureTime {
@@ -107,7 +105,7 @@ class VectorizationCommand : AbstractCottontailCommand.System(name = "vectorize"
             val vectorizedTime = times.average()
             times.clear()
 
-            val distanceFunctionScalar = ManhattanDistance.FloatVector(queryList[0].type as Types.FloatVector)
+            val distanceFunctionScalar = EuclideanDistance.FloatVector(queryList[0].type as Types.FloatVector)
 
             for (j in 0 until queryList.size) {
                 time = measureTime {

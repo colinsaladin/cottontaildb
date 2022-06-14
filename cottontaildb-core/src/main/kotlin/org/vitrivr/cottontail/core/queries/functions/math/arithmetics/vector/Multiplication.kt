@@ -71,7 +71,7 @@ sealed class Multiplication<T : VectorValue<*>>(val type: Types.Vector<T,*>): Ve
             TODO("Not yet implemented")
         }
 
-        override fun vectorized(): VectorizableFunction<IntVectorValue> {
+        override fun vectorized(): VectorizedFunction<IntVectorValue> {
             TODO("Not yet implemented")
         }
     }
@@ -90,7 +90,7 @@ sealed class Multiplication<T : VectorValue<*>>(val type: Types.Vector<T,*>): Ve
             TODO("Not yet implemented")
         }
 
-        override fun vectorized(): VectorizableFunction<LongVectorValue> {
+        override fun vectorized(): VectorizedFunction<LongVectorValue> {
             TODO("Not yet implemented")
         }
     }
@@ -109,7 +109,7 @@ sealed class Multiplication<T : VectorValue<*>>(val type: Types.Vector<T,*>): Ve
             TODO("Not yet implemented")
         }
 
-        override fun vectorized(): VectorizableFunction<FloatVectorValue> {
+        override fun vectorized(): VectorizedFunction<FloatVectorValue> {
             TODO("Not yet implemented")
         }
     }
@@ -128,7 +128,7 @@ sealed class Multiplication<T : VectorValue<*>>(val type: Types.Vector<T,*>): Ve
             TODO("Not yet implemented")
         }
 
-        override fun vectorized(): VectorizableFunction<DoubleVectorValue> {
+        override fun vectorized(): VectorizedFunction<DoubleVectorValue> {
             TODO("Not yet implemented")
         }
     }

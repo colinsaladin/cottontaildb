@@ -71,7 +71,7 @@ sealed class Sum<T : NumericValue<*>>(val type: Types.Vector<*,T>): Vectorizable
             TODO("Not yet implemented")
         }
 
-        override fun vectorized(): VectorizableFunction<IntValue> {
+        override fun vectorized(): VectorizedFunction<IntValue> {
             TODO("Not yet implemented")
         }
     }
@@ -89,7 +89,7 @@ sealed class Sum<T : NumericValue<*>>(val type: Types.Vector<*,T>): Vectorizable
             TODO("Not yet implemented")
         }
 
-        override fun vectorized(): VectorizableFunction<LongValue> {
+        override fun vectorized(): VectorizedFunction<LongValue> {
             TODO("Not yet implemented")
         }
     }
@@ -107,7 +107,7 @@ sealed class Sum<T : NumericValue<*>>(val type: Types.Vector<*,T>): Vectorizable
             TODO("Not yet implemented")
         }
 
-        override fun vectorized(): VectorizableFunction<FloatValue> {
+        override fun vectorized(): VectorizedFunction<FloatValue> {
             TODO("Not yet implemented")
         }
     }
@@ -125,7 +125,7 @@ sealed class Sum<T : NumericValue<*>>(val type: Types.Vector<*,T>): Vectorizable
             TODO("Not yet implemented")
         }
 
-        override fun vectorized(): VectorizableFunction<DoubleValue> {
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
             TODO("Not yet implemented")
         }
     }

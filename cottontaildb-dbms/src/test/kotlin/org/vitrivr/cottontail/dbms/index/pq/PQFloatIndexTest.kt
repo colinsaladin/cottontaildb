@@ -128,7 +128,7 @@ class PQFloatIndexTest : AbstractIndexTest() {
                 found += 1.0f
         }
         val foundRatio = (found / k)
-        log("Test done for ${function.name} and d=${this.indexColumn.type.logicalSize}! PQ took $indexDuration, brute-force took $bruteForceDuration. Found ratio: $foundRatio")
+        log("Test done for ${function.functionName} and d=${this.indexColumn.type.logicalSize}! PQ took $indexDuration, brute-force took $bruteForceDuration. Found ratio: $foundRatio")
     }
 
     override fun nextRecord(): StandaloneRecord {

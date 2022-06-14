@@ -22,7 +22,7 @@ import org.vitrivr.cottontail.cli.entity.*
 import org.vitrivr.cottontail.cli.query.*
 import org.vitrivr.cottontail.cli.schema.*
 import org.vitrivr.cottontail.cli.system.EvaluateSIMDCommand
-import org.vitrivr.cottontail.cli.system.VectorizationCommand
+import org.vitrivr.cottontail.cli.system.BreakEvenCommand
 import org.vitrivr.cottontail.cli.system.KillTransactionCommand
 import org.vitrivr.cottontail.cli.system.ListLocksCommand
 import org.vitrivr.cottontail.cli.system.ListTransactionsCommand
@@ -339,7 +339,7 @@ class Cli(private val host: String = "localhost", private val port: Int = 1865) 
                     ListLocksCommand(this@Cli.client),
                     KillTransactionCommand(this@Cli.client),
                     EvaluateSIMDCommand(),
-                    VectorizationCommand()
+                    BreakEvenCommand()
                 ),
 
                 /* General commands. */

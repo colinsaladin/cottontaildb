@@ -484,33 +484,8 @@ object GrpcQueryBinder {
         val functionInstance = try {
             //TODO @Colin manually select either vectorized or scalar version of the function with if statement
             val type = signature.arguments[0].type
-            if (type is Types.FloatVector || type is Types.Float) {
-                /*when(signature.name.functionName) {
-                    "manhattan" -> ManhattanDistance.FloatVectorVectorized(type as Types.Vector<FloatVectorValue, *>)
-                    "euclidean" -> EuclideanDistance.FloatVectorVectorized(type as Types.Vector<FloatVectorValue, *>)
-                    "chisquared" -> ChisquaredDistance.FloatVectorVectorized(type as Types.Vector<FloatVectorValue, *>)
-                    "hamming" -> HammingDistance.FloatVectorVectorized(type as Types.Vector<FloatVectorValue, *>)
-                    "squaredeuclidean" -> SquaredEuclideanDistance.FloatVectorVectorized(type as Types.Vector<FloatVectorValue, *>)
-                    "dotp", "innerproduct" -> InnerProductDistance.FloatVectorVectorized(type as Types.Vector<FloatVectorValue, *>)
-                    "cosine" -> CosineDistance.FloatVectorVectorized(type as Types.Vector<FloatVectorValue, *>)
-                    else -> throw FunctionNotSupportedException("Function generator ${ManhattanDistance.signature} cannot generate function with signature $signature.")
-                }*/
+            context.catalogue.functions.obtain(signature)
 
-                //For the scalar versions.
-                 when(signature.name.functionName) {
-                    "manhattan" -> ManhattanDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
-                    "euclidean" -> EuclideanDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
-                    "chisquared" -> ChisquaredDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
-                    "hamming" -> HammingDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
-                    "squaredeuclidean" -> SquaredEuclideanDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
-                    "dotp", "innerproduct" -> InnerProductDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
-                    "cosine" -> CosineDistance.FloatVector(type as Types.Vector<FloatVectorValue, *>)
-                    else -> throw FunctionNotSupportedException("Function generator ${ManhattanDistance.signature} cannot generate function with signature $signature.")
-                }
-
-            } else {
-                context.catalogue.functions.obtain(signature)
-            }
         } catch (e: FunctionNotFoundException) {
             throw QueryException.QueryBindException("Desired function $signature could not be found.")
         }

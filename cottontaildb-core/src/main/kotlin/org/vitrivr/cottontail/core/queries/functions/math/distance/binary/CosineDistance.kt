@@ -3,10 +3,8 @@ package org.vitrivr.cottontail.core.queries.functions.math.distance.binary
 import jdk.incubator.vector.VectorOperators
 import jdk.incubator.vector.VectorSpecies
 import org.vitrivr.cottontail.core.database.Name
-import org.vitrivr.cottontail.core.queries.functions.Argument
+import org.vitrivr.cottontail.core.queries.functions.*
 import org.vitrivr.cottontail.core.queries.functions.Function
-import org.vitrivr.cottontail.core.queries.functions.FunctionGenerator
-import org.vitrivr.cottontail.core.queries.functions.Signature
 import org.vitrivr.cottontail.core.queries.functions.exception.FunctionNotSupportedException
 import org.vitrivr.cottontail.core.queries.planning.cost.Cost
 import org.vitrivr.cottontail.core.values.*
@@ -81,9 +79,8 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
         }
         override fun copy(d: Int) = DoubleVector(Types.DoubleVector(d))
 
-        override fun vectorized(): VectorDistance<DoubleVectorValue> {
-            return this
-            //TODO @Colin("Not yet implemented")
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            TODO("@Colin Not yet implemented")
         }
     }
 
@@ -106,15 +103,15 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
         }
         override fun copy(d: Int) = FloatVector(Types.FloatVector(d))
 
-        override fun vectorized(): VectorDistance<FloatVectorValue> {
-            return FloatVectorVectorized(type)
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            return FloatVectorVectorized(this.type)
         }
     }
 
     /**
      * [CosineDistance] for a [FloatVectorValue].
      */
-    class FloatVectorVectorized(type: Types.Vector<FloatVectorValue,*>): CosineDistance<FloatVectorValue>(type) {
+    class FloatVectorVectorized(type: Types.Vector<FloatVectorValue,*>): CosineDistance<FloatVectorValue>(type), VectorizedFunction<DoubleValue> {
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val species: VectorSpecies<Float> = jdk.incubator.vector.FloatVector.SPECIES_PREFERRED
             val probing = arguments[0] as FloatVectorValue
@@ -146,7 +143,7 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
         }
         override fun copy(d: Int) = FloatVectorVectorized(Types.FloatVector(d))
 
-        override fun vectorized(): VectorDistance<FloatVectorValue> {
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
             return this
         }
     }
@@ -170,9 +167,8 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
         }
         override fun copy(d: Int) = LongVector(Types.LongVector(d))
 
-        override fun vectorized(): VectorDistance<LongVectorValue> {
-            return this
-            //TODO @Colin("Not yet implemented")
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            TODO("@Colin Not yet implemented")
         }
     }
 
@@ -185,19 +181,18 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
             val query = arguments[1] as IntVectorValue
             var dotp = 0.0
             var normq = 0.0
-            var normv = 0.0
+            var normp = 0.0
             for (i in 0 until this.d) {
                 dotp += (query.data[i] * probing.data[i])
                 normq += query.data[i].toDouble().pow(2)
-                normv += probing.data[i].toDouble().pow(2)
+                normp += probing.data[i].toDouble().pow(2)
             }
-            return DoubleValue(1 - (dotp / (sqrt(normq) * sqrt(normv))))
+            return DoubleValue(1 - (dotp / (sqrt(normq) * sqrt(normp))))
         }
         override fun copy(d: Int) = IntVector(Types.IntVector(d))
 
-        override fun vectorized(): VectorDistance<IntVectorValue> {
-            return this
-            //TODO @Colin("Not yet implemented")
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            TODO("@Colin Not yet implemented")
         }
     }
 }

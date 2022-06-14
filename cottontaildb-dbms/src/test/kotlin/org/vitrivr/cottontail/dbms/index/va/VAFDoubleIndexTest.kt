@@ -114,7 +114,7 @@ class VAFDoubleIndexTest : AbstractIndexTest() {
             Assertions.assertEquals(bruteForceResults[i].first, e.tupleId)
             Assertions.assertEquals(bruteForceResults[i].second, e[predicate.distanceColumn])
         }
-        this.log("Test done for ${function.name} and d=${this.indexColumn.type.logicalSize}! VAF took $indexDuration, brute-force took $bruteForceDuration.")
+        this.log("Test done for ${function.functionName} and d=${this.indexColumn.type.logicalSize}! VAF took $indexDuration, brute-force took $bruteForceDuration.")
     }
 
     override fun nextRecord(): StandaloneRecord {
