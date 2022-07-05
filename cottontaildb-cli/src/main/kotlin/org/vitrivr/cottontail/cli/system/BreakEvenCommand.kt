@@ -76,7 +76,7 @@ class BreakEvenCommand : AbstractCottontailCommand.System(name = "break-even", h
      */
     private fun determineVectDistance(startingDimension: Int, endDimension: Int, stepSize: Int): Int? {
 
-        if (startingDimension == 0 || startingDimension == null) {
+        if (startingDimension == 0) {
             return null
         }
 
@@ -155,12 +155,7 @@ class BreakEvenCommand : AbstractCottontailCommand.System(name = "break-even", h
             breakEvenDimension = determineVectDistance(breakEvenDimension - 50, breakEvenDimension, 1)
         }
 
-        println(breakEvenDimension)
-        // TODO : Write value to config file
-
-        /*val gson = GsonBuilder().setPrettyPrinting().create()
-        val outputString = gson.toJson(timeMap)
-        File("$path/performance.json").writeText(outputString)*/
+        println("Break-even-dimension is: $breakEvenDimension")
 
     }
 }

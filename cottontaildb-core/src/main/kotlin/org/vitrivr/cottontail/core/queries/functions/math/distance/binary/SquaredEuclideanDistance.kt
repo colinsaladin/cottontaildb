@@ -127,9 +127,9 @@ sealed class SquaredEuclideanDistance<T : VectorValue<*>>(type: Types.Vector<T,*
     }
 
     /**
-     * SIMD implementation: [ChisquaredDistance] for a [DoubleVectorValue]
+     * SIMD implementation: [SquaredEuclideanDistance] for a [DoubleVectorValue]
      */
-    class DoubleVectorVectorized(type: Types.Vector<DoubleVectorValue,*>): ChisquaredDistance<DoubleVectorValue>(type), VectorizedFunction<DoubleValue> {
+    class DoubleVectorVectorized(type: Types.Vector<DoubleVectorValue,*>): SquaredEuclideanDistance<DoubleVectorValue>(type), VectorizedFunction<DoubleValue> {
         override fun invoke(vararg arguments: Value?): DoubleValue {
             // Changing SPECIES to SPECIES.PREFERRED results in a HUGE performance decrease
             val species: VectorSpecies<Double> = jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED
@@ -237,9 +237,9 @@ sealed class SquaredEuclideanDistance<T : VectorValue<*>>(type: Types.Vector<T,*
     }
 
     /**
-     * SIMD implementation: [ChisquaredDistance] for a [LongVectorValue]
+     * SIMD implementation: [SquaredEuclideanDistance] for a [LongVectorValue]
      */
-    class LongVectorVectorized(type: Types.Vector<LongVectorValue,*>): ChisquaredDistance<LongVectorValue>(type), VectorizedFunction<DoubleValue> {
+    class LongVectorVectorized(type: Types.Vector<LongVectorValue,*>): SquaredEuclideanDistance<LongVectorValue>(type), VectorizedFunction<DoubleValue> {
         override fun invoke(vararg arguments: Value?): DoubleValue {
             // Changing SPECIES to SPECIES.PREFERRED results in a HUGE performance decrease
             val species: VectorSpecies<Long> = jdk.incubator.vector.LongVector.SPECIES_PREFERRED
@@ -292,9 +292,9 @@ sealed class SquaredEuclideanDistance<T : VectorValue<*>>(type: Types.Vector<T,*
     }
 
     /**
-     * SIMD implementation: [ChisquaredDistance] for a [IntVectorValue]
+     * SIMD implementation: [SquaredEuclideanDistance] for a [IntVectorValue]
      */
-    class IntVectorVectorized(type: Types.Vector<IntVectorValue,*>): ChisquaredDistance<IntVectorValue>(type), VectorizedFunction<DoubleValue> {
+    class IntVectorVectorized(type: Types.Vector<IntVectorValue,*>): SquaredEuclideanDistance<IntVectorValue>(type), VectorizedFunction<DoubleValue> {
         override fun invoke(vararg arguments: Value?): DoubleValue {
             // Changing SPECIES to SPECIES.PREFERRED results in a HUGE performance decrease
             val species: VectorSpecies<Int> = jdk.incubator.vector.IntVector.SPECIES_PREFERRED

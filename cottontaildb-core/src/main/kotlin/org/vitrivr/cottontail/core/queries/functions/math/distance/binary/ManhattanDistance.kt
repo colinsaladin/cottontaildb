@@ -133,9 +133,9 @@ sealed class ManhattanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
     }
 
     /**
-     * SIMD implementation: [ChisquaredDistance] for a [DoubleVectorValue]
+     * SIMD implementation: [ManhattanDistance] for a [DoubleVectorValue]
      */
-    class DoubleVectorVectorized(type: Types.Vector<DoubleVectorValue,*>): ChisquaredDistance<DoubleVectorValue>(type), VectorizedFunction<DoubleValue> {
+    class DoubleVectorVectorized(type: Types.Vector<DoubleVectorValue,*>): ManhattanDistance<DoubleVectorValue>(type), VectorizedFunction<DoubleValue> {
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val species: VectorSpecies<Double> = jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED
             val probing = arguments[0] as DoubleVectorValue
@@ -237,9 +237,9 @@ sealed class ManhattanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
     }
 
     /**
-     * SIMD implementation: [ChisquaredDistance] for a [LongVectorValue]
+     * SIMD implementation: [ManhattanDistance] for a [LongVectorValue]
      */
-    class LongVectorVectorized(type: Types.Vector<LongVectorValue,*>): ChisquaredDistance<LongVectorValue>(type), VectorizedFunction<DoubleValue> {
+    class LongVectorVectorized(type: Types.Vector<LongVectorValue,*>): ManhattanDistance<LongVectorValue>(type), VectorizedFunction<DoubleValue> {
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val species: VectorSpecies<Long> = jdk.incubator.vector.LongVector.SPECIES_PREFERRED
             val probing = arguments[0] as LongVectorValue
@@ -289,9 +289,9 @@ sealed class ManhattanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
     }
 
     /**
-     * SIMD implementation: [ChisquaredDistance] for a [IntVectorValue]
+     * SIMD implementation: [ManhattanDistance] for a [IntVectorValue]
      */
-    class IntVectorVectorized(type: Types.Vector<IntVectorValue,*>): ChisquaredDistance<IntVectorValue>(type), VectorizedFunction<DoubleValue> {
+    class IntVectorVectorized(type: Types.Vector<IntVectorValue,*>): ManhattanDistance<IntVectorValue>(type), VectorizedFunction<DoubleValue> {
         override fun invoke(vararg arguments: Value?): DoubleValue {
             val species: VectorSpecies<Int> = jdk.incubator.vector.IntVector.SPECIES_PREFERRED
             val probing = arguments[0] as IntVectorValue

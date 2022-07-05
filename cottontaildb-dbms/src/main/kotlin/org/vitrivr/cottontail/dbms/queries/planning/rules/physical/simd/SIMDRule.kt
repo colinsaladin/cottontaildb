@@ -27,7 +27,7 @@ class SIMDRule(val catalogue: Catalogue) : RewriteRule {
             val out = node.out
 
             // Provisional heuristic
-            if ((node.function.function as VectorizableFunction<*>).d >= 0) {
+            if ((node.function.function as VectorizableFunction<*>).d >= 256) {
                 val bindFunction = out.context.bind((node.function.function as VectorizableFunction<*>).vectorized(), node.function.arguments)
                 val p = FunctionPhysicalOperatorNode(input as OperatorNode.Physical, bindFunction, out)
                 return node.output?.copyWithOutput(p) ?: p
