@@ -1,6 +1,5 @@
 package org.vitrivr.cottontail.core.queries.functions.math.distance.binary
 
-import jdk.incubator.vector.Vector
 import jdk.incubator.vector.VectorOperators
 import jdk.incubator.vector.VectorSpecies
 import org.vitrivr.cottontail.core.database.Name
@@ -124,7 +123,43 @@ sealed class EuclideanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
         override fun copy(d: Int) = DoubleVector(Types.DoubleVector(d))
 
         override fun vectorized(): VectorizedFunction<DoubleValue> {
-            TODO("@Colin Not yet implemented")
+            return DoubleVectorVectorized(this.type)
+        }
+    }
+
+    /**
+     * SIMD implementation: [EuclideanDistance] for a [DoubleVectorValue]
+     */
+    class DoubleVectorVectorized(type: Types.Vector<DoubleVectorValue,*>): EuclideanDistance<DoubleVectorValue>(type), VectorizedFunction<DoubleValue> {
+        override fun invoke(vararg arguments: Value?): DoubleValue {
+            // Changing SPECIES to SPECIES.PREFERRED results in a HUGE performance decrease
+            val species: VectorSpecies<Double> = jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED
+            val probing = arguments[0] as DoubleVectorValue
+            val query = arguments[1] as DoubleVectorValue
+            var vectorSum = jdk.incubator.vector.DoubleVector.zero(species)
+
+            //Vectorized calculation
+            for (i in 0 until species.loopBound(this.d) step species.length()) {
+                val vp = jdk.incubator.vector.DoubleVector.fromArray(species, probing.data, i)
+                val vq = jdk.incubator.vector.DoubleVector.fromArray(species, query.data, i)
+                vectorSum = vectorSum.lanewise(VectorOperators.ADD, vp.lanewise(VectorOperators.SUB, vq)
+                    .mul(vp.lanewise(VectorOperators.SUB, vq))
+                    .div(vp.lanewise(VectorOperators.ADD, vq)))
+            }
+
+            var sum = vectorSum.reduceLanes(VectorOperators.ADD)
+
+            // Scalar calculation for the remaining lanes, since SPECIES.loopBound(this.d) <= this.d
+            for (i in species.loopBound(this.d) until this.d) {
+                sum += ((query.data[i] - probing.data[i]).pow(2)) / (query.data[i] + probing.data[i])
+            }
+
+            return DoubleValue(sum)
+        }
+        override fun copy(d: Int) = DoubleVectorVectorized(Types.DoubleVector(d))
+
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            return this
         }
     }
 
@@ -199,7 +234,43 @@ sealed class EuclideanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
         override fun copy(d: Int) = LongVector(Types.LongVector(d))
 
         override fun vectorized(): VectorizedFunction<DoubleValue> {
-            TODO("@Colin Not yet implemented")
+            return LongVectorVectorized(this.type)
+        }
+    }
+
+    /**
+     * SIMD implementation: [EuclideanDistance] for a [LongVectorValue]
+     */
+    class LongVectorVectorized(type: Types.Vector<LongVectorValue,*>): EuclideanDistance<LongVectorValue>(type), VectorizedFunction<DoubleValue> {
+        override fun invoke(vararg arguments: Value?): DoubleValue {
+            // Changing SPECIES to SPECIES.PREFERRED results in a HUGE performance decrease
+            val species: VectorSpecies<Long> = jdk.incubator.vector.LongVector.SPECIES_PREFERRED
+            val probing = arguments[0] as LongVectorValue
+            val query = arguments[1] as LongVectorValue
+            var vectorSum = jdk.incubator.vector.LongVector.zero(species)
+
+            //Vectorized calculation
+            for (i in 0 until species.loopBound(this.d) step species.length()) {
+                val vp = jdk.incubator.vector.LongVector.fromArray(species, probing.data, i)
+                val vq = jdk.incubator.vector.LongVector.fromArray(species, query.data, i)
+                vectorSum = vectorSum.lanewise(VectorOperators.ADD, vp.lanewise(VectorOperators.SUB, vq)
+                    .mul(vp.lanewise(VectorOperators.SUB, vq))
+                    .div(vp.lanewise(VectorOperators.ADD, vq)))
+            }
+
+            var sum = vectorSum.reduceLanes(VectorOperators.ADD).toDouble()
+
+            // Scalar calculation for the remaining lanes, since SPECIES.loopBound(this.d) <= this.d
+            for (i in species.loopBound(this.d) until this.d) {
+                sum += ((query.data[i] - probing.data[i]).toDouble().pow(2)) / (query.data[i] + probing.data[i])
+            }
+
+            return DoubleValue(sum)
+        }
+        override fun copy(d: Int) = LongVectorVectorized(Types.LongVector(d))
+
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            return this
         }
     }
 
@@ -219,7 +290,43 @@ sealed class EuclideanDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Min
         override fun copy(d: Int) = IntVector(Types.IntVector(d))
 
         override fun vectorized(): VectorizedFunction<DoubleValue> {
-            TODO("@Colin Not yet implemented")
+            return IntVectorVectorized(this.type)
+        }
+    }
+
+    /**
+     * SIMD implementation: [EuclideanDistance] for a [IntVectorValue]
+     */
+    class IntVectorVectorized(type: Types.Vector<IntVectorValue,*>): EuclideanDistance<IntVectorValue>(type), VectorizedFunction<DoubleValue> {
+        override fun invoke(vararg arguments: Value?): DoubleValue {
+            // Changing SPECIES to SPECIES.PREFERRED results in a HUGE performance decrease
+            val species: VectorSpecies<Int> = jdk.incubator.vector.IntVector.SPECIES_PREFERRED
+            val probing = arguments[0] as IntVectorValue
+            val query = arguments[1] as IntVectorValue
+            var vectorSum = jdk.incubator.vector.IntVector.zero(species)
+
+            //Vectorized calculation
+            for (i in 0 until species.loopBound(this.d) step species.length()) {
+                val vp = jdk.incubator.vector.IntVector.fromArray(species, probing.data, i)
+                val vq = jdk.incubator.vector.IntVector.fromArray(species, query.data, i)
+                vectorSum = vectorSum.lanewise(VectorOperators.ADD, vp.lanewise(VectorOperators.SUB, vq)
+                    .mul(vp.lanewise(VectorOperators.SUB, vq))
+                    .div(vp.lanewise(VectorOperators.ADD, vq)))
+            }
+
+            var sum = vectorSum.reduceLanes(VectorOperators.ADD).toDouble()
+
+            // Scalar calculation for the remaining lanes, since SPECIES.loopBound(this.d) <= this.d
+            for (i in species.loopBound(this.d) until this.d) {
+                sum += ((query.data[i] - probing.data[i]).toDouble().pow(2)) / (query.data[i] + probing.data[i])
+            }
+
+            return DoubleValue(sum)
+        }
+        override fun copy(d: Int) = IntVectorVectorized(Types.IntVector(d))
+
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            return this
         }
     }
 }

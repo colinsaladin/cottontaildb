@@ -78,7 +78,39 @@ sealed class HammingDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vecto
         override fun copy(d: Int) = DoubleVector(Types.DoubleVector(d))
 
         override fun vectorized(): VectorizedFunction<DoubleValue> {
-            TODO("@Colin Not yet implemented")
+            return DoubleVectorVectorized(this.type)
+        }
+    }
+
+    /**
+     * SIMD implementation: [HammingDistance] for a [DoubleVectorValue]
+     */
+    class DoubleVectorVectorized(type: Types.Vector<DoubleVectorValue,*>): HammingDistance<DoubleVectorValue>(type), VectorizedFunction<DoubleValue> {
+        override fun invoke(vararg arguments: Value?): DoubleValue {
+            val species: VectorSpecies<Double> = jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED
+            val probing = arguments[0] as DoubleVectorValue
+            val query = arguments[1] as DoubleVectorValue
+            var sum = 0.0
+
+            //Vectorized calculation
+            for (i in 0 until species.loopBound(this.d) step species.length()) {
+                val vp = jdk.incubator.vector.DoubleVector.fromArray(species, probing.data, i)
+                val vq = jdk.incubator.vector.DoubleVector.fromArray(species, query.data, i)
+                sum += vp.compare(VectorOperators.NE, vq).trueCount()
+            }
+
+            // Scalar calculation for the remaining lanes, since SPECIES.loopBound(this.d) <= this.d
+            for (i in species.loopBound(this.d) until this.d) {
+                if (query.data[i] != probing.data[i]) {
+                    sum += 1.0
+                }
+            }
+            return DoubleValue(sum)
+        }
+        override fun copy(d: Int) = DoubleVectorVectorized(Types.DoubleVector(d))
+
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            return this
         }
     }
 
@@ -154,7 +186,39 @@ sealed class HammingDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vecto
         override fun copy(d: Int) = LongVector(Types.LongVector(d))
 
         override fun vectorized(): VectorizedFunction<DoubleValue> {
-            TODO("@Colin Not yet implemented")
+            return LongVectorVectorized(this.type)
+        }
+    }
+
+    /**
+     * SIMD implementation: [HammingDistance] for a [LongVectorValue]
+     */
+    class LongVectorVectorized(type: Types.Vector<LongVectorValue,*>): HammingDistance<LongVectorValue>(type), VectorizedFunction<DoubleValue> {
+        override fun invoke(vararg arguments: Value?): DoubleValue {
+            val species: VectorSpecies<Long> = jdk.incubator.vector.LongVector.SPECIES_PREFERRED
+            val probing = arguments[0] as LongVectorValue
+            val query = arguments[1] as LongVectorValue
+            var sum = 0.0
+
+            //Vectorized calculation
+            for (i in 0 until species.loopBound(this.d) step species.length()) {
+                val vp = jdk.incubator.vector.LongVector.fromArray(species, probing.data, i)
+                val vq = jdk.incubator.vector.LongVector.fromArray(species, query.data, i)
+                sum += vp.compare(VectorOperators.NE, vq).trueCount()
+            }
+
+            // Scalar calculation for the remaining lanes, since SPECIES.loopBound(this.d) <= this.d
+            for (i in species.loopBound(this.d) until this.d) {
+                if (query.data[i] != probing.data[i]) {
+                    sum += 1.0
+                }
+            }
+            return DoubleValue(sum)
+        }
+        override fun copy(d: Int) = LongVectorVectorized(Types.LongVector(d))
+
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            return this
         }
     }
 
@@ -176,7 +240,39 @@ sealed class HammingDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vecto
         override fun copy(d: Int) = IntVector(Types.IntVector(d))
 
         override fun vectorized(): VectorizedFunction<DoubleValue> {
-            TODO("@Colin Not yet implemented")
+            return IntVectorVectorized(this.type)
+        }
+    }
+
+    /**
+     * SIMD implementation: [HammingDistance] for a [IntVectorValue]
+     */
+    class IntVectorVectorized(type: Types.Vector<IntVectorValue,*>): HammingDistance<IntVectorValue>(type), VectorizedFunction<DoubleValue> {
+        override fun invoke(vararg arguments: Value?): DoubleValue {
+            val species: VectorSpecies<Int> = jdk.incubator.vector.IntVector.SPECIES_PREFERRED
+            val probing = arguments[0] as IntVectorValue
+            val query = arguments[1] as IntVectorValue
+            var sum = 0.0
+
+            //Vectorized calculation
+            for (i in 0 until species.loopBound(this.d) step species.length()) {
+                val vp = jdk.incubator.vector.IntVector.fromArray(species, probing.data, i)
+                val vq = jdk.incubator.vector.IntVector.fromArray(species, query.data, i)
+                sum += vp.compare(VectorOperators.NE, vq).trueCount()
+            }
+
+            // Scalar calculation for the remaining lanes, since SPECIES.loopBound(this.d) <= this.d
+            for (i in species.loopBound(this.d) until this.d) {
+                if (query.data[i] != probing.data[i]) {
+                    sum += 1.0
+                }
+            }
+            return DoubleValue(sum)
+        }
+        override fun copy(d: Int) = IntVectorVectorized(Types.IntVector(d))
+
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            return this
         }
     }
 

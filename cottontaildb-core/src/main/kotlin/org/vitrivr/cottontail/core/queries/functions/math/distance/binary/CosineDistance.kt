@@ -80,7 +80,47 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
         override fun copy(d: Int) = DoubleVector(Types.DoubleVector(d))
 
         override fun vectorized(): VectorizedFunction<DoubleValue> {
-            TODO("@Colin Not yet implemented")
+            return DoubleVectorVectorized(this.type)
+        }
+    }
+
+    /**
+     * SIMD implementation: [CosineDistance] for a [DoubleVectorValue]
+     */
+    class DoubleVectorVectorized(type: Types.Vector<DoubleVectorValue,*>): CosineDistance<DoubleVectorValue>(type), VectorizedFunction<DoubleValue> {
+        override fun invoke(vararg arguments: Value?): DoubleValue {
+            val species: VectorSpecies<Double> = jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED
+            val probing = arguments[0] as DoubleVectorValue
+            val query = arguments[1] as DoubleVectorValue
+            var vectorDotp = jdk.incubator.vector.DoubleVector.zero(species)
+            var vectorNormq = jdk.incubator.vector.DoubleVector.zero(species)
+            var vectorNormv = jdk.incubator.vector.DoubleVector.zero(species)
+
+            for (i in 0 until species.loopBound(this.d) step species.length()) {
+                val vp = jdk.incubator.vector.DoubleVector.fromArray(species, probing.data, i)
+                val vq = jdk.incubator.vector.DoubleVector.fromArray(species, query.data, i)
+
+                vectorDotp = vp.fma(vq, vectorDotp)
+                vectorNormq = vectorNormq.lanewise(VectorOperators.ADD, vq.mul(vq))
+                vectorNormv = vectorNormv.lanewise(VectorOperators.ADD, vp.mul(vp))
+            }
+
+            var dotp = vectorDotp.reduceLanes(VectorOperators.ADD)
+            var normq = vectorNormq.reduceLanes(VectorOperators.ADD)
+            var normv = vectorNormv.reduceLanes(VectorOperators.ADD)
+
+            for (i in species.loopBound(this.d) until this.d) {
+                dotp += (query.data[i] * probing.data[i])
+                normq += query.data[i].pow(2)
+                normv += probing.data[i].pow(2)
+            }
+
+            return DoubleValue(1 - (dotp / (sqrt(normq) * sqrt(normv))))
+        }
+        override fun copy(d: Int) = DoubleVectorVectorized(Types.DoubleVector(d))
+
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            return this
         }
     }
 
@@ -139,7 +179,7 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
                 normv += probing.data[i].pow(2)
             }
 
-            return DoubleValue(dotp / (sqrt(normq) * sqrt(normv)))
+            return DoubleValue(1 - (dotp / (sqrt(normq) * sqrt(normv))))
         }
         override fun copy(d: Int) = FloatVectorVectorized(Types.FloatVector(d))
 
@@ -168,7 +208,47 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
         override fun copy(d: Int) = LongVector(Types.LongVector(d))
 
         override fun vectorized(): VectorizedFunction<DoubleValue> {
-            TODO("@Colin Not yet implemented")
+            return LongVectorVectorized(this.type)
+        }
+    }
+
+    /**
+     * SIMD implementation: [CosineDistance] for a [LongVectorValue]
+     */
+    class LongVectorVectorized(type: Types.Vector<LongVectorValue,*>): CosineDistance<LongVectorValue>(type), VectorizedFunction<DoubleValue> {
+        override fun invoke(vararg arguments: Value?): DoubleValue {
+            val species: VectorSpecies<Long> = jdk.incubator.vector.LongVector.SPECIES_PREFERRED
+            val probing = arguments[0] as LongVectorValue
+            val query = arguments[1] as LongVectorValue
+            var vectorDotp = jdk.incubator.vector.LongVector.zero(species)
+            var vectorNormq = jdk.incubator.vector.LongVector.zero(species)
+            var vectorNormv = jdk.incubator.vector.LongVector.zero(species)
+
+            for (i in 0 until species.loopBound(this.d) step species.length()) {
+                val vp = jdk.incubator.vector.LongVector.fromArray(species, probing.data, i)
+                val vq = jdk.incubator.vector.LongVector.fromArray(species, query.data, i)
+
+                vectorDotp = vp.mul(vq).add(vectorDotp)
+                vectorNormq = vectorNormq.lanewise(VectorOperators.ADD, vq.mul(vq))
+                vectorNormv = vectorNormv.lanewise(VectorOperators.ADD, vp.mul(vp))
+            }
+
+            var dotp = vectorDotp.reduceLanes(VectorOperators.ADD)
+            var normq = vectorNormq.reduceLanes(VectorOperators.ADD).toDouble()
+            var normv = vectorNormv.reduceLanes(VectorOperators.ADD).toDouble()
+
+            for (i in species.loopBound(this.d) until this.d) {
+                dotp += (query.data[i] * probing.data[i])
+                normq += query.data[i].toDouble().pow(2)
+                normv += probing.data[i].toDouble().pow(2)
+            }
+
+            return DoubleValue(1 - (dotp / (sqrt(normq) * sqrt(normv))))
+        }
+        override fun copy(d: Int) = LongVectorVectorized(Types.LongVector(d))
+
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            return this
         }
     }
 
@@ -192,7 +272,47 @@ sealed class CosineDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): Vector
         override fun copy(d: Int) = IntVector(Types.IntVector(d))
 
         override fun vectorized(): VectorizedFunction<DoubleValue> {
-            TODO("@Colin Not yet implemented")
+            return IntVectorVectorized(this.type)
+        }
+    }
+
+    /**
+     * SIMD implementation: [CosineDistance] for a [IntVectorValue]
+     */
+    class IntVectorVectorized(type: Types.Vector<IntVectorValue,*>): CosineDistance<IntVectorValue>(type), VectorizedFunction<DoubleValue> {
+        override fun invoke(vararg arguments: Value?): DoubleValue {
+            val species: VectorSpecies<Int> = jdk.incubator.vector.IntVector.SPECIES_PREFERRED
+            val probing = arguments[0] as IntVectorValue
+            val query = arguments[1] as IntVectorValue
+            var vectorDotp = jdk.incubator.vector.IntVector.zero(species)
+            var vectorNormq = jdk.incubator.vector.IntVector.zero(species)
+            var vectorNormv = jdk.incubator.vector.IntVector.zero(species)
+
+            for (i in 0 until species.loopBound(this.d) step species.length()) {
+                val vp = jdk.incubator.vector.IntVector.fromArray(species, probing.data, i)
+                val vq = jdk.incubator.vector.IntVector.fromArray(species, query.data, i)
+
+                vectorDotp = vp.mul(vq).add(vectorDotp)
+                vectorNormq = vectorNormq.lanewise(VectorOperators.ADD, vq.mul(vq))
+                vectorNormv = vectorNormv.lanewise(VectorOperators.ADD, vp.mul(vp))
+            }
+
+            var dotp = vectorDotp.reduceLanes(VectorOperators.ADD)
+            var normq = vectorNormq.reduceLanes(VectorOperators.ADD).toDouble()
+            var normv = vectorNormv.reduceLanes(VectorOperators.ADD).toDouble()
+
+            for (i in species.loopBound(this.d) until this.d) {
+                dotp += (query.data[i] * probing.data[i])
+                normq += query.data[i].toDouble().pow(2)
+                normv += probing.data[i].toDouble().pow(2)
+            }
+
+            return DoubleValue(1 - (dotp / (sqrt(normq) * sqrt(normv))))
+        }
+        override fun copy(d: Int) = IntVectorVectorized(Types.IntVector(d))
+
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            return this
         }
     }
 }

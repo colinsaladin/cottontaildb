@@ -101,19 +101,17 @@ sealed class Subtraction<T : VectorValue<*>>(val type: Types.Vector<T,*>): Vecto
     /**
      * Addition of two [FloatVectorValue].
      */
-    class FloatVector(type: Types.FloatVector): Subtraction<FloatVectorValue>(type) {
+    class FloatVector(type: Types.FloatVector): Subtraction<FloatVectorValue>(type), VectorizedFunction<FloatVectorValue> {
         override fun invoke(vararg arguments: Value?): FloatVectorValue {
             val left = arguments[0] as FloatVectorValue
             val right = arguments[1] as FloatVectorValue
             return FloatVectorValue(FloatArray(this.d) { left.data[it] - right.data[it] })
         }
 
-        override fun copy(d: Int): VectorizableFunction<FloatVectorValue> {
-            TODO("Not yet implemented")
-        }
+        override fun copy(d: Int) = FloatVector(Types.FloatVector(d))
 
         override fun vectorized(): VectorizedFunction<FloatVectorValue> {
-            TODO("Not yet implemented")
+            return this
         }
     }
 

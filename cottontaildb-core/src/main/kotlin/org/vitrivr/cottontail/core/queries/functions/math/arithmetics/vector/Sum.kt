@@ -2,7 +2,6 @@ package org.vitrivr.cottontail.core.queries.functions.math.arithmetics.vector
 
 import org.vitrivr.cottontail.core.database.Name
 import org.vitrivr.cottontail.core.queries.functions.*
-import org.vitrivr.cottontail.core.queries.functions.Function
 import org.vitrivr.cottontail.core.queries.functions.exception.FunctionNotSupportedException
 import org.vitrivr.cottontail.core.queries.planning.cost.Cost
 import org.vitrivr.cottontail.core.values.*
@@ -97,18 +96,16 @@ sealed class Sum<T : NumericValue<*>>(val type: Types.Vector<*,T>): Vectorizable
     /**
      * (Element-wise) [Maximum] for a [FloatVectorValue].
      */
-    class FloatVector(type: Types.FloatVector): Sum<FloatValue>(type) {
+    class FloatVector(type: Types.FloatVector): Sum<FloatValue>(type), VectorizedFunction<FloatValue> {
         override fun invoke(vararg arguments: Value?): FloatValue {
             val argument = arguments[0] as FloatVectorValue
             return FloatValue(argument.data.sum())
         }
 
-        override fun copy(d: Int): VectorizableFunction<FloatValue> {
-            TODO("Not yet implemented")
-        }
+        override fun copy(d: Int) = FloatVector(Types.FloatVector(d))
 
         override fun vectorized(): VectorizedFunction<FloatValue> {
-            TODO("Not yet implemented")
+            return this
         }
     }
 

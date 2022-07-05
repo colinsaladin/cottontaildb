@@ -98,19 +98,17 @@ sealed class Multiplication<T : VectorValue<*>>(val type: Types.Vector<T,*>): Ve
     /**
      * Multiplication of a [FloatVectorValue] with a [FloatValue].
      */
-    class FloatVector(type: Types.FloatVector): Multiplication<FloatVectorValue>(type) {
+    class FloatVector(type: Types.FloatVector): Multiplication<FloatVectorValue>(type), VectorizedFunction<FloatVectorValue> {
         override fun invoke(vararg arguments: Value?): FloatVectorValue {
             val left = arguments[0] as FloatVectorValue
             val right = arguments[1] as FloatValue
             return FloatVectorValue(FloatArray(this.d) { left.data[it] * right.value })
         }
 
-        override fun copy(d: Int): VectorizableFunction<FloatVectorValue> {
-            TODO("Not yet implemented")
-        }
+        override fun copy(d: Int) = FloatVector(Types.FloatVector(d))
 
         override fun vectorized(): VectorizedFunction<FloatVectorValue> {
-            TODO("Not yet implemented")
+            return this
         }
     }
 

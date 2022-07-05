@@ -1,9 +1,7 @@
 package org.vitrivr.cottontail.dbms.queries.planning.rules.physical.simd
 
-import org.vitrivr.cottontail.core.queries.binding.Binding
 import org.vitrivr.cottontail.core.queries.functions.VectorizableFunction
 import org.vitrivr.cottontail.core.queries.functions.VectorizedFunction
-import org.vitrivr.cottontail.core.queries.functions.math.distance.binary.VectorDistance
 import org.vitrivr.cottontail.dbms.catalogue.Catalogue
 import org.vitrivr.cottontail.dbms.queries.context.QueryContext
 import org.vitrivr.cottontail.dbms.queries.operators.OperatorNode
@@ -29,7 +27,7 @@ class SIMDRule(val catalogue: Catalogue) : RewriteRule {
             val out = node.out
 
             // Provisional heuristic
-            if ((node.function.function as VectorizableFunction<*>).d >= 2049) {
+            if ((node.function.function as VectorizableFunction<*>).d >= 0) {
                 val bindFunction = out.context.bind((node.function.function as VectorizableFunction<*>).vectorized(), node.function.arguments)
                 val p = FunctionPhysicalOperatorNode(input as OperatorNode.Physical, bindFunction, out)
                 return node.output?.copyWithOutput(p) ?: p

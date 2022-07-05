@@ -185,7 +185,7 @@ class FloatVectorDistanceTest : AbstractDistanceTest() {
                     normv += it.data[i].pow(2)
                 }
 
-                sum2 += (dotp / (sqrt(normq) * sqrt(normv))).toFloat()
+                sum2 += 1 - (dotp / (sqrt(normq) * sqrt(normv))).toFloat()
             }
             time3 += measureTime {
                 sum3 += cosine(query.data, it.data)
@@ -479,7 +479,7 @@ class FloatVectorDistanceTest : AbstractDistanceTest() {
             normq += p1[i].pow(2)
             normv += p2[i].pow(2)
         }
-        return dotp / (sqrt(normq) * sqrt(normv))
+        return 1 - (dotp / (sqrt(normq) * sqrt(normv)))
     }
 
     /**

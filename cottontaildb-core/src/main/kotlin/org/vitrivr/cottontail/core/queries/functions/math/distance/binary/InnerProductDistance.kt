@@ -124,7 +124,39 @@ sealed class InnerProductDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): 
         override fun copy(d: Int) = DoubleVector(Types.DoubleVector(d))
 
         override fun vectorized(): VectorizedFunction<DoubleValue> {
-            TODO("@Colin Not yet implemented")
+            return DoubleVectorVectorized(this.type)
+        }
+    }
+
+    /**
+     * SIMD implementation: [InnerProductDistance] for a [DoubleVectorValue]
+     */
+    class DoubleVectorVectorized(type: Types.Vector<DoubleVectorValue,*>): InnerProductDistance<DoubleVectorValue>(type), VectorizedFunction<DoubleValue> {
+        override fun invoke(vararg arguments: Value?): DoubleValue {
+            val species: VectorSpecies<Double> = jdk.incubator.vector.DoubleVector.SPECIES_PREFERRED
+            val probing = arguments[0] as DoubleVectorValue
+            val query = arguments[1] as DoubleVectorValue
+            var vectorSum = jdk.incubator.vector.DoubleVector.zero(species)
+
+            //Vectorized calculation
+            for (i in 0 until species.loopBound(this.d) step species.length()) {
+                val vp = jdk.incubator.vector.DoubleVector.fromArray(species, probing.data, i)
+                val vq = jdk.incubator.vector.DoubleVector.fromArray(species, query.data, i)
+                vectorSum = vp.fma(vq, vectorSum)
+            }
+
+            var dotp = vectorSum.reduceLanes(VectorOperators.ADD)
+
+            for (i in species.loopBound(this.d) until this.d) {
+                dotp += (query.data[i] * probing.data[i])
+            }
+
+            return DoubleValue(dotp)
+        }
+        override fun copy(d: Int) = DoubleVectorVectorized(Types.DoubleVector(d))
+
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            return this
         }
     }
 
@@ -196,7 +228,39 @@ sealed class InnerProductDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): 
         override fun copy(d: Int) = LongVector(Types.LongVector(d))
 
         override fun vectorized(): VectorizedFunction<DoubleValue> {
-            TODO("@Colin Not yet implemented")
+            return LongVectorVectorized(this.type)
+        }
+    }
+
+    /**
+     * SIMD implementation: [InnerProductDistance] for a [LongVectorValue]
+     */
+    class LongVectorVectorized(type: Types.Vector<LongVectorValue,*>): InnerProductDistance<LongVectorValue>(type), VectorizedFunction<DoubleValue> {
+        override fun invoke(vararg arguments: Value?): DoubleValue {
+            val species: VectorSpecies<Long> = jdk.incubator.vector.LongVector.SPECIES_PREFERRED
+            val probing = arguments[0] as LongVectorValue
+            val query = arguments[1] as LongVectorValue
+            var vectorSum = jdk.incubator.vector.LongVector.zero(species)
+
+            //Vectorized calculation
+            for (i in 0 until species.loopBound(this.d) step species.length()) {
+                val vp = jdk.incubator.vector.LongVector.fromArray(species, probing.data, i)
+                val vq = jdk.incubator.vector.LongVector.fromArray(species, query.data, i)
+                vectorSum = vp.mul(vq).add(vectorSum)
+            }
+
+            var dotp = vectorSum.reduceLanes(VectorOperators.ADD)
+
+            for (i in species.loopBound(this.d) until this.d) {
+                dotp += (query.data[i] * probing.data[i])
+            }
+
+            return DoubleValue(dotp)
+        }
+        override fun copy(d: Int) = LongVectorVectorized(Types.LongVector(d))
+
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            return this
         }
     }
 
@@ -216,7 +280,39 @@ sealed class InnerProductDistance<T : VectorValue<*>>(type: Types.Vector<T,*>): 
         override fun copy(d: Int) = IntVector(Types.IntVector(d))
 
         override fun vectorized(): VectorizedFunction<DoubleValue> {
-            TODO("@Colin Not yet implemented")
+            return IntVectorVectorized(this.type)
+        }
+    }
+
+    /**
+     * SIMD implementation: [InnerProductDistance] for a [IntVectorValue]
+     */
+    class IntVectorVectorized(type: Types.Vector<IntVectorValue,*>): InnerProductDistance<IntVectorValue>(type), VectorizedFunction<DoubleValue> {
+        override fun invoke(vararg arguments: Value?): DoubleValue {
+            val species: VectorSpecies<Int> = jdk.incubator.vector.IntVector.SPECIES_PREFERRED
+            val probing = arguments[0] as IntVectorValue
+            val query = arguments[1] as IntVectorValue
+            var vectorSum = jdk.incubator.vector.IntVector.zero(species)
+
+            //Vectorized calculation
+            for (i in 0 until species.loopBound(this.d) step species.length()) {
+                val vp = jdk.incubator.vector.IntVector.fromArray(species, probing.data, i)
+                val vq = jdk.incubator.vector.IntVector.fromArray(species, query.data, i)
+                vectorSum = vp.mul(vq).add(vectorSum)
+            }
+
+            var dotp = vectorSum.reduceLanes(VectorOperators.ADD)
+
+            for (i in species.loopBound(this.d) until this.d) {
+                dotp += (query.data[i] * probing.data[i])
+            }
+
+            return DoubleValue(dotp)
+        }
+        override fun copy(d: Int) = IntVectorVectorized(Types.IntVector(d))
+
+        override fun vectorized(): VectorizedFunction<DoubleValue> {
+            return this
         }
     }
 }

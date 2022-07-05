@@ -2,7 +2,6 @@ package org.vitrivr.cottontail.core.queries.functions.math.arithmetics.vector
 
 import org.vitrivr.cottontail.core.database.Name
 import org.vitrivr.cottontail.core.queries.functions.*
-import org.vitrivr.cottontail.core.queries.functions.Function
 import org.vitrivr.cottontail.core.queries.functions.exception.FunctionNotSupportedException
 import org.vitrivr.cottontail.core.queries.planning.cost.Cost
 import org.vitrivr.cottontail.core.values.DoubleVectorValue
@@ -106,7 +105,7 @@ sealed class Minimum<T : VectorValue<*>>(val type: Types.Vector<T,*>): Vectoriza
     /**
      * (Element-wise) [Minimum] for a [FloatVectorValue].
      */
-    class FloatVector(type: Types.FloatVector): Minimum<FloatVectorValue>(type) {
+    class FloatVector(type: Types.FloatVector): Minimum<FloatVectorValue>(type), VectorizedFunction<FloatVectorValue> {
         override fun invoke(vararg arguments: Value?): FloatVectorValue {
             val left = arguments[0] as FloatVectorValue
             val right = arguments[1] as FloatVectorValue
@@ -115,12 +114,10 @@ sealed class Minimum<T : VectorValue<*>>(val type: Types.Vector<T,*>): Vectoriza
             })
         }
 
-        override fun copy(d: Int): VectorizableFunction<FloatVectorValue> {
-            TODO("Not yet implemented")
-        }
+        override fun copy(d: Int) = FloatVector(Types.FloatVector(d))
 
         override fun vectorized(): VectorizedFunction<FloatVectorValue> {
-            TODO("Not yet implemented")
+            return this
         }
     }
 

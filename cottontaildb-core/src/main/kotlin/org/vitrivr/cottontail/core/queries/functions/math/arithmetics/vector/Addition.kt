@@ -5,10 +5,7 @@ import org.vitrivr.cottontail.core.queries.functions.*
 import org.vitrivr.cottontail.core.queries.functions.Function
 import org.vitrivr.cottontail.core.queries.functions.exception.FunctionNotSupportedException
 import org.vitrivr.cottontail.core.queries.planning.cost.Cost
-import org.vitrivr.cottontail.core.values.DoubleVectorValue
-import org.vitrivr.cottontail.core.values.FloatVectorValue
-import org.vitrivr.cottontail.core.values.IntVectorValue
-import org.vitrivr.cottontail.core.values.LongVectorValue
+import org.vitrivr.cottontail.core.values.*
 import org.vitrivr.cottontail.core.values.types.Types
 import org.vitrivr.cottontail.core.values.types.Value
 import org.vitrivr.cottontail.core.values.types.VectorValue
@@ -101,19 +98,17 @@ sealed class Addition<T : VectorValue<*>>(val type: Types.Vector<T,*>): Vectoriz
     /**
      * Addition of two [FloatVectorValue].
      */
-    class FloatVector(type: Types.FloatVector): Addition<FloatVectorValue>(type) {
+    class FloatVector(type: Types.FloatVector): Addition<FloatVectorValue>(type), VectorizedFunction<FloatVectorValue> {
         override fun invoke(vararg arguments: Value?): FloatVectorValue {
             val left = arguments[0] as FloatVectorValue
             val right = arguments[1] as FloatVectorValue
             return FloatVectorValue(FloatArray(this.d) { left.data[it] + right.data[it] })
         }
 
-        override fun copy(d: Int): VectorizableFunction<FloatVectorValue> {
-            TODO("Not yet implemented")
-        }
+        override fun copy(d: Int) = FloatVector(Types.FloatVector(d))
 
         override fun vectorized(): VectorizedFunction<FloatVectorValue> {
-            TODO("Not yet implemented")
+            return this
         }
     }
 
